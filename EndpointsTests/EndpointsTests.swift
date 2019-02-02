@@ -9,26 +9,53 @@
 import XCTest
 @testable import Endpoints
 
+struct UserRequest: RequestType {
+    typealias Response = Empty
+    typealias Body = Empty
+
+    let pathComponents: PathComponent
+    let parameters: Parameters
+
+    init(response: Empty = Empty(), body: Empty = Empty(), pathComponents: UserRequest.PathComponent, parameters: Parameters) {
+        self.pathComponents = pathComponents
+        self.parameters = parameters
+    }
+
+    struct PathComponent {
+        let userId: String
+    }
+
+    struct Parameters {
+        let formExample: String
+        let queryExample: String
+    }
+}
+
+struct Environment: EnvironmentType {
+    let baseUrl: URL
+
+    static let test = Environment(baseUrl: URL(string: "https://positron.io")!)
+}
+
 class EndpointsTests: XCTestCase {
 
-    override func setUp() {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-    }
+    func testBasicEndpoint() throws {
+        let test: Endpoint<UserRequest> = Endpoint(
+            method: .get,
+            path: "hey" + \.userId,
+            parameters: [
+                .form(key: "form", value: \UserRequest.Parameters.formExample),
+                .query(key: "query", value: \UserRequest.Parameters.queryExample)
+            ]
+        )
 
-    override func tearDown() {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
-    }
+        let request = try test.request(
+            with: UserRequest(
+                pathComponents: .init(userId: "3"),
+                parameters: .init(formExample: "formValue", queryExample: "queryValue")
+            ), in: Environment.test
+        )
 
-    func testExample() {
-        // This is an example of a functional test case.
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
+        print("request: \(request)")
     }
-
-    func testPerformanceExample() {
-        // This is an example of a performance test case.
-        self.measure {
-            // Put the code you want to measure the time of here.
-        }
-    }
-
 }

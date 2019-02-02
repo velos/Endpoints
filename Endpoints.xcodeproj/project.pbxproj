@@ -7,9 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		115D28202205823E004541C5 /* ParameterRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 115D281F2205823E004541C5 /* ParameterRepresentable.swift */; };
 		11E83E4221FD404400DB1EF2 /* Endpoints.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 11E83E3821FD404400DB1EF2 /* Endpoints.framework */; };
 		11E83E4721FD404400DB1EF2 /* EndpointsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11E83E4621FD404400DB1EF2 /* EndpointsTests.swift */; };
 		11E83E4921FD404400DB1EF2 /* Endpoints.h in Headers */ = {isa = PBXBuildFile; fileRef = 11E83E3B21FD404400DB1EF2 /* Endpoints.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		11E83E5321FD406100DB1EF2 /* PathTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11E83E5221FD406100DB1EF2 /* PathTemplate.swift */; };
+		11E83E5521FD407800DB1EF2 /* Endpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11E83E5421FD407800DB1EF2 /* Endpoint.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -23,12 +26,15 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		115D281F2205823E004541C5 /* ParameterRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParameterRepresentable.swift; sourceTree = "<group>"; };
 		11E83E3821FD404400DB1EF2 /* Endpoints.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Endpoints.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		11E83E3B21FD404400DB1EF2 /* Endpoints.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Endpoints.h; sourceTree = "<group>"; };
 		11E83E3C21FD404400DB1EF2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		11E83E4121FD404400DB1EF2 /* EndpointsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EndpointsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		11E83E4621FD404400DB1EF2 /* EndpointsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EndpointsTests.swift; sourceTree = "<group>"; };
 		11E83E4821FD404400DB1EF2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		11E83E5221FD406100DB1EF2 /* PathTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PathTemplate.swift; sourceTree = "<group>"; };
+		11E83E5421FD407800DB1EF2 /* Endpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Endpoint.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -73,6 +79,9 @@
 			children = (
 				11E83E3B21FD404400DB1EF2 /* Endpoints.h */,
 				11E83E3C21FD404400DB1EF2 /* Info.plist */,
+				11E83E5221FD406100DB1EF2 /* PathTemplate.swift */,
+				11E83E5421FD407800DB1EF2 /* Endpoint.swift */,
+				115D281F2205823E004541C5 /* ParameterRepresentable.swift */,
 			);
 			path = Endpoints;
 			sourceTree = "<group>";
@@ -148,6 +157,7 @@
 				TargetAttributes = {
 					11E83E3721FD404400DB1EF2 = {
 						CreatedOnToolsVersion = 10.1;
+						LastSwiftMigration = 1010;
 					};
 					11E83E4021FD404400DB1EF2 = {
 						CreatedOnToolsVersion = 10.1;
@@ -194,6 +204,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				115D28202205823E004541C5 /* ParameterRepresentable.swift in Sources */,
+				11E83E5521FD407800DB1EF2 /* Endpoint.swift in Sources */,
+				11E83E5321FD406100DB1EF2 /* PathTemplate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -341,6 +354,7 @@
 		11E83E4D21FD404400DB1EF2 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_IDENTITY = "";
 				CODE_SIGN_STYLE = Automatic;
 				DEFINES_MODULE = YES;
@@ -358,6 +372,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.velosmobile.Endpoints;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 4.2;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -366,6 +381,7 @@
 		11E83E4E21FD404400DB1EF2 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_IDENTITY = "";
 				CODE_SIGN_STYLE = Automatic;
 				DEFINES_MODULE = YES;
@@ -391,6 +407,7 @@
 		11E83E5021FD404400DB1EF2 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = DAPFLRCVJA;
 				INFOPLIST_FILE = EndpointsTests/Info.plist;
@@ -409,6 +426,7 @@
 		11E83E5121FD404400DB1EF2 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = DAPFLRCVJA;
 				INFOPLIST_FILE = EndpointsTests/Info.plist;
