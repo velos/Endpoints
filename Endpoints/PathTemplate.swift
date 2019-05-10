@@ -24,8 +24,8 @@ extension Int: PathRepresentable {
     }
 }
 
-public struct PathTemplate<T>: ExpressibleByStringLiteral {
-    public typealias StringLiteralType = String
+public struct PathTemplate<T> {
+
     private var pathComponents: [(Int, PathRepresentable)] = []
     private var keyPathComponents: [(Int, PartialKeyPath<T>)] = []
 
@@ -33,25 +33,24 @@ public struct PathTemplate<T>: ExpressibleByStringLiteral {
 
     public init() { }
 
-    public init(stringLiteral: String) {
-        append(path: stringLiteral)
-    }
-
     mutating func append(path: PathRepresentable) {
-        // blah
         pathComponents.append((currentIndex, path))
         currentIndex += 1
     }
 
     mutating func append(keyPath: PartialKeyPath<T>) {
-        // blah
         keyPathComponents.append((currentIndex, keyPath))
         currentIndex += 1
     }
 
     mutating func append(template: PathTemplate<T>) {
-        pathComponents.append(contentsOf: template.pathComponents)
-        keyPathComponents.append(contentsOf: template.keyPathComponents)
+        for (_, pathComponent) in template.pathComponents {
+            append(path: pathComponent)
+        }
+
+        for (_, keyPathComponent) in template.keyPathComponents {
+            append(keyPath: keyPathComponent)
+        }
     }
 
     func path(with value: T) -> String {
@@ -64,13 +63,47 @@ public struct PathTemplate<T>: ExpressibleByStringLiteral {
         }
 
         var allComponents = pathComponents + values
-        allComponents.sort(by:  { (first, second) -> Bool in
+        allComponents.sort(by: { (first, second) -> Bool in
             return first.0 < second.0
         })
 
         return NSString.path(withComponents: allComponents.map { $0.1.pathSafe })
     }
 }
+
+extension PathTemplate: ExpressibleByStringLiteral {
+    public typealias StringLiteralType = String
+
+    public init(stringLiteral: String) {
+        append(path: stringLiteral)
+    }
+}
+
+#if swift(>=5)
+extension PathTemplate: ExpressibleByStringInterpolation {
+
+    public init(stringInterpolation: StringInterpolation) {
+        append(template: stringInterpolation.path)
+    }
+
+    public struct StringInterpolation: StringInterpolationProtocol {
+
+        fileprivate var path: PathTemplate<T>
+
+        public init(literalCapacity: Int, interpolationCount: Int) {
+            path = PathTemplate<T>()
+        }
+
+        mutating public func appendLiteral(_ literal: String) {
+            path.append(path: literal)
+        }
+
+        mutating public func appendInterpolation<U: PathRepresentable>(_ value: KeyPath<T, U>) {
+            path.append(keyPath: value)
+        }
+    }
+}
+#endif
 
 // PathRepresentable + KeyPath
 func +<T, U: PathRepresentable, V: PathRepresentable>(lhs: U, rhs: KeyPath<T, V>) -> PathTemplate<T> {

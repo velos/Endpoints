@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		115D28202205823E004541C5 /* ParameterRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 115D281F2205823E004541C5 /* ParameterRepresentable.swift */; };
+		119E7C5A220BD8D3002E637F /* PathTemplateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 119E7C59220BD8D3002E637F /* PathTemplateTests.swift */; };
 		11E83E4221FD404400DB1EF2 /* Endpoints.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 11E83E3821FD404400DB1EF2 /* Endpoints.framework */; };
 		11E83E4721FD404400DB1EF2 /* EndpointsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11E83E4621FD404400DB1EF2 /* EndpointsTests.swift */; };
 		11E83E4921FD404400DB1EF2 /* Endpoints.h in Headers */ = {isa = PBXBuildFile; fileRef = 11E83E3B21FD404400DB1EF2 /* Endpoints.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -27,6 +28,7 @@
 
 /* Begin PBXFileReference section */
 		115D281F2205823E004541C5 /* ParameterRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParameterRepresentable.swift; sourceTree = "<group>"; };
+		119E7C59220BD8D3002E637F /* PathTemplateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PathTemplateTests.swift; sourceTree = "<group>"; };
 		11E83E3821FD404400DB1EF2 /* Endpoints.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Endpoints.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		11E83E3B21FD404400DB1EF2 /* Endpoints.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Endpoints.h; sourceTree = "<group>"; };
 		11E83E3C21FD404400DB1EF2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -90,6 +92,7 @@
 			isa = PBXGroup;
 			children = (
 				11E83E4621FD404400DB1EF2 /* EndpointsTests.swift */,
+				119E7C59220BD8D3002E637F /* PathTemplateTests.swift */,
 				11E83E4821FD404400DB1EF2 /* Info.plist */,
 			);
 			path = EndpointsTests;
@@ -161,6 +164,7 @@
 					};
 					11E83E4021FD404400DB1EF2 = {
 						CreatedOnToolsVersion = 10.1;
+						LastSwiftMigration = 1020;
 					};
 				};
 			};
@@ -214,6 +218,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				119E7C5A220BD8D3002E637F /* PathTemplateTests.swift in Sources */,
 				11E83E4721FD404400DB1EF2 /* EndpointsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -373,7 +378,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 4.2;
+				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -399,7 +404,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.velosmobile.Endpoints;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
-				SWIFT_VERSION = 4.2;
+				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
@@ -418,7 +423,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.velosmobile.EndpointsTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_VERSION = 4.2;
+				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -437,7 +442,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.velosmobile.EndpointsTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_VERSION = 4.2;
+				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;

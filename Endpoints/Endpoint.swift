@@ -23,35 +23,14 @@ public enum Parameter<T> {
 }
 
 public protocol RequestType {
-
-    var body: Body { get }
-    var pathComponents: PathComponent { get }
-    var parameters: Parameters { get }
-
     associatedtype Response: Decodable
     associatedtype Body: Encodable
     associatedtype PathComponent
     associatedtype Parameters
-
-    init(response: Response, body: Body, pathComponents: PathComponent, parameters: Parameters)
 }
 
-extension RequestType where Body == Empty {
-    var body: Body {
-        return Empty()
-    }
-}
-
-extension RequestType where PathComponent == Empty {
-    var pathComponents: PathComponent {
-        return Empty()
-    }
-}
-
-extension RequestType where Parameters == Empty {
-    var parameters: Parameters {
-        return Empty()
-    }
+public extension RequestType {
+    typealias Response = Empty
 }
 
 public enum Method {
@@ -68,6 +47,26 @@ public enum Method {
     }
 }
 
+public protocol JSONEncoderProvider {
+    static var jsonEncoder: JSONEncoder { get }
+}
+
+extension JSONEncoderProvider {
+    public static var jsonEncoder: JSONEncoder {
+        return JSONEncoder()
+    }
+}
+
+public protocol JSONDecoderProvider {
+    static var jsonDecoder: JSONDecoder { get }
+}
+
+extension JSONDecoderProvider {
+    public static var jsonDecoder: JSONDecoder {
+        return JSONDecoder()
+    }
+}
+
 
 public protocol EnvironmentType {
     var baseUrl: URL { get }
@@ -80,16 +79,16 @@ public struct Endpoint<T: RequestType> {
     public let parameters: [Parameter<T.Parameters>]
     public let headers: [String: PathTemplate<T.Parameters>]
 
-    public func request(with requestModel: T, in environment: EnvironmentType) throws -> URLRequest {
+    public func request(in environment: EnvironmentType, pathComponents: T.PathComponent, body: T.Body, parameters: T.Parameters) throws -> URLRequest {
 
         var components = URLComponents()
-        components.path = path.path(with: requestModel.pathComponents)
+        components.path = path.path(with: pathComponents)
 
-        let urlQueryItems: [URLQueryItem] = try parameters.compactMap { item in
+        let urlQueryItems: [URLQueryItem] = try self.parameters.compactMap { item in
 
             guard case .query(let key, let valuePath) = item else { return nil }
 
-            let value = requestModel.parameters[keyPath: valuePath]
+            let value = parameters[keyPath: valuePath]
 
             guard let queryValue = value as? ParameterRepresentable else {
                 throw EndpointError.invalidQuery(named: key, type: type(of: value))
@@ -102,11 +101,11 @@ public struct Endpoint<T: RequestType> {
             return nil
         }
 
-        let bodyFormItems: [URLQueryItem] = try parameters.compactMap { item in
+        let bodyFormItems: [URLQueryItem] = try self.parameters.compactMap { item in
 
             guard case .form(let key, let valuePath) = item else { return nil }
 
-            let value = requestModel.parameters[keyPath: valuePath]
+            let value = parameters[keyPath: valuePath]
 
             guard let queryValue = value as? ParameterRepresentable else {
                 throw EndpointError.invalidForm(named: key, type: type(of: value))
@@ -130,21 +129,67 @@ public struct Endpoint<T: RequestType> {
 
         var request = URLRequest(url: url)
         request.httpMethod = method.methodString
-        request.timeoutInterval = TimeInterval(30)
 
         for header in headers {
-            request.addValue(header.value.path(with: requestModel.parameters), forHTTPHeaderField: header.key)
+            request.addValue(header.value.path(with: parameters), forHTTPHeaderField: header.key)
         }
 
 
         request.url = url
 
-        if !bodyFormItems.isEmpty {
+        if !(body is Empty) {
+
+            let encoder: JSONEncoder
+            if let bodyType = body as? JSONEncoderProvider {
+                encoder = type(of: bodyType).jsonEncoder
+            } else {
+                encoder = JSONEncoder()
+            }
+
+            request.httpBody = try encoder.encode(body)
+            request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        } else if !bodyFormItems.isEmpty {
             request.httpBody = bodyFormItems.formString.data(using: .utf8)
             request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         }
 
         return request
+    }
+}
+
+extension Endpoint where T.Body == Empty {
+    public func request(in environment: EnvironmentType, pathComponents: T.PathComponent, parameters: T.Parameters) throws -> URLRequest {
+        return try self.request(in: environment, pathComponents: pathComponents, body: Empty(), parameters: parameters)
+    }
+}
+
+extension Endpoint where T.Parameters == Empty {
+    public func request(in environment: EnvironmentType, pathComponents: T.PathComponent, body: T.Body) throws -> URLRequest {
+        return try self.request(in: environment, pathComponents: pathComponents, body: body, parameters: Empty())
+    }
+}
+
+extension Endpoint where T.Parameters == Empty, T.Body == Empty {
+    public func request(in environment: EnvironmentType, pathComponents: T.PathComponent) throws -> URLRequest {
+        return try self.request(in: environment, pathComponents: pathComponents, body: Empty(), parameters: Empty())
+    }
+}
+
+extension Endpoint where T.Body == Empty, T.PathComponent == Empty {
+    public func request(in environment: EnvironmentType, parameters: T.Parameters) throws -> URLRequest {
+        return try self.request(in: environment, pathComponents: Empty(), body: Empty(), parameters: parameters)
+    }
+}
+
+extension Endpoint where T.Parameters == Empty, T.PathComponent == Empty {
+    public func request(in environment: EnvironmentType, body: T.Body) throws -> URLRequest {
+        return try self.request(in: environment, pathComponents: Empty(), body: body, parameters: Empty())
+    }
+}
+
+extension Endpoint where T.Parameters == Empty, T.Body == Empty, T.PathComponent == Empty {
+    public func request(in environment: EnvironmentType) throws -> URLRequest {
+        return try self.request(in: environment, pathComponents: Empty(), body: Empty(), parameters: Empty())
     }
 }
 

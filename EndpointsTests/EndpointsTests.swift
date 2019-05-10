@@ -9,17 +9,20 @@
 import XCTest
 @testable import Endpoints
 
+struct SimpleRequest: RequestType {
+//    typealias Response = Empty
+    typealias Body = Empty
+    typealias Parameters = Empty
+
+    struct PathComponent {
+        let name: String
+        let id: String
+    }
+}
+
 struct UserRequest: RequestType {
     typealias Response = Empty
     typealias Body = Empty
-
-    let pathComponents: PathComponent
-    let parameters: Parameters
-
-    init(response: Empty = Empty(), body: Empty = Empty(), pathComponents: UserRequest.PathComponent, parameters: Parameters) {
-        self.pathComponents = pathComponents
-        self.parameters = parameters
-    }
 
     struct PathComponent {
         let userId: String
@@ -40,20 +43,33 @@ struct Environment: EnvironmentType {
 class EndpointsTests: XCTestCase {
 
     func testBasicEndpoint() throws {
+        let test: Endpoint<SimpleRequest> = Endpoint(
+            method: .get,
+            path: "user" + "/" + \.name + "/" + \.id
+        )
+
+        let request = try test.request(
+            in: Environment.test,
+            pathComponents: .init(name: "zac", id: "5")
+        )
+
+        print("request: \(request)")
+    }
+
+    func testParameterEndpoint() throws {
         let test: Endpoint<UserRequest> = Endpoint(
             method: .get,
             path: "hey" + \.userId,
             parameters: [
                 .form(key: "form", value: \UserRequest.Parameters.formExample),
-                .query(key: "query", value: \UserRequest.Parameters.queryExample)
+                .query(key: "pageNumber", value: \UserRequest.Parameters.queryExample)
             ]
         )
 
         let request = try test.request(
-            with: UserRequest(
-                pathComponents: .init(userId: "3"),
-                parameters: .init(formExample: "formValue", queryExample: "queryValue")
-            ), in: Environment.test
+            in: Environment.test,
+            pathComponents: .init(userId: "3"),
+            parameters: .init(formExample: "form", queryExample: "query")
         )
 
         print("request: \(request)")
