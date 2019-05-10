@@ -37,7 +37,7 @@ struct UserRequest: RequestType {
 struct Environment: EnvironmentType {
     let baseUrl: URL
 
-    static let test = Environment(baseUrl: URL(string: "https://positron.io")!)
+    static let test = Environment(baseUrl: URL(string: "https://velosmobile.com")!)
 }
 
 class EndpointsTests: XCTestCase {
