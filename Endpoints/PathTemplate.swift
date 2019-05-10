@@ -55,11 +55,7 @@ public struct PathTemplate<T> {
 
     func path(with value: T) -> String {
         let values = keyPathComponents.map { (index, path) -> (Int, PathRepresentable) in
-            guard let safe = value[keyPath: path] as? PathRepresentable else {
-                fatalError("should be a PathRepresentable")
-            }
-
-            return (index, safe)
+            return (index, value[keyPath: path] as! PathRepresentable)
         }
 
         var allComponents = pathComponents + values
@@ -79,7 +75,6 @@ extension PathTemplate: ExpressibleByStringLiteral {
     }
 }
 
-#if swift(>=5)
 extension PathTemplate: ExpressibleByStringInterpolation {
 
     public init(stringInterpolation: StringInterpolation) {
@@ -103,10 +98,9 @@ extension PathTemplate: ExpressibleByStringInterpolation {
         }
     }
 }
-#endif
 
 // PathRepresentable + KeyPath
-func +<T, U: PathRepresentable, V: PathRepresentable>(lhs: U, rhs: KeyPath<T, V>) -> PathTemplate<T> {
+public func +<T, U: PathRepresentable, V: PathRepresentable>(lhs: U, rhs: KeyPath<T, V>) -> PathTemplate<T> {
     var template = PathTemplate<T>()
     template.append(path: lhs)
     template.append(keyPath: rhs)
@@ -132,28 +126,5 @@ public func +<T, U: PathRepresentable>(lhs: PathTemplate<T>, rhs: KeyPath<T, U>)
 public func +<T, U: PathRepresentable>(lhs: PathTemplate<T>, rhs: U) -> PathTemplate<T> {
     var template = lhs
     template.append(path: rhs)
-    return template
-}
-
-// Template + Template
-public func +<T>(lhs: PathTemplate<T>, rhs: PathTemplate<T>) -> PathTemplate<T> {
-    var template = lhs
-    template.append(template: rhs)
-    return template
-}
-
-// KeyPath + Template
-public func +<T, U: PathRepresentable>(lhs: KeyPath<T, U>, rhs: PathTemplate<T>) -> PathTemplate<T> {
-    var template = PathTemplate<T>()
-    template.append(keyPath: lhs)
-    template.append(template: rhs)
-    return template
-}
-
-// PathRepresentable + Template
-public func +<T, U: PathRepresentable>(lhs: U, rhs: PathTemplate<T>) -> PathTemplate<T> {
-    var template = PathTemplate<T>()
-    template.append(path: lhs)
-    template.append(template: rhs)
     return template
 }

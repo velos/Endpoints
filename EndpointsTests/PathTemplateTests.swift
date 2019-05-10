@@ -10,14 +10,35 @@ import XCTest
 @testable import Endpoints
 
 struct Test {
-    let one: String
-    let two: Int
+    let string: String
+    let integer: Int
 }
 
 class PathTemplateTests: XCTestCase {
-    func testInterpolation() {
-        let template1: PathTemplate<Test> = "/testing/\(\.one)\(\.two)"
-        let path = template1.path(with: Test(one: "first", two: 2))
-        XCTAssertEqual(path, "/testing/first/2")
+
+    func testStringInterpolation() {
+        let template1: PathTemplate<Test> = "testing/\(\.string)\(\.integer)/"
+        let path = template1.path(with: Test(string: "first", integer: 2))
+        XCTAssertEqual(path, "testing/first/2")
+    }
+
+    func testStringConcatenation() {
+        let template1: PathTemplate<Test> = "testing/" + \.string + \.integer
+        let path1 = template1.path(with: Test(string: "first", integer: 2))
+        XCTAssertEqual(path1, "testing/first/2")
+
+        let template2: PathTemplate<Test> = \.integer + "testing"
+        let path2 = template2.path(with: Test(string: "first", integer: 2))
+        XCTAssertEqual(path2, "2/testing")
+
+        let template3: PathTemplate<Test> = "testing" + 3
+        let path3 = template3.path(with: Test(string: "first", integer: 2))
+        XCTAssertEqual(path3, "testing/3")
+    }
+
+    func testStringLiteral() {
+        let template: PathTemplate<Test> = "testing"
+        let path = template.path(with: Test(string: "first", integer: 2))
+        XCTAssertEqual(path, "testing")
     }
 }
