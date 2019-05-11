@@ -33,8 +33,13 @@ struct UserRequest: RequestType {
         let optionalExample: String?
     }
 
+    struct Headers {
+        let headerValue: String
+    }
+
     let pathComponents: PathComponents
     let parameters: Parameters
+    let headers: Headers
 }
 
 struct Environment: EnvironmentType {
@@ -104,14 +109,16 @@ class EndpointsTests: XCTestCase {
                 .form(key: "form", value: \UserRequest.Parameters.formExample),
                 .query(key: "pageNumber", value: \UserRequest.Parameters.queryExample),
                 .query(key: "optional", value: \UserRequest.Parameters.optionalExample)
-            ]
+            ],
+            headers: ["HEADER_TYPE": "\(path: \UserRequest.Headers.headerValue)"]
         )
 
         let request = try test.request(
             in: Environment.test,
             for: UserRequest(
                 pathComponents: .init(userId: "3"),
-                parameters: .init(formExample: "form", queryExample: "query", optionalExample: nil)
+                parameters: .init(formExample: "form", queryExample: "query", optionalExample: nil),
+                headers: .init(headerValue: "test")
             )
         )
 

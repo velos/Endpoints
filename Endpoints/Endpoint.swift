@@ -27,10 +27,12 @@ public protocol RequestType: JSONDecoderProvider {
     associatedtype Body: Encodable = Empty
     associatedtype PathComponents = Empty
     associatedtype Parameters = Empty
+    associatedtype Headers = Empty
 
     var body: Body { get }
     var pathComponents: PathComponents { get }
     var parameters: Parameters { get }
+    var headers: Headers { get }
 }
 
 public extension RequestType where Body == Empty {
@@ -47,6 +49,12 @@ public extension RequestType where PathComponents == Empty {
 
 public extension RequestType where Parameters == Empty {
     var parameters: Parameters {
+        return Empty()
+    }
+}
+
+public extension RequestType where Headers == Empty {
+    var headers: Headers {
         return Empty()
     }
 }
@@ -100,7 +108,7 @@ public struct Endpoint<T: RequestType> {
     public let path: PathTemplate<T.PathComponents>
     public let body: T.Body
     public let parameters: [Parameter<T.Parameters>]
-    public let headers: [String: PathTemplate<T.Parameters>]
+    public let headers: [String: PathTemplate<T.Headers>]
 
     public func request(in environment: EnvironmentType, for request: T) throws -> URLRequest {
 
@@ -154,7 +162,7 @@ public struct Endpoint<T: RequestType> {
         urlRequest.httpMethod = method.methodString
 
         for header in headers {
-            urlRequest.addValue(header.value.path(with: request.parameters), forHTTPHeaderField: header.key)
+            urlRequest.addValue(header.value.path(with: request.headers), forHTTPHeaderField: header.key)
         }
 
 
@@ -190,7 +198,7 @@ extension Array where Element == URLQueryItem {
 }
 
 extension Endpoint where T.Body == Empty {
-    init(method: Method, path: PathTemplate<T.PathComponents>, parameters: [Parameter<T.Parameters>] = [], headers: [String: PathTemplate<T.Parameters>] = [:]) {
+    init(method: Method, path: PathTemplate<T.PathComponents>, parameters: [Parameter<T.Parameters>] = [], headers: [String: PathTemplate<T.Headers>] = [:]) {
         self.method = method
         self.path = path
         self.body = Empty()
