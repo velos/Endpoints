@@ -30,6 +30,7 @@ struct UserRequest: RequestType {
     struct Parameters {
         let formExample: String
         let queryExample: String
+        let optionalExample: String?
     }
 
     let pathComponents: PathComponents
@@ -101,7 +102,8 @@ class EndpointsTests: XCTestCase {
             path: "hey" + \UserRequest.PathComponents.userId,
             parameters: [
                 .form(key: "form", value: \UserRequest.Parameters.formExample),
-                .query(key: "pageNumber", value: \UserRequest.Parameters.queryExample)
+                .query(key: "pageNumber", value: \UserRequest.Parameters.queryExample),
+                .query(key: "optional", value: \UserRequest.Parameters.optionalExample)
             ]
         )
 
@@ -109,7 +111,7 @@ class EndpointsTests: XCTestCase {
             in: Environment.test,
             for: UserRequest(
                 pathComponents: .init(userId: "3"),
-                parameters: .init(formExample: "form", queryExample: "query")
+                parameters: .init(formExample: "form", queryExample: "query", optionalExample: nil)
             )
         )
 
