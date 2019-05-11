@@ -22,7 +22,7 @@ public enum Parameter<T> {
 
 public struct Empty: Codable { }
 
-public protocol RequestType {
+public protocol RequestType: JSONDecoderProvider {
     associatedtype Response: Decodable = Empty
     associatedtype Body: Encodable = Empty
     associatedtype PathComponents = Empty
@@ -85,6 +85,11 @@ extension JSONDecoderProvider {
     }
 }
 
+extension RequestType where Self: JSONDecoderProvider {
+    static func decode(data: Data) throws -> Self.Response {
+        return try jsonDecoder.decode(Response.self, from: data)
+    }
+}
 
 public protocol EnvironmentType {
     var baseUrl: URL { get }
