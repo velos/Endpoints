@@ -114,7 +114,7 @@ class EndpointsTests: XCTestCase {
                 .query(key: "pageNumber", value: \UserRequest.Parameters.queryExample),
                 .query(key: "optional", value: \UserRequest.Parameters.optionalExample)
             ],
-            headers: ["HEADER_TYPE": "\(path: \UserRequest.Headers.headerValue)"]
+            headers: ["HEADER_TYPE": \UserRequest.Headers.headerValue]
         )
 
         let request = try test.request(

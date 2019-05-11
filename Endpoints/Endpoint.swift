@@ -60,15 +60,36 @@ public extension RequestType where Headers == Empty {
 }
 
 public enum Method {
+    case options
     case get
+    case head
     case post
+    case put
+    case patch
+    case delete
+    case trace
+    case connect
 
     var methodString: String {
         switch self {
+        case .options:
+            return "OPTIONS"
         case .get:
             return "GET"
+        case .head:
+            return "HEAD"
         case .post:
             return "POST"
+        case .put:
+            return "PUT"
+        case .patch:
+            return "PATCH"
+        case .delete:
+            return "DELETE"
+        case .trace:
+            return "TRACE"
+        case .connect:
+            return "CONNECT"
         }
     }
 }
@@ -108,7 +129,7 @@ public struct Endpoint<T: RequestType> {
     public let path: PathTemplate<T.PathComponents>
     public let body: T.Body
     public let parameters: [Parameter<T.Parameters>]
-    public let headers: [String: PathTemplate<T.Headers>]
+    public let headers: [String: KeyPath<T.Headers, String>]
 
     public func request(in environment: EnvironmentType, for request: T) throws -> URLRequest {
 
@@ -162,9 +183,8 @@ public struct Endpoint<T: RequestType> {
         urlRequest.httpMethod = method.methodString
 
         for header in headers {
-            urlRequest.addValue(header.value.path(with: request.headers), forHTTPHeaderField: header.key)
+            urlRequest.addValue(request.headers[keyPath: header.value], forHTTPHeaderField: header.key)
         }
-
 
         urlRequest.url = url
 
@@ -198,7 +218,7 @@ extension Array where Element == URLQueryItem {
 }
 
 extension Endpoint where T.Body == Empty {
-    init(method: Method, path: PathTemplate<T.PathComponents>, parameters: [Parameter<T.Parameters>] = [], headers: [String: PathTemplate<T.Headers>] = [:]) {
+    init(method: Method, path: PathTemplate<T.PathComponents>, parameters: [Parameter<T.Parameters>] = [], headers: [String: KeyPath<T.Headers, String>] = [:]) {
         self.method = method
         self.path = path
         self.body = Empty()
