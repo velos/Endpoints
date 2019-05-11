@@ -15,22 +15,40 @@ public enum EndpointError: Error {
     case invalidBodyParameter
 }
 
-public struct Empty: Codable { }
-
 public enum Parameter<T> {
     case form(key: String, value: PartialKeyPath<T>)
     case query(key: String, value: PartialKeyPath<T>)
 }
 
+public struct Empty: Codable { }
+
 public protocol RequestType {
-    associatedtype Response: Decodable
-    associatedtype Body: Encodable
-    associatedtype PathComponent
-    associatedtype Parameters
+    associatedtype Response: Decodable = Empty
+    associatedtype Body: Encodable = Empty
+    associatedtype PathComponents = Empty
+    associatedtype Parameters = Empty
+
+    var body: Body { get }
+    var pathComponents: PathComponents { get }
+    var parameters: Parameters { get }
 }
 
-public extension RequestType {
-    typealias Response = Empty
+public extension RequestType where Body == Empty {
+    var body: Body {
+        return Empty()
+    }
+}
+
+public extension RequestType where PathComponents == Empty {
+    var pathComponents: PathComponents {
+        return Empty()
+    }
+}
+
+public extension RequestType where Parameters == Empty {
+    var parameters: Parameters {
+        return Empty()
+    }
 }
 
 public enum Method {
@@ -74,21 +92,21 @@ public protocol EnvironmentType {
 
 public struct Endpoint<T: RequestType> {
     public let method: Method
-    public let path: PathTemplate<T.PathComponent>
+    public let path: PathTemplate<T.PathComponents>
     public let body: T.Body
     public let parameters: [Parameter<T.Parameters>]
     public let headers: [String: PathTemplate<T.Parameters>]
 
-    public func request(in environment: EnvironmentType, pathComponents: T.PathComponent, body: T.Body, parameters: T.Parameters) throws -> URLRequest {
+    public func request(in environment: EnvironmentType, for request: T) throws -> URLRequest {
 
         var components = URLComponents()
-        components.path = path.path(with: pathComponents)
+        components.path = path.path(with: request.pathComponents)
 
         let urlQueryItems: [URLQueryItem] = try self.parameters.compactMap { item in
 
             guard case .query(let key, let valuePath) = item else { return nil }
 
-            let value = parameters[keyPath: valuePath]
+            let value = request.parameters[keyPath: valuePath]
 
             guard let queryValue = value as? ParameterRepresentable else {
                 throw EndpointError.invalidQuery(named: key, type: type(of: value))
@@ -105,7 +123,7 @@ public struct Endpoint<T: RequestType> {
 
             guard case .form(let key, let valuePath) = item else { return nil }
 
-            let value = parameters[keyPath: valuePath]
+            let value = request.parameters[keyPath: valuePath]
 
             guard let queryValue = value as? ParameterRepresentable else {
                 throw EndpointError.invalidForm(named: key, type: type(of: value))
@@ -127,15 +145,15 @@ public struct Endpoint<T: RequestType> {
             throw EndpointError.invalid(components: components, relativeTo: baseUrl)
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = method.methodString
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = method.methodString
 
         for header in headers {
-            request.addValue(header.value.path(with: parameters), forHTTPHeaderField: header.key)
+            urlRequest.addValue(header.value.path(with: request.parameters), forHTTPHeaderField: header.key)
         }
 
 
-        request.url = url
+        urlRequest.url = url
 
         if !(body is Empty) {
 
@@ -146,50 +164,14 @@ public struct Endpoint<T: RequestType> {
                 encoder = JSONEncoder()
             }
 
-            request.httpBody = try encoder.encode(body)
-            request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+            urlRequest.httpBody = try encoder.encode(body)
+            urlRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
         } else if !bodyFormItems.isEmpty {
-            request.httpBody = bodyFormItems.formString.data(using: .utf8)
-            request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+            urlRequest.httpBody = bodyFormItems.formString.data(using: .utf8)
+            urlRequest.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         }
 
-        return request
-    }
-}
-
-extension Endpoint where T.Body == Empty {
-    public func request(in environment: EnvironmentType, pathComponents: T.PathComponent, parameters: T.Parameters) throws -> URLRequest {
-        return try self.request(in: environment, pathComponents: pathComponents, body: Empty(), parameters: parameters)
-    }
-}
-
-extension Endpoint where T.Parameters == Empty {
-    public func request(in environment: EnvironmentType, pathComponents: T.PathComponent, body: T.Body) throws -> URLRequest {
-        return try self.request(in: environment, pathComponents: pathComponents, body: body, parameters: Empty())
-    }
-}
-
-extension Endpoint where T.Parameters == Empty, T.Body == Empty {
-    public func request(in environment: EnvironmentType, pathComponents: T.PathComponent) throws -> URLRequest {
-        return try self.request(in: environment, pathComponents: pathComponents, body: Empty(), parameters: Empty())
-    }
-}
-
-extension Endpoint where T.Body == Empty, T.PathComponent == Empty {
-    public func request(in environment: EnvironmentType, parameters: T.Parameters) throws -> URLRequest {
-        return try self.request(in: environment, pathComponents: Empty(), body: Empty(), parameters: parameters)
-    }
-}
-
-extension Endpoint where T.Parameters == Empty, T.PathComponent == Empty {
-    public func request(in environment: EnvironmentType, body: T.Body) throws -> URLRequest {
-        return try self.request(in: environment, pathComponents: Empty(), body: body, parameters: Empty())
-    }
-}
-
-extension Endpoint where T.Parameters == Empty, T.Body == Empty, T.PathComponent == Empty {
-    public func request(in environment: EnvironmentType) throws -> URLRequest {
-        return try self.request(in: environment, pathComponents: Empty(), body: Empty(), parameters: Empty())
+        return urlRequest
     }
 }
 
@@ -203,7 +185,7 @@ extension Array where Element == URLQueryItem {
 }
 
 extension Endpoint where T.Body == Empty {
-    init(method: Method, path: PathTemplate<T.PathComponent>, parameters: [Parameter<T.Parameters>] = [], headers: [String: PathTemplate<T.Parameters>] = [:]) {
+    init(method: Method, path: PathTemplate<T.PathComponents>, parameters: [Parameter<T.Parameters>] = [], headers: [String: PathTemplate<T.Parameters>] = [:]) {
         self.method = method
         self.path = path
         self.body = Empty()
