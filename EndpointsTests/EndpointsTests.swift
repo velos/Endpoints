@@ -10,6 +10,8 @@ import XCTest
 @testable import Endpoints
 
 struct SimpleRequest: RequestType {
+    typealias Response = Void
+
     struct PathComponents {
         let name: String
         let id: String
@@ -23,6 +25,8 @@ struct Movie: Decodable {
 }
 
 struct UserRequest: RequestType {
+    typealias Response = Void
+    
     struct PathComponents {
         let userId: String
     }

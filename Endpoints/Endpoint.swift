@@ -23,7 +23,7 @@ public enum Parameter<T> {
 public struct Empty: Codable { }
 
 public protocol RequestType: JSONDecoderProvider {
-    associatedtype Response: Decodable = Empty
+    associatedtype Response
     associatedtype Body: Encodable = Empty
     associatedtype PathComponents = Empty
     associatedtype Parameters = Empty
@@ -93,7 +93,7 @@ extension JSONDecoderProvider {
     }
 }
 
-extension RequestType where Self: JSONDecoderProvider {
+extension RequestType where Self: JSONDecoderProvider, Response: Decodable {
     static func decode(data: Data) throws -> Self.Response {
         return try jsonDecoder.decode(Response.self, from: data)
     }
