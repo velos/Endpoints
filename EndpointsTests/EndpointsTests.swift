@@ -62,7 +62,7 @@ class EndpointsTests: XCTestCase {
     func testMovieEndpoint() throws {
         let similar: Endpoint<SimilarRequest> = Endpoint(
             method: .get,
-            path: "movie/" + \SimilarRequest.PathComponents.movieId + "similar",
+            path: "movie/\(path: \.movieId)/similar",
             parameters: [
                 .query(key: "api_key", value: \SimilarRequest.Parameters.apiKey)
             ]
