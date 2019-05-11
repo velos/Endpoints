@@ -10,28 +10,40 @@ import XCTest
 @testable import Endpoints
 
 struct SimpleRequest: RequestType {
-//    typealias Response = Empty
-    typealias Body = Empty
-    typealias Parameters = Empty
+    typealias Response = Void
 
-    struct PathComponent {
+    struct PathComponents {
         let name: String
         let id: String
     }
+
+    let pathComponents: PathComponents
+}
+
+struct Movie: Decodable {
+
 }
 
 struct UserRequest: RequestType {
-    typealias Response = Empty
-    typealias Body = Empty
-
-    struct PathComponent {
+    typealias Response = Void
+    
+    struct PathComponents {
         let userId: String
     }
 
     struct Parameters {
         let formExample: String
         let queryExample: String
+        let optionalExample: String?
     }
+
+    struct Headers {
+        let headerValue: String
+    }
+
+    let pathComponents: PathComponents
+    let parameters: Parameters
+    let headers: Headers
 }
 
 struct Environment: EnvironmentType {
@@ -40,7 +52,42 @@ struct Environment: EnvironmentType {
     static let test = Environment(baseUrl: URL(string: "https://velosmobile.com")!)
 }
 
+struct SimilarRequest: RequestType {
+    typealias Response = [Movie]
+
+    struct PathComponents {
+        let movieId: Int
+    }
+
+    struct Parameters {
+        let apiKey: String
+    }
+
+    let pathComponents: PathComponents
+    let parameters: Parameters
+}
+
 class EndpointsTests: XCTestCase {
+
+    func testMovieEndpoint() throws {
+        let similar: Endpoint<SimilarRequest> = Endpoint(
+            method: .get,
+            path: "movie/\(path: \.movieId)/similar",
+            parameters: [
+                .query(key: "api_key", value: \SimilarRequest.Parameters.apiKey)
+            ]
+        )
+
+        let request = try similar.request(
+            in: Environment.test,
+            for: SimilarRequest(
+                pathComponents: .init(movieId: 3),
+                parameters: .init(apiKey: "asdf")
+            )
+        )
+
+        print("request: \(request)")
+    }
 
     func testBasicEndpoint() throws {
         let test: Endpoint<SimpleRequest> = Endpoint(
@@ -50,7 +97,9 @@ class EndpointsTests: XCTestCase {
 
         let request = try test.request(
             in: Environment.test,
-            pathComponents: .init(name: "zac", id: "5")
+            for: SimpleRequest(
+                pathComponents: .init(name: "zac", id: "42")
+            )
         )
 
         print("request: \(request)")
@@ -59,17 +108,22 @@ class EndpointsTests: XCTestCase {
     func testParameterEndpoint() throws {
         let test: Endpoint<UserRequest> = Endpoint(
             method: .get,
-            path: "hey" + \.userId,
+            path: "hey" + \UserRequest.PathComponents.userId,
             parameters: [
                 .form(key: "form", value: \UserRequest.Parameters.formExample),
-                .query(key: "pageNumber", value: \UserRequest.Parameters.queryExample)
-            ]
+                .query(key: "pageNumber", value: \UserRequest.Parameters.queryExample),
+                .query(key: "optional", value: \UserRequest.Parameters.optionalExample)
+            ],
+            headers: ["HEADER_TYPE": "\(path: \UserRequest.Headers.headerValue)"]
         )
 
         let request = try test.request(
             in: Environment.test,
-            pathComponents: .init(userId: "3"),
-            parameters: .init(formExample: "form", queryExample: "query")
+            for: UserRequest(
+                pathComponents: .init(userId: "3"),
+                parameters: .init(formExample: "form", queryExample: "query", optionalExample: nil),
+                headers: .init(headerValue: "test")
+            )
         )
 
         print("request: \(request)")

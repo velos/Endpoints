@@ -93,7 +93,7 @@ extension PathTemplate: ExpressibleByStringInterpolation {
             path.append(path: literal)
         }
 
-        mutating public func appendInterpolation<U: PathRepresentable>(_ value: KeyPath<T, U>) {
+        mutating public func appendInterpolation<U: PathRepresentable>(path value: KeyPath<T, U>) {
             path.append(keyPath: value)
         }
     }

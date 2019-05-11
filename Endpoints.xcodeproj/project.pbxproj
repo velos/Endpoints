@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		115D28202205823E004541C5 /* ParameterRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 115D281F2205823E004541C5 /* ParameterRepresentable.swift */; };
+		115F6C6E228756FD00F38751 /* URLSession+Endpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = 115F6C6D228756FD00F38751 /* URLSession+Endpoints.swift */; };
 		119E7C5A220BD8D3002E637F /* PathTemplateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 119E7C59220BD8D3002E637F /* PathTemplateTests.swift */; };
 		11E83E4221FD404400DB1EF2 /* Endpoints.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 11E83E3821FD404400DB1EF2 /* Endpoints.framework */; };
 		11E83E4721FD404400DB1EF2 /* EndpointsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11E83E4621FD404400DB1EF2 /* EndpointsTests.swift */; };
@@ -28,6 +29,7 @@
 
 /* Begin PBXFileReference section */
 		115D281F2205823E004541C5 /* ParameterRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParameterRepresentable.swift; sourceTree = "<group>"; };
+		115F6C6D228756FD00F38751 /* URLSession+Endpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "URLSession+Endpoints.swift"; sourceTree = "<group>"; };
 		119E7C59220BD8D3002E637F /* PathTemplateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PathTemplateTests.swift; sourceTree = "<group>"; };
 		11E83E3821FD404400DB1EF2 /* Endpoints.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Endpoints.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		11E83E3B21FD404400DB1EF2 /* Endpoints.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Endpoints.h; sourceTree = "<group>"; };
@@ -58,6 +60,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		115F6C6C228756EA00F38751 /* Extensions */ = {
+			isa = PBXGroup;
+			children = (
+				115F6C6D228756FD00F38751 /* URLSession+Endpoints.swift */,
+			);
+			path = Extensions;
+			sourceTree = "<group>";
+		};
 		11E83E2E21FD404400DB1EF2 = {
 			isa = PBXGroup;
 			children = (
@@ -84,6 +94,7 @@
 				11E83E5221FD406100DB1EF2 /* PathTemplate.swift */,
 				11E83E5421FD407800DB1EF2 /* Endpoint.swift */,
 				115D281F2205823E004541C5 /* ParameterRepresentable.swift */,
+				115F6C6C228756EA00F38751 /* Extensions */,
 			);
 			path = Endpoints;
 			sourceTree = "<group>";
@@ -211,6 +222,7 @@
 				115D28202205823E004541C5 /* ParameterRepresentable.swift in Sources */,
 				11E83E5521FD407800DB1EF2 /* Endpoint.swift in Sources */,
 				11E83E5321FD406100DB1EF2 /* PathTemplate.swift in Sources */,
+				115F6C6E228756FD00F38751 /* URLSession+Endpoints.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
