@@ -22,7 +22,7 @@ public enum Parameter<T> {
 
 public struct Empty: Encodable { }
 
-public protocol RequestDataType: JSONDecoderProvider {
+public protocol RequestDataType {
     associatedtype Response
     associatedtype Body: Encodable = Empty
     associatedtype PathComponents = Void
@@ -81,19 +81,13 @@ public protocol JSONEncoderProvider {
     static var jsonEncoder: JSONEncoder { get }
 }
 
-extension JSONEncoderProvider {
-    public static var jsonEncoder: JSONEncoder {
-        return JSONEncoder()
-    }
-}
-
 public protocol JSONDecoderProvider {
     static var jsonDecoder: JSONDecoder { get }
 }
 
-extension JSONDecoderProvider {
-    public static var jsonDecoder: JSONDecoder {
-        return JSONDecoder()
+extension RequestDataType where Response: Decodable {
+    static func decode(data: Data) throws -> Self.Response {
+        return try JSONDecoder().decode(Response.self, from: data)
     }
 }
 
@@ -110,9 +104,15 @@ public protocol EnvironmentType {
 public struct Endpoint<T: RequestDataType> {
     public let method: Method
     public let path: PathTemplate<T.PathComponents>
-    public let body: T.Body
     public let parameters: [Parameter<T.Parameters>]
     public let headers: [String: KeyPath<T.Headers, String>]
+
+    init(method: Method, path: PathTemplate<T.PathComponents>, parameters: [Parameter<T.Parameters>] = [], headers: [String: KeyPath<T.Headers, String>] = [:]) {
+        self.method = method
+        self.path = path
+        self.parameters = parameters
+        self.headers = headers
+    }
 
     public func request(in environment: EnvironmentType, for request: T) throws -> URLRequest {
 
@@ -171,16 +171,16 @@ public struct Endpoint<T: RequestDataType> {
 
         urlRequest.url = url
 
-        if !(body is Empty) {
+        if !(request.body is Empty) {
 
             let encoder: JSONEncoder
-            if let bodyType = body as? JSONEncoderProvider {
+            if let bodyType = request.body as? JSONEncoderProvider {
                 encoder = type(of: bodyType).jsonEncoder
             } else {
                 encoder = JSONEncoder()
             }
 
-            urlRequest.httpBody = try encoder.encode(body)
+            urlRequest.httpBody = try encoder.encode(request.body)
             urlRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
         } else if !bodyFormItems.isEmpty {
             urlRequest.httpBody = bodyFormItems.formString.data(using: .utf8)
@@ -197,15 +197,5 @@ extension Array where Element == URLQueryItem {
     /// suitable for putting into the httpBody of a request
     var formString: String {
         return map { $0.description }.joined(separator: "&")
-    }
-}
-
-extension Endpoint where T.Body == Empty {
-    init(method: Method, path: PathTemplate<T.PathComponents>, parameters: [Parameter<T.Parameters>] = [], headers: [String: KeyPath<T.Headers, String>] = [:]) {
-        self.method = method
-        self.path = path
-        self.body = Empty()
-        self.parameters = parameters
-        self.headers = headers
     }
 }

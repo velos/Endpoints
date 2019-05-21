@@ -10,7 +10,10 @@ import XCTest
 @testable import Endpoints
 
 struct SimpleRequest: RequestDataType {
-    typealias Response = Void
+
+    struct Response: Decodable {
+        let response1: String
+    }
 
     struct PathComponents {
         let name: String
@@ -18,10 +21,6 @@ struct SimpleRequest: RequestDataType {
     }
 
     let pathComponents: PathComponents
-}
-
-struct Movie: Decodable {
-
 }
 
 struct UserRequest: RequestDataType {
@@ -32,9 +31,16 @@ struct UserRequest: RequestDataType {
     }
 
     struct Parameters {
-        let formExample: String
-        let queryExample: String
-        let optionalExample: String?
+        let string: String
+        let date: Date
+        let double: Double
+        let int: Int
+        let boolTrue: Bool
+        let boolFalse: Bool
+        let timeZone: TimeZone
+
+        let optionalString: String?
+        let optionalDate: String?
     }
 
     struct Headers {
@@ -44,6 +50,34 @@ struct UserRequest: RequestDataType {
     let pathComponents: PathComponents
     let parameters: Parameters
     let headers: Headers
+}
+
+struct PostRequest1: RequestDataType {
+    typealias Response = Void
+
+    struct Body: Encodable, JSONEncoderProvider {
+        static let jsonEncoder: JSONEncoder = {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            return encoder
+        }()
+
+        let property1: Date
+        let property2: Int?
+    }
+
+    let body: Body
+}
+
+struct PostRequest2: RequestDataType {
+    typealias Response = Void
+
+    struct Body: Encodable {
+        let property1: String
+        let property2: Int?
+    }
+
+    let body: Body
 }
 
 struct Environment: EnvironmentType {
@@ -67,17 +101,64 @@ class EndpointsTests: XCTestCase {
             )
         )
 
+        let responseData = #"{"response1": "testing"}"#.data(using: .utf8)!
+        let response = try SimpleRequest.decode(data: responseData)
+
+        XCTAssertEqual(response.response1, "testing")
+
         print("request: \(request)")
     }
+
+    func testPostEndpointWithEncoder() throws {
+        let test: Endpoint<PostRequest1> = Endpoint(
+            method: .post,
+            path: "path"
+        )
+
+        let request = try test.request(
+            in: Environment.test,
+            for: PostRequest1(
+                body: .init(property1: Date(), property2: nil)
+            )
+        )
+
+        print("request: \(request)")
+    }
+
+    func testPostEndpoint() throws {
+        let test: Endpoint<PostRequest2> = Endpoint(
+            method: .post,
+            path: "path"
+        )
+
+        let request = try test.request(
+            in: Environment.test,
+            for: PostRequest2(
+                body: .init(property1: "test", property2: nil)
+            )
+        )
+
+        print("request: \(request)")
+    }
+
 
     func testParameterEndpoint() throws {
         let test: Endpoint<UserRequest> = Endpoint(
             method: .get,
             path: "hey" + \UserRequest.PathComponents.userId,
             parameters: [
-                .form(key: "form", value: \UserRequest.Parameters.formExample),
-                .query(key: "pageNumber", value: \UserRequest.Parameters.queryExample),
-                .query(key: "optional", value: \UserRequest.Parameters.optionalExample)
+                .form(key: "string", value: \UserRequest.Parameters.string),
+                .form(key: "date", value: \UserRequest.Parameters.date),
+                .form(key: "double", value: \UserRequest.Parameters.double),
+                .form(key: "int", value: \UserRequest.Parameters.int),
+                .form(key: "bool_true", value: \UserRequest.Parameters.boolTrue),
+                .form(key: "bool_false", value: \UserRequest.Parameters.boolFalse),
+                .form(key: "time_zone", value: \UserRequest.Parameters.timeZone),
+                .form(key: "optional_string", value: \UserRequest.Parameters.optionalString),
+                .form(key: "optional_date", value: \UserRequest.Parameters.optionalDate),
+                .query(key: "string", value: \UserRequest.Parameters.string),
+                .query(key: "optional_string", value: \UserRequest.Parameters.optionalString),
+                .query(key: "optional_date", value: \UserRequest.Parameters.optionalDate)
             ],
             headers: ["HEADER_TYPE": \UserRequest.Headers.headerValue]
         )
@@ -86,7 +167,17 @@ class EndpointsTests: XCTestCase {
             in: Environment.test,
             for: UserRequest(
                 pathComponents: .init(userId: "3"),
-                parameters: .init(formExample: "form", queryExample: "query", optionalExample: nil),
+                parameters: .init(
+                    string: "test",
+                    date: Date(),
+                    double: 2.3,
+                    int: 42,
+                    boolTrue: true,
+                    boolFalse: false,
+                    timeZone: .current,
+                    optionalString: nil,
+                    optionalDate: nil
+                ),
                 headers: .init(headerValue: "test")
             )
         )
