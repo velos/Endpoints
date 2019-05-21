@@ -20,14 +20,14 @@ public enum Parameter<T> {
     case query(key: String, value: PartialKeyPath<T>)
 }
 
-public struct Empty: Codable { }
+public struct Empty: Encodable { }
 
-public protocol RequestType: JSONDecoderProvider {
+public protocol RequestDataType: JSONDecoderProvider {
     associatedtype Response
     associatedtype Body: Encodable = Empty
-    associatedtype PathComponents = Empty
-    associatedtype Parameters = Empty
-    associatedtype Headers = Empty
+    associatedtype PathComponents = Void
+    associatedtype Parameters = Void
+    associatedtype Headers = Void
 
     var body: Body { get }
     var pathComponents: PathComponents { get }
@@ -35,28 +35,20 @@ public protocol RequestType: JSONDecoderProvider {
     var headers: Headers { get }
 }
 
-public extension RequestType where Body == Empty {
-    var body: Body {
-        return Empty()
-    }
+public extension RequestDataType where Body == Empty {
+    var body: Body { return Empty() }
 }
 
-public extension RequestType where PathComponents == Empty {
-    var pathComponents: PathComponents {
-        return Empty()
-    }
+public extension RequestDataType where PathComponents == Void {
+    var pathComponents: PathComponents { return () }
 }
 
-public extension RequestType where Parameters == Empty {
-    var parameters: Parameters {
-        return Empty()
-    }
+public extension RequestDataType where Parameters == Void {
+    var parameters: Parameters { return () }
 }
 
-public extension RequestType where Headers == Empty {
-    var headers: Headers {
-        return Empty()
-    }
+public extension RequestDataType where Headers == Void {
+    var headers: Headers { return () }
 }
 
 public enum Method {
@@ -72,24 +64,15 @@ public enum Method {
 
     var methodString: String {
         switch self {
-        case .options:
-            return "OPTIONS"
-        case .get:
-            return "GET"
-        case .head:
-            return "HEAD"
-        case .post:
-            return "POST"
-        case .put:
-            return "PUT"
-        case .patch:
-            return "PATCH"
-        case .delete:
-            return "DELETE"
-        case .trace:
-            return "TRACE"
-        case .connect:
-            return "CONNECT"
+        case .options: return "OPTIONS"
+        case .get: return "GET"
+        case .head: return "HEAD"
+        case .post: return "POST"
+        case .put: return "PUT"
+        case .patch: return "PATCH"
+        case .delete: return "DELETE"
+        case .trace: return "TRACE"
+        case .connect: return "CONNECT"
         }
     }
 }
@@ -114,7 +97,7 @@ extension JSONDecoderProvider {
     }
 }
 
-extension RequestType where Self: JSONDecoderProvider, Response: Decodable {
+extension RequestDataType where Self: JSONDecoderProvider, Response: Decodable {
     static func decode(data: Data) throws -> Self.Response {
         return try jsonDecoder.decode(Response.self, from: data)
     }
@@ -124,7 +107,7 @@ public protocol EnvironmentType {
     var baseUrl: URL { get }
 }
 
-public struct Endpoint<T: RequestType> {
+public struct Endpoint<T: RequestDataType> {
     public let method: Method
     public let path: PathTemplate<T.PathComponents>
     public let body: T.Body

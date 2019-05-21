@@ -184,7 +184,7 @@
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
-				en,
+				Base,
 			);
 			mainGroup = 11E83E2E21FD404400DB1EF2;
 			productRefGroup = 11E83E3921FD404400DB1EF2 /* Products */;

@@ -9,7 +9,7 @@
 import XCTest
 @testable import Endpoints
 
-struct SimpleRequest: RequestType {
+struct SimpleRequest: RequestDataType {
     typealias Response = Void
 
     struct PathComponents {
@@ -24,7 +24,7 @@ struct Movie: Decodable {
 
 }
 
-struct UserRequest: RequestType {
+struct UserRequest: RequestDataType {
     typealias Response = Void
     
     struct PathComponents {
@@ -52,42 +52,7 @@ struct Environment: EnvironmentType {
     static let test = Environment(baseUrl: URL(string: "https://velosmobile.com")!)
 }
 
-struct SimilarRequest: RequestType {
-    typealias Response = [Movie]
-
-    struct PathComponents {
-        let movieId: Int
-    }
-
-    struct Parameters {
-        let apiKey: String
-    }
-
-    let pathComponents: PathComponents
-    let parameters: Parameters
-}
-
 class EndpointsTests: XCTestCase {
-
-    func testMovieEndpoint() throws {
-        let similar: Endpoint<SimilarRequest> = Endpoint(
-            method: .get,
-            path: "movie/\(path: \.movieId)/similar",
-            parameters: [
-                .query(key: "api_key", value: \SimilarRequest.Parameters.apiKey)
-            ]
-        )
-
-        let request = try similar.request(
-            in: Environment.test,
-            for: SimilarRequest(
-                pathComponents: .init(movieId: 3),
-                parameters: .init(apiKey: "asdf")
-            )
-        )
-
-        print("request: \(request)")
-    }
 
     func testBasicEndpoint() throws {
         let test: Endpoint<SimpleRequest> = Endpoint(

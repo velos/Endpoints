@@ -52,15 +52,10 @@ extension TimeZone: ParameterRepresentable {
     }
 }
 
-extension Optional: ParameterRepresentable {
+extension Optional: ParameterRepresentable where Wrapped: ParameterRepresentable {
     public var parameterValue: String? {
         switch self {
         case .some(let value):
-
-            guard let value = value as? ParameterRepresentable else {
-                fatalError("Unsupported query type: \(Wrapped.self)")
-            }
-
             return value.parameterValue
         case .none:
             return nil

@@ -10,7 +10,7 @@ import Foundation
 
 extension URLSession {
 
-    func task<T: RequestType>(in environment: EnvironmentType, for endpoint: Endpoint<T>, with request: T, completion: @escaping (Result<Void, Error>) -> Void) throws -> URLSessionDataTask where T.Response == Void {
+    func task<T: RequestDataType>(in environment: EnvironmentType, for endpoint: Endpoint<T>, with request: T, completion: @escaping (Result<Void, Error>) -> Void) throws -> URLSessionDataTask where T.Response == Void {
 
         let urlRequest = try endpoint.request(in: environment, for: request)
 
@@ -23,7 +23,7 @@ extension URLSession {
         })
     }
 
-    func task<T: RequestType>(in environment: EnvironmentType, for endpoint: Endpoint<T>, with request: T, completion: @escaping (Result<Data, Error>) -> Void) throws -> URLSessionDataTask where T.Response == Data {
+    func task<T: RequestDataType>(in environment: EnvironmentType, for endpoint: Endpoint<T>, with request: T, completion: @escaping (Result<Data, Error>) -> Void) throws -> URLSessionDataTask where T.Response == Data {
 
         let urlRequest = try endpoint.request(in: environment, for: request)
 
@@ -36,7 +36,7 @@ extension URLSession {
         })
     }
 
-    func task<T: RequestType>(in environment: EnvironmentType, for endpoint: Endpoint<T>, with request: T, completion: @escaping (Result<T.Response, Error>) -> Void) throws -> URLSessionDataTask where T.Response: Decodable {
+    func task<T: RequestDataType>(in environment: EnvironmentType, for endpoint: Endpoint<T>, with request: T, completion: @escaping (Result<T.Response, Error>) -> Void) throws -> URLSessionDataTask where T.Response: Decodable {
 
         let urlRequest = try endpoint.request(in: environment, for: request)
 
