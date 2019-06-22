@@ -43,6 +43,9 @@ DerivedData/
 !default.perspectivev3
 xcuserdata/
 
+## Xcode Project
+*.xcodeproj
+
 ## Other
 *.moved-aside
 *.xccheckout
@@ -60,34 +63,7 @@ timeline.xctimeline
 playground.xcworkspace
 
 # Swift Package Manager
-#
-# Add this line if you want to avoid checking in source code from Swift Package Manager dependencies.
-# Packages/
 .build/
-
-# Carthage
-Carthage/Build
-
-# CocoaPods Keys
-Pods/CocoaPodsKeys
-
-# R.swift
-**/*.generated.swift
-
-# fastlane
-# For more information about the recommended setup visit:
-# https://github.com/fastlane/fastlane/blob/master/fastlane/docs/Gitignore.md
-
-fastlane/report.xml
-fastlane/Preview.html
-fastlane/screenshots
-fastlane/test_output
-fastlane/app_icon_backup
-fastlane/badge_test
-output/
-
-# Intellij
-.idea/
 
 # jazzy
 Documentation/docsets

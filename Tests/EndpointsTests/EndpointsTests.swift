@@ -184,4 +184,11 @@ class EndpointsTests: XCTestCase {
 
         print("request: \(request)")
     }
+
+    static var allTests = [
+        ("testBasicEndpoint", testBasicEndpoint),
+        ("testPostEndpointWithEncoder", testPostEndpointWithEncoder),
+        ("testPostEndpoint", testPostEndpoint),
+        ("testParameterEndpoint", testParameterEndpoint)
+    ]
 }

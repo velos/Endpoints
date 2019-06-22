@@ -41,4 +41,10 @@ class PathTemplateTests: XCTestCase {
         let path = template.path(with: Test(string: "first", integer: 2))
         XCTAssertEqual(path, "testing")
     }
+
+    static var allTests = [
+        ("testStringInterpolation", testStringInterpolation),
+        ("testStringConcatenation", testStringConcatenation),
+        ("testStringLiteral", testStringLiteral)
+    ]
 }
