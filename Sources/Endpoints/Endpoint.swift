@@ -17,7 +17,9 @@ public enum EndpointError: Error {
 
 public enum Parameter<T> {
     case form(key: String, value: PartialKeyPath<T>)
+    case formValue(key: String, value: PathRepresentable)
     case query(key: String, value: PartialKeyPath<T>)
+    case queryValue(key: String, value: PathRepresentable)
 }
 
 public struct Empty: Encodable { }
@@ -99,6 +101,11 @@ extension RequestDataType where Self: JSONDecoderProvider, Response: Decodable {
 
 public protocol EnvironmentType {
     var baseUrl: URL { get }
+    var requestProcessor: (URLRequest) -> URLRequest { get }
+}
+
+public extension EnvironmentType {
+    var requestProcessor: (URLRequest) -> URLRequest { return { $0 } }
 }
 
 public struct Endpoint<T: RequestDataType> {
@@ -121,9 +128,18 @@ public struct Endpoint<T: RequestDataType> {
 
         let urlQueryItems: [URLQueryItem] = try self.parameters.compactMap { item in
 
-            guard case .query(let key, let valuePath) = item else { return nil }
-
-            let value = request.parameters[keyPath: valuePath]
+            let value: Any
+            let key: String
+            switch item {
+            case .query(let queryKey, let valuePath):
+                value = request.parameters[keyPath: valuePath]
+                key = queryKey
+            case .queryValue(let queryKey, let queryValue):
+                value = queryValue
+                key = queryKey
+            default:
+                return nil
+            }
 
             guard let queryValue = value as? ParameterRepresentable else {
                 throw EndpointError.invalidQuery(named: key, type: type(of: value))
@@ -138,16 +154,25 @@ public struct Endpoint<T: RequestDataType> {
 
         let bodyFormItems: [URLQueryItem] = try self.parameters.compactMap { item in
 
-            guard case .form(let key, let valuePath) = item else { return nil }
+            let value: Any
+            let key: String
+            switch item {
+            case .form(let formKey, let valuePath):
+                value = request.parameters[keyPath: valuePath]
+                key = formKey
+            case .formValue(let formKey, let formValue):
+                value = formValue
+                key = formKey
+            default:
+                return nil
+            }
 
-            let value = request.parameters[keyPath: valuePath]
-
-            guard let queryValue = value as? ParameterRepresentable else {
+            guard let formValue = value as? ParameterRepresentable else {
                 throw EndpointError.invalidForm(named: key, type: type(of: value))
             }
 
-            if let query = queryValue.parameterValue {
-                return URLQueryItem(name: key, value: query)
+            if let form = formValue.parameterValue {
+                return URLQueryItem(name: key, value: form)
             }
 
             return nil
@@ -186,6 +211,8 @@ public struct Endpoint<T: RequestDataType> {
             urlRequest.httpBody = bodyFormItems.formString.data(using: .utf8)
             urlRequest.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         }
+
+        urlRequest = environment.requestProcessor(urlRequest)
 
         return urlRequest
     }
