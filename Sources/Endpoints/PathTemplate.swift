@@ -53,7 +53,7 @@ public struct PathTemplate<T> {
         }
     }
 
-    func path(with value: T) -> String {
+    public func path(with value: T) -> String {
         let values = keyPathComponents.map { (index, path) -> (Int, PathRepresentable) in
             return (index, value[keyPath: path] as! PathRepresentable)
         }

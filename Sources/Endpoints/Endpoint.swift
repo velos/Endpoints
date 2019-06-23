@@ -64,7 +64,7 @@ public enum Method {
     case trace
     case connect
 
-    var methodString: String {
+    public var methodString: String {
         switch self {
         case .options: return "OPTIONS"
         case .get: return "GET"
@@ -88,13 +88,13 @@ public protocol JSONDecoderProvider {
 }
 
 extension RequestDataType where Response: Decodable {
-    static func decode(data: Data) throws -> Self.Response {
+    public static func decode(data: Data) throws -> Self.Response {
         return try JSONDecoder().decode(Response.self, from: data)
     }
 }
 
 extension RequestDataType where Self: JSONDecoderProvider, Response: Decodable {
-    static func decode(data: Data) throws -> Self.Response {
+    public static func decode(data: Data) throws -> Self.Response {
         return try jsonDecoder.decode(Response.self, from: data)
     }
 }
@@ -114,7 +114,7 @@ public struct Endpoint<T: RequestDataType> {
     public let parameters: [Parameter<T.Parameters>]
     public let headers: [String: KeyPath<T.Headers, String>]
 
-    init(method: Method, path: PathTemplate<T.PathComponents>, parameters: [Parameter<T.Parameters>] = [], headers: [String: KeyPath<T.Headers, String>] = [:]) {
+    public init(method: Method, path: PathTemplate<T.PathComponents>, parameters: [Parameter<T.Parameters>] = [], headers: [String: KeyPath<T.Headers, String>] = [:]) {
         self.method = method
         self.path = path
         self.parameters = parameters
@@ -222,7 +222,7 @@ extension Array where Element == URLQueryItem {
 
     /// Goes through each URLQueryItem element and joins them with a '&',
     /// suitable for putting into the httpBody of a request
-    var formString: String {
+    public var formString: String {
         return map { $0.description }.joined(separator: "&")
     }
 }
