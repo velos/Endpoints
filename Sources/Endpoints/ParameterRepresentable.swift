@@ -16,7 +16,7 @@ public protocol ParameterRepresentable {
 
 extension String: ParameterRepresentable {
     public var parameterValue: String? {
-        return self.pathSafe
+        return self
     }
 }
 

@@ -223,6 +223,6 @@ extension Array where Element == URLQueryItem {
     /// Goes through each URLQueryItem element and joins them with a '&',
     /// suitable for putting into the httpBody of a request
     public var formString: String {
-        return map { $0.description }.joined(separator: "&")
+        return map { $0.value?.pathSafe ?? "" }.joined(separator: "&")
     }
 }

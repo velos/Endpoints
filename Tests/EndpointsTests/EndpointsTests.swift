@@ -168,7 +168,7 @@ class EndpointsTests: XCTestCase {
             for: UserRequest(
                 pathComponents: .init(userId: "3"),
                 parameters: .init(
-                    string: "test",
+                    string: "test:of:thing%asdf",
                     date: Date(),
                     double: 2.3,
                     int: 42,
@@ -182,7 +182,19 @@ class EndpointsTests: XCTestCase {
             )
         )
 
-        print("request: \(request)")
+        XCTAssertEqual(request.httpMethod, "GET")
+        XCTAssertEqual(request.url?.path, "/hey/3")
+        XCTAssertEqual(request.url?.query, "string=test:of:thing%25asdf")
+        XCTAssertEqual(request.allHTTPHeaderFields, [
+            "HEADER_TYPE": "test",
+            "Content-Type": "application/x-www-form-urlencoded"
+        ])
+
+        XCTAssertNotNil(request.httpBody)
+        XCTAssertEqual(
+            String(data: request.httpBody ?? Data(), encoding: .utf8),
+            "test%3Aof%3Athing%25asdf&2019-10-15&2.3&42&true&false&America/Los_Angeles"
+        )
     }
 
     static var allTests = [
