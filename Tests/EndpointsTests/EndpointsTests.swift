@@ -193,7 +193,7 @@ class EndpointsTests: XCTestCase {
         XCTAssertNotNil(request.httpBody)
         XCTAssertEqual(
             String(data: request.httpBody ?? Data(), encoding: .utf8),
-            "test%3Aof%3Athing%25asdf&2019-10-15&2.3&42&true&false&America/Los_Angeles"
+            "string=test%3Aof%3Athing%25asdf&date=2019-10-15&double=2.3&int=42&bool_true=true&bool_false=false&time_zone=America/Los_Angeles"
         )
     }
 
