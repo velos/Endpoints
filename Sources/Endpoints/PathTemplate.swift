@@ -33,23 +33,34 @@ public struct PathTemplate<T> {
 
     public init() { }
 
-    mutating func append(path: PathRepresentable) {
-        pathComponents.append((currentIndex, path))
-        currentIndex += 1
+    mutating func append(path: PathRepresentable, indexOverride: Int? = nil) {
+        if let index = indexOverride {
+            pathComponents.append((index, path))
+            currentIndex = index
+        } else {
+            pathComponents.append((currentIndex, path))
+            currentIndex += 1
+        }
     }
 
-    mutating func append(keyPath: PartialKeyPath<T>) {
-        keyPathComponents.append((currentIndex, keyPath))
-        currentIndex += 1
+    mutating func append(keyPath: PartialKeyPath<T>, indexOverride: Int? = nil) {
+        if let index = indexOverride {
+            keyPathComponents.append((index, keyPath))
+            currentIndex = index
+        } else {
+            keyPathComponents.append((currentIndex, keyPath))
+            currentIndex += 1
+        }
     }
 
     mutating func append(template: PathTemplate<T>) {
-        for (_, pathComponent) in template.pathComponents {
-            append(path: pathComponent)
+        let current = currentIndex
+        for (index, pathComponent) in template.pathComponents {
+            append(path: pathComponent, indexOverride: current + index)
         }
 
-        for (_, keyPathComponent) in template.keyPathComponents {
-            append(keyPath: keyPathComponent)
+        for (index, keyPathComponent) in template.keyPathComponents {
+            append(keyPath: keyPathComponent, indexOverride: current + index)
         }
     }
 

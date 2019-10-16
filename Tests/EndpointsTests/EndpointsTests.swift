@@ -91,7 +91,7 @@ class EndpointsTests: XCTestCase {
     func testBasicEndpoint() throws {
         let test: Endpoint<SimpleRequest> = Endpoint(
             method: .get,
-            path: "user" + "/" + \.name + "/" + \.id
+            path: "user/\(path: \.name)/\(path: \.id)/profile"
         )
 
         let request = try test.request(
@@ -100,6 +100,8 @@ class EndpointsTests: XCTestCase {
                 pathComponents: .init(name: "zac", id: "42")
             )
         )
+
+        XCTAssertEqual(request.url?.path, "/user/zac/42/profile")
 
         let responseData = #"{"response1": "testing"}"#.data(using: .utf8)!
         let response = try SimpleRequest.decode(data: responseData)
@@ -191,9 +193,11 @@ class EndpointsTests: XCTestCase {
         ])
 
         XCTAssertNotNil(request.httpBody)
-        XCTAssertEqual(
-            String(data: request.httpBody ?? Data(), encoding: .utf8),
-            "string=test%3Aof%3Athing%25asdf&date=2019-10-15&double=2.3&int=42&bool_true=true&bool_false=false&time_zone=America/Los_Angeles"
+        XCTAssertTrue(
+            String(data: request.httpBody ?? Data(), encoding: .utf8)?.contains("string=test%3Aof%3Athing%25asdf") ?? false
+        )
+        XCTAssertTrue(
+            String(data: request.httpBody ?? Data(), encoding: .utf8)?.contains("double=2.3&int=42&bool_true=true&bool_false=false&time_zone=America/Los_Angeles") ?? false
         )
     }
 

@@ -17,9 +17,9 @@ struct Test {
 class PathTemplateTests: XCTestCase {
 
     func testStringInterpolation() {
-        let template1: PathTemplate<Test> = "testing/\(path: \.string)/\(path: \.integer)/"
+        let template1: PathTemplate<Test> = "testing/\(path: \.string)/\(path: \.integer)/other"
         let path = template1.path(with: Test(string: "first", integer: 2))
-        XCTAssertEqual(path, "testing/first/2")
+        XCTAssertEqual(path, "testing/first/2/other")
     }
 
     func testStringConcatenation() {
