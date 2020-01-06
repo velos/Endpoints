@@ -12,7 +12,7 @@ public enum EndpointError: Error {
     case invalid(components: URLComponents, relativeTo: URL)
     case invalidQuery(named: String, type: Any.Type)
     case invalidForm(named: String, type: Any.Type)
-    case invalidBodyParameter
+    case invalidBody(Error)
 }
 
 public enum Parameter<T> {
@@ -22,10 +22,12 @@ public enum Parameter<T> {
     case queryValue(key: String, value: PathRepresentable)
 }
 
-public struct Empty: Encodable { }
+public struct Empty: Codable { }
 
 public protocol RequestDataType {
     associatedtype Response
+
+    associatedtype ErrorResponse: Decodable = Empty
     associatedtype Body: Encodable = Empty
     associatedtype PathComponents = Void
     associatedtype Parameters = Void
@@ -35,6 +37,10 @@ public protocol RequestDataType {
     var pathComponents: PathComponents { get }
     var parameters: Parameters { get }
     var headers: Headers { get }
+
+    static var bodyEncoder: JSONEncoder { get }
+    static var errorDecoder: JSONDecoder { get }
+    static var responseDecoder: JSONDecoder { get }
 }
 
 public extension RequestDataType where Body == Empty {
@@ -79,23 +85,17 @@ public enum Method {
     }
 }
 
-public protocol JSONEncoderProvider {
-    static var jsonEncoder: JSONEncoder { get }
-}
-
-public protocol JSONDecoderProvider {
-    static var jsonDecoder: JSONDecoder { get }
-}
-
-extension RequestDataType where Response: Decodable {
-    public static func decode(data: Data) throws -> Self.Response {
-        return try JSONDecoder().decode(Response.self, from: data)
+public extension RequestDataType {
+    static var responseDecoder: JSONDecoder {
+        return JSONDecoder()
     }
-}
 
-extension RequestDataType where Self: JSONDecoderProvider, Response: Decodable {
-    public static func decode(data: Data) throws -> Self.Response {
-        return try jsonDecoder.decode(Response.self, from: data)
+    static var errorDecoder: JSONDecoder {
+        return JSONDecoder()
+    }
+
+    static var bodyEncoder: JSONEncoder {
+        return JSONEncoder()
     }
 }
 
@@ -197,15 +197,12 @@ public struct Endpoint<T: RequestDataType> {
         urlRequest.url = url
 
         if !(request.body is Empty) {
-
-            let encoder: JSONEncoder
-            if let bodyType = request.body as? JSONEncoderProvider {
-                encoder = type(of: bodyType).jsonEncoder
-            } else {
-                encoder = JSONEncoder()
+            do {
+                urlRequest.httpBody = try T.bodyEncoder.encode(request.body)
+            } catch {
+                throw EndpointError.invalidBody(error)
             }
 
-            urlRequest.httpBody = try encoder.encode(request.body)
             urlRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
         } else if !bodyFormItems.isEmpty {
             urlRequest.httpBody = bodyFormItems.formString.data(using: .utf8)
