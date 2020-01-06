@@ -24,6 +24,38 @@ struct SimpleRequest: RequestDataType {
     let pathComponents: PathComponents
 }
 
+struct JSONProviderRequest: RequestDataType {
+
+    struct Response: Decodable {
+        let responseOne: String
+    }
+
+    struct Body: Encodable {
+        let bodyValueOne: String
+    }
+
+    struct PathComponents {
+        let name: String
+        let id: String
+    }
+
+    let body: Body
+    let pathComponents: PathComponents
+
+    static let responseDecoder: JSONDecoder = {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return decoder
+    }()
+
+    static let bodyEncoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        return encoder
+    }()
+}
+
+
 struct UserRequest: RequestDataType {
     typealias Response = Void
     
@@ -56,16 +88,16 @@ struct UserRequest: RequestDataType {
 struct PostRequest1: RequestDataType {
     typealias Response = Void
 
-    struct Body: Encodable, JSONEncoderProvider {
-        static let jsonEncoder: JSONEncoder = {
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            return encoder
-        }()
-
+    struct Body: Encodable {
         let property1: Date
         let property2: Int?
     }
+
+    static let jsonEncoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }()
 
     let body: Body
 }
@@ -105,12 +137,40 @@ class EndpointsTests: XCTestCase {
         XCTAssertEqual(request.url?.path, "/user/zac/42/profile")
 
         let responseData = #"{"response1": "testing"}"#.data(using: .utf8)!
-        let response = try SimpleRequest.decode(data: responseData)
+        let response = try SimpleRequest.responseDecoder.decode(SimpleRequest.Response.self, from: responseData)
 
         XCTAssertEqual(response.response1, "testing")
 
         print("request: \(request)")
     }
+
+    func testBasicEndpointWithCustomDecoder() throws {
+        let test: Endpoint<JSONProviderRequest> = Endpoint(
+            method: .get,
+            path: "user/\(path: \.name)/\(path: \.id)/profile"
+        )
+
+        let request = try test.request(
+            in: Environment.test,
+            for: JSONProviderRequest(
+                body: .init(bodyValueOne: "value"),
+                pathComponents: .init(name: "zac", id: "42")
+            )
+        )
+
+        XCTAssertEqual(request.url?.path, "/user/zac/42/profile")
+
+        let bodyData = #"{"body_value_one":"value"}"#.data(using: .utf8)!
+        XCTAssertEqual(request.httpBody, bodyData)
+
+        let responseData = #"{"response_one": "testing"}"#.data(using: .utf8)!
+        let response = try JSONProviderRequest.responseDecoder.decode(JSONProviderRequest.Response.self, from: responseData)
+
+        XCTAssertEqual(response.responseOne, "testing")
+
+        print("request: \(request)")
+    }
+
 
     func testPostEndpointWithEncoder() throws {
         let test: Endpoint<PostRequest1> = Endpoint(
@@ -204,6 +264,7 @@ class EndpointsTests: XCTestCase {
 
     static var allTests = [
         ("testBasicEndpoint", testBasicEndpoint),
+        ("testBasicEndpointWithCustomDecoder", testBasicEndpointWithCustomDecoder),
         ("testPostEndpointWithEncoder", testPostEndpointWithEncoder),
         ("testPostEndpoint", testPostEndpoint),
         ("testParameterEndpoint", testParameterEndpoint)
