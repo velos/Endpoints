@@ -20,32 +20,55 @@ public enum EndpointTaskError<ErrorResponseType>: Error {
     case urlLoadError(Error)
 }
 
+extension Endpoint {
+    public func response(data: Data?, response: URLResponse?, error: Error?) -> Result<Data, EndpointTaskError<T.ErrorResponse>> {
+        let responseCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+
+        if let error = error {
+            return .failure(.urlLoadError(error))
+        } else if responseCode == 204 {
+            // handle empty response
+            return .success(Data())
+        } else if (200..<300).contains(responseCode), let data = data {
+            return .success(data)
+        } else if let data = data {
+            let decoded: T.ErrorResponse
+            do {
+                decoded = try T.errorDecoder.decode(T.ErrorResponse.self, from: data)
+            } catch {
+                return .failure(.errorRresponseParseError(error))
+            }
+
+            return .failure(.errorResponse(code: responseCode, response: decoded))
+        } else {
+            return .failure(.unexpectedResponse(code: responseCode))
+        }
+    }
+}
+
 extension URLSession {
 
-    public func task<T: RequestDataType>(in environment: EnvironmentType, for endpoint: Endpoint<T>, with request: T, completion: @escaping (Result<Void, EndpointTaskError<T.ErrorResponse>>) -> Void) throws -> URLSessionDataTask where T.Response == Void {
+    public func task<T: RequestDataType>(in environment: EnvironmentType, for endpoint: Endpoint<T>, with request: T, completion: @escaping (Result<T.Response, EndpointTaskError<T.ErrorResponse>>) -> Void) throws -> URLSessionDataTask where T.Response == Void {
 
         let urlRequest = try createUrlRequest(for: endpoint, in: environment, for: request)
 
         return dataTask(with: urlRequest) { (data, response, error) in
-            let responseCode = (response as? HTTPURLResponse)?.statusCode ?? 0
-
-            if let error = error {
-                completion(.failure(.urlLoadError(error)))
-            } else if responseCode == 204 {
+            let response = endpoint.response(data: data, response: response, error: error)
+            switch response {
+            case .success:
                 completion(.success(()))
-            } else if !(200..<300).contains(responseCode), let data = data {
-                let decoded: T.ErrorResponse
-                do {
-                    decoded = try T.errorDecoder.decode(T.ErrorResponse.self, from: data)
-                } catch {
-                    completion(.failure(.errorRresponseParseError(error)))
-                    return
-                }
-
-                completion(.failure(.errorResponse(code: responseCode, response: decoded)))
-            } else {
-                completion(.failure(.unexpectedResponse(code: responseCode)))
+            case .failure(let failure):
+                completion(.failure(failure))
             }
+        }
+    }
+
+    public func task<T: RequestDataType>(in environment: EnvironmentType, for endpoint: Endpoint<T>, with request: T, completion: @escaping (Result<T.Response, EndpointTaskError<T.ErrorResponse>>) -> Void) throws -> URLSessionDataTask where T.Response == Data {
+
+        let urlRequest = try createUrlRequest(for: endpoint, in: environment, for: request)
+
+        return dataTask(with: urlRequest) { (data, response, error) in
+            completion(endpoint.response(data: data, response: response, error: error))
         }
     }
 
@@ -54,12 +77,9 @@ extension URLSession {
         let urlRequest = try createUrlRequest(for: endpoint, in: environment, for: request)
 
         return dataTask(with: urlRequest) { (data, response, error) in
-
-            let responseCode = (response as? HTTPURLResponse)?.statusCode ?? 0
-
-            if let error = error {
-                completion(.failure(.urlLoadError(error)))
-            } else if (200..<300).contains(responseCode), let data = data {
+            let response = endpoint.response(data: data, response: response, error: error)
+            switch response {
+            case .success(let data):
                 let decoded: T.Response
                 do {
                     decoded = try T.responseDecoder.decode(T.Response.self, from: data)
@@ -67,18 +87,9 @@ extension URLSession {
                     completion(.failure(.responseParseError(error)))
                     return
                 }
-
                 completion(.success(decoded))
-            } else if let data = data {
-                let decoded: T.ErrorResponse
-                do {
-                    decoded = try T.errorDecoder.decode(T.ErrorResponse.self, from: data)
-                } catch {
-                    completion(.failure(.errorRresponseParseError(error)))
-                    return
-                }
-
-                completion(.failure(.errorResponse(code: responseCode, response: decoded)))
+            case .failure(let failure):
+                completion(.failure(failure))
             }
         }
     }
