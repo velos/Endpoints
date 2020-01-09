@@ -18,6 +18,7 @@ public enum EndpointTaskError<ErrorResponseType>: Error {
     case errorRresponseParseError(Error)
 
     case urlLoadError(Error)
+    case internetConnectionOffline
 }
 
 extension Endpoint {
@@ -25,6 +26,10 @@ extension Endpoint {
         let responseCode = (response as? HTTPURLResponse)?.statusCode ?? 0
 
         if let error = error {
+            guard (error as NSError).code != URLError.Code.notConnectedToInternet.rawValue else {
+                return .failure(.internetConnectionOffline)
+            }
+
             return .failure(.urlLoadError(error))
         } else if responseCode == 204 {
             // handle empty response
