@@ -14,6 +14,11 @@ struct Test {
     let integer: Int
 }
 
+struct TestOptional {
+    let string: String
+    let integer: Int?
+}
+
 class PathTemplateTests: XCTestCase {
 
     func testStringInterpolation() {
@@ -40,6 +45,14 @@ class PathTemplateTests: XCTestCase {
         let template1: PathTemplate<Test> = "testing/testPath(Thing='\(path: \.string, includesSlash: false)')"
         let path1 = template1.path(with: Test(string: "first", integer: 2))
         XCTAssertEqual(path1, "testing/testPath(Thing='first')")
+
+        let template2: PathTemplate<Test> = "testing/testPath(Thing='\(path: \.string, includesSlash: false)')\(path: \.integer)"
+        let path2 = template2.path(with: Test(string: "first", integer: 2))
+        XCTAssertEqual(path2, "testing/testPath(Thing='first')/2")
+
+        let template3: PathTemplate<TestOptional> = "testing/testPath(Thing='\(path: \.string, includesSlash: false)')\(path: \.integer)"
+        let path3 = template3.path(with: TestOptional(string: "first", integer: nil))
+        XCTAssertEqual(path3, "testing/testPath(Thing='first')")
     }
 
     func testStringLiteral() {

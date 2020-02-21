@@ -18,6 +18,15 @@ extension String: PathRepresentable {
     }
 }
 
+extension Optional: PathRepresentable where Wrapped: PathRepresentable {
+    public var pathSafe: String {
+        switch self {
+        case .none: return ""
+        case .some(let representable): return representable.pathSafe
+        }
+    }
+}
+
 extension Int: PathRepresentable {
     public var pathSafe: String {
         return "\(self)"
@@ -27,7 +36,7 @@ extension Int: PathRepresentable {
 public struct PathTemplate<T> {
 
     private struct RepresentableInfo: Equatable {
-        static func == (lhs: PathTemplate<T>.RepresentableInfo, rhs: PathTemplate<T>.RepresentableInfo) -> Bool {
+        static func == (lhs: RepresentableInfo, rhs: RepresentableInfo) -> Bool {
             return lhs.index == rhs.index &&
                 lhs.includesSlash == rhs.includesSlash &&
                 lhs.representable.pathSafe == rhs.representable.pathSafe
@@ -97,6 +106,15 @@ public struct PathTemplate<T> {
                 fullString.removeLast()
             }
 
+            // if the last insertion is empty, then remove any trailing last '/'
+            guard !insertion.isEmpty else {
+                if fullString.last == "/", component == allComponents.last {
+                    fullString.removeLast()
+                }
+
+                continue
+            }
+
             fullString.append(insertion)
 
             if component.includesSlash, insertion.last != "/", component != allComponents.last {
@@ -136,6 +154,7 @@ extension PathTemplate: ExpressibleByStringInterpolation {
         }
 
         mutating public func appendLiteral(_ literal: String) {
+            guard !literal.isEmpty else { return }
             path.append(path: literal)
         }
 
