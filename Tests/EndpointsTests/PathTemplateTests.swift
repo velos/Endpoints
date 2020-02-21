@@ -36,6 +36,12 @@ class PathTemplateTests: XCTestCase {
         XCTAssertEqual(path3, "testing/3")
     }
 
+    func testNoSlash() {
+        let template1: PathTemplate<Test> = "testing/testPath(Thing='\(path: \.string, includesSlash: false)')"
+        let path1 = template1.path(with: Test(string: "first", integer: 2))
+        XCTAssertEqual(path1, "testing/testPath(Thing='first')")
+    }
+
     func testStringLiteral() {
         let template: PathTemplate<Test> = "testing"
         let path = template.path(with: Test(string: "first", integer: 2))
@@ -45,6 +51,7 @@ class PathTemplateTests: XCTestCase {
     static var allTests = [
         ("testStringInterpolation", testStringInterpolation),
         ("testStringConcatenation", testStringConcatenation),
+        ("testNoSlash", testNoSlash),
         ("testStringLiteral", testStringLiteral)
     ]
 }

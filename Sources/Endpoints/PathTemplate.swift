@@ -26,55 +26,90 @@ extension Int: PathRepresentable {
 
 public struct PathTemplate<T> {
 
-    private var pathComponents: [(Int, PathRepresentable)] = []
-    private var keyPathComponents: [(Int, PartialKeyPath<T>)] = []
+    private struct RepresentableInfo: Equatable {
+        static func == (lhs: PathTemplate<T>.RepresentableInfo, rhs: PathTemplate<T>.RepresentableInfo) -> Bool {
+            return lhs.index == rhs.index &&
+                lhs.includesSlash == rhs.includesSlash &&
+                lhs.representable.pathSafe == rhs.representable.pathSafe
+        }
+
+        let index: Int
+        let representable: PathRepresentable
+        let includesSlash: Bool
+    }
+
+    private var pathComponents: [RepresentableInfo] = []
+    private var keyPathComponents: [(Int, PartialKeyPath<T>, Bool)] = []
 
     private var currentIndex: Int = 0
 
     public init() { }
 
-    mutating func append(path: PathRepresentable, indexOverride: Int? = nil) {
+    mutating func append(path: PathRepresentable, indexOverride: Int? = nil, includesSlash: Bool = true) {
         if let index = indexOverride {
-            pathComponents.append((index, path))
+            pathComponents.append(RepresentableInfo(index: index, representable: path, includesSlash: includesSlash))
             currentIndex = index
         } else {
-            pathComponents.append((currentIndex, path))
+            pathComponents.append(RepresentableInfo(index: currentIndex, representable: path, includesSlash: includesSlash))
             currentIndex += 1
         }
     }
 
-    mutating func append(keyPath: PartialKeyPath<T>, indexOverride: Int? = nil) {
+    mutating func append(keyPath: PartialKeyPath<T>, indexOverride: Int? = nil, includesSlash: Bool = true) {
         if let index = indexOverride {
-            keyPathComponents.append((index, keyPath))
+            keyPathComponents.append((index, keyPath, includesSlash))
             currentIndex = index
         } else {
-            keyPathComponents.append((currentIndex, keyPath))
+            keyPathComponents.append((currentIndex, keyPath, includesSlash))
             currentIndex += 1
         }
     }
 
     mutating func append(template: PathTemplate<T>) {
         let current = currentIndex
-        for (index, pathComponent) in template.pathComponents {
-            append(path: pathComponent, indexOverride: current + index)
+        for info in template.pathComponents {
+            append(path: info.representable, indexOverride: current + info.index, includesSlash: info.includesSlash)
         }
 
-        for (index, keyPathComponent) in template.keyPathComponents {
-            append(keyPath: keyPathComponent, indexOverride: current + index)
+        for (index, keyPathComponent, includesSlash) in template.keyPathComponents {
+            append(keyPath: keyPathComponent, indexOverride: current + index, includesSlash: includesSlash)
         }
     }
 
     public func path(with value: T) -> String {
-        let values = keyPathComponents.map { (index, path) -> (Int, PathRepresentable) in
-            return (index, value[keyPath: path] as! PathRepresentable)
+        let values = keyPathComponents.map { (index, path, includesSlash) -> RepresentableInfo in
+            return RepresentableInfo(index: index, representable: value[keyPath: path] as! PathRepresentable, includesSlash: includesSlash)
         }
 
         var allComponents = pathComponents + values
         allComponents.sort(by: { (first, second) -> Bool in
-            return first.0 < second.0
+            return first.index < second.index
         })
 
-        return NSString.path(withComponents: allComponents.map { $0.1.pathSafe })
+        var fullString = ""
+        let previousComponents: [RepresentableInfo?] = [nil] + Array(allComponents.dropFirst())
+        for (previous, component) in zip(previousComponents, allComponents) {
+            let insertion = component.representable.pathSafe
+
+            if let previous = previous, component.includesSlash && !previous.includesSlash, fullString.last != "/", insertion.first != "/" {
+                fullString.append("/")
+            } else if !component.includesSlash, fullString.last == "/" {
+                fullString.removeLast()
+            }
+
+            fullString.append(insertion)
+
+            if component.includesSlash, insertion.last != "/", component != allComponents.last {
+                fullString.append("/")
+            }
+        }
+
+        // remove all duplicate '//'
+        while fullString.contains("//") {
+            fullString = fullString.replacingOccurrences(of: "//", with: "/")
+        }
+
+        return fullString
     }
 }
 
@@ -104,8 +139,8 @@ extension PathTemplate: ExpressibleByStringInterpolation {
             path.append(path: literal)
         }
 
-        mutating public func appendInterpolation<U: PathRepresentable>(path value: KeyPath<T, U>) {
-            path.append(keyPath: value)
+        mutating public func appendInterpolation<U: PathRepresentable>(path value: KeyPath<T, U>, includesSlash: Bool = true) {
+            path.append(keyPath: value, includesSlash: includesSlash)
         }
     }
 }
