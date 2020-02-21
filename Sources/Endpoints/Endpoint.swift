@@ -24,6 +24,12 @@ public enum Parameter<T> {
 
 public struct Empty: Codable { }
 
+public protocol EncoderType { }
+extension JSONEncoder: EncoderType { }
+
+public protocol DecoderType { }
+extension JSONDecoder: DecoderType { }
+
 public protocol RequestDataType {
     associatedtype Response
 
@@ -33,14 +39,20 @@ public protocol RequestDataType {
     associatedtype Parameters = Void
     associatedtype Headers = Void
 
+    associatedtype BodyEncoder: EncoderType
+    associatedtype ErrorDecoder: DecoderType
+    associatedtype ResponseDecoder: DecoderType
+
     var body: Body { get }
     var pathComponents: PathComponents { get }
     var parameters: Parameters { get }
     var headers: Headers { get }
 
-    static var bodyEncoder: JSONEncoder { get }
-    static var errorDecoder: JSONDecoder { get }
-    static var responseDecoder: JSONDecoder { get }
+    static func encodeBody(with encoder: BodyEncoder)
+
+    static var bodyEncoder: BodyEncoder { get }
+    static var errorDecoder: ErrorDecoder { get }
+    static var responseDecoder: ResponseDecoder { get }
 }
 
 public extension RequestDataType where Body == Empty {
@@ -86,7 +98,7 @@ public enum Method {
 }
 
 public extension RequestDataType {
-    static var responseDecoder: JSONDecoder {
+    static var responseDecoder: DecoderType {
         return JSONDecoder()
     }
 
