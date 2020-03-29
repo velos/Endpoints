@@ -6,6 +6,7 @@
 //  Copyright © 2019 Velos Mobile LLC. All rights reserved.
 //
 
+#if !os(watchOS)
 import XCTest
 @testable import Endpoints
 
@@ -208,3 +209,4 @@ class EndpointsTests: XCTestCase {
         ("testParameterEndpoint", testParameterEndpoint)
     ]
 }
+#endif

@@ -1,3 +1,4 @@
+#if !os(watchOS)
 import XCTest
 
 #if !canImport(ObjectiveC)
@@ -7,4 +8,5 @@ public func allTests() -> [XCTestCaseEntry] {
         testCase(PathTemplateTests.allTests),
     ]
 }
+#endif
 #endif
