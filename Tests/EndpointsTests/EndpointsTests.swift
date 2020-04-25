@@ -177,7 +177,7 @@ class EndpointsTests: XCTestCase {
                     int: 42,
                     boolTrue: true,
                     boolFalse: false,
-                    timeZone: .current,
+                    timeZone: TimeZone(identifier: "America/Los_Angeles")!,
                     optionalString: nil,
                     optionalDate: nil
                 ),
