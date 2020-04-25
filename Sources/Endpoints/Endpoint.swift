@@ -121,6 +121,10 @@ public struct Endpoint<T: RequestDataType> {
         self.headers = headers
     }
 
+    /// Generates a `URLRequest` given the associated request value. Throws an `EndpointError` if the request is invalid.
+    /// - Parameters:
+    ///   - environment: The environment in which to create the request
+    ///   - request: The associated request value to use to fill in call-time pieces of the Endpoint
     public func request(in environment: EnvironmentType, for request: T) throws -> URLRequest {
 
         var components = URLComponents()

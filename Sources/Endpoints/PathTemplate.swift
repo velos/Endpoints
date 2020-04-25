@@ -9,6 +9,7 @@
 import Foundation
 
 public protocol PathRepresentable {
+    /// A path-safe version of the value, suitable for a URL path
     var pathSafe: String { get }
 }
 
@@ -33,6 +34,7 @@ extension Int: PathRepresentable {
     }
 }
 
+/// A template representing a URL path
 public struct PathTemplate<T> {
 
     private struct RepresentableInfo: Equatable {
