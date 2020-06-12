@@ -15,7 +15,7 @@ public enum EndpointTaskError<ErrorResponseType>: Error {
     case unexpectedResponse(code: Int)
 
     case errorResponse(code: Int, response: ErrorResponseType)
-    case errorRresponseParseError(Error)
+    case errorResponseParseError(Error)
 
     case urlLoadError(Error)
     case internetConnectionOffline
@@ -41,7 +41,7 @@ extension Endpoint {
             do {
                 decoded = try T.errorDecoder.decode(T.ErrorResponse.self, from: data)
             } catch {
-                return .failure(.errorRresponseParseError(error))
+                return .failure(.errorResponseParseError(error))
             }
 
             return .failure(.errorResponse(code: responseCode, response: decoded))

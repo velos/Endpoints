@@ -93,7 +93,7 @@ struct PostRequest1: RequestDataType {
         let property2: Int?
     }
 
-    static let jsonEncoder: JSONEncoder = {
+    static let bodyEncoder: JSONEncoder = {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         return encoder
@@ -140,8 +140,6 @@ class EndpointsTests: XCTestCase {
         let response = try SimpleRequest.responseDecoder.decode(SimpleRequest.Response.self, from: responseData)
 
         XCTAssertEqual(response.response1, "testing")
-
-        print("request: \(request)")
     }
 
     func testBasicEndpointWithCustomDecoder() throws {
@@ -167,8 +165,6 @@ class EndpointsTests: XCTestCase {
         let response = try JSONProviderRequest.responseDecoder.decode(JSONProviderRequest.Response.self, from: responseData)
 
         XCTAssertEqual(response.responseOne, "testing")
-
-        print("request: \(request)")
     }
 
 
@@ -178,14 +174,18 @@ class EndpointsTests: XCTestCase {
             path: "path"
         )
 
+        let date = Date()
+
         let request = try test.request(
             in: Environment.test,
             for: PostRequest1(
-                body: .init(property1: Date(), property2: nil)
+                body: .init(property1: date, property2: nil)
             )
         )
 
-        print("request: \(request)")
+        let encodedDate = ISO8601DateFormatter().string(from: date)
+        let bodyData = "{\"property1\":\"\(encodedDate)\"}".data(using: .utf8)!
+        XCTAssertEqual(request.httpBody, bodyData)
     }
 
     func testPostEndpoint() throws {
@@ -201,9 +201,9 @@ class EndpointsTests: XCTestCase {
             )
         )
 
-        print("request: \(request)")
+        XCTAssertEqual(request.url?.path, "/path")
+        XCTAssertEqual(request.httpMethod, "POST")
     }
-
 
     func testParameterEndpoint() throws {
         let test: Endpoint<UserRequest> = Endpoint(

@@ -22,24 +22,25 @@ public enum Parameter<T> {
     case queryValue(key: String, value: PathRepresentable)
 }
 
+/// A placeholder type for representing empty encodable or decodable Body values and ErrorResponse values.
 public struct Empty: Codable { }
 
 public protocol EncoderType {
-    func encode<T>(_ value: T) throws -> Data where T: Encodable
+    func encode<T: Encodable>(_ value: T) throws -> Data
 }
 
 extension JSONEncoder: EncoderType { }
 
 public protocol DecoderType {
-    func decode<T>(_ type: T.Type, from data: Data) throws -> T where T: Decodable
+    func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T
 }
 
 extension JSONDecoder: DecoderType { }
 
 public protocol RequestDataType {
     associatedtype Response
-
     associatedtype ErrorResponse: Decodable = Empty
+
     associatedtype Body: Encodable = Empty
     associatedtype PathComponents = Void
     associatedtype Parameters = Void
@@ -75,6 +76,7 @@ public extension RequestDataType where Headers == Void {
     var headers: Headers { return () }
 }
 
+/// The HTTP Method
 public enum Method {
     case options
     case get
@@ -119,7 +121,9 @@ public extension RequestDataType where BodyEncoder == JSONEncoder {
 }
 
 public protocol EnvironmentType {
+    /// The baseUrl of the Environment
     var baseUrl: URL { get }
+    /// Processes the built URLRequest right before sending in order to attach any Environment related authentication or data to the outbound request
     var requestProcessor: (URLRequest) -> URLRequest { get }
 }
 
@@ -133,6 +137,12 @@ public struct Endpoint<T: RequestDataType> {
     public let parameters: [Parameter<T.Parameters>]
     public let headers: [String: KeyPath<T.Headers, String>]
 
+    /// Initializes an Endpoint with the given properties, defining all dynamic pieces as type-safe parameters.
+    /// - Parameters:
+    ///   - method: The HTTP method to use when fetching this Endpoint
+    ///   - path: The path template representing the path and all path-related parameters
+    ///   - parameters: The parameters passed to the endpoint. Either through query or form body.
+    ///   - headers: The headers associated with this request
     public init(method: Method, path: PathTemplate<T.PathComponents>, parameters: [Parameter<T.Parameters>] = [], headers: [String: KeyPath<T.Headers, String>] = [:]) {
         self.method = method
         self.path = path
