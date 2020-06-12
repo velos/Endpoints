@@ -58,13 +58,7 @@ extension URLSession {
         let urlRequest = try createUrlRequest(for: endpoint, in: environment, for: request)
 
         return dataTask(with: urlRequest) { (data, response, error) in
-            let response = endpoint.response(data: data, response: response, error: error)
-            switch response {
-            case .success:
-                completion(.success(()))
-            case .failure(let failure):
-                completion(.failure(failure))
-            }
+            completion(endpoint.response(data: data, response: response, error: error).map { _ in })
         }
     }
 

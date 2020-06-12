@@ -219,9 +219,11 @@ class EndpointsTests: XCTestCase {
                 .form(key: "time_zone", value: \UserRequest.Parameters.timeZone),
                 .form(key: "optional_string", value: \UserRequest.Parameters.optionalString),
                 .form(key: "optional_date", value: \UserRequest.Parameters.optionalDate),
+                .formValue(key: "hard_coded_form", value: "true"),
                 .query(key: "string", value: \UserRequest.Parameters.string),
                 .query(key: "optional_string", value: \UserRequest.Parameters.optionalString),
-                .query(key: "optional_date", value: \UserRequest.Parameters.optionalDate)
+                .query(key: "optional_date", value: \UserRequest.Parameters.optionalDate),
+                .queryValue(key: "hard_coded_query", value: "true")
             ],
             headers: ["HEADER_TYPE": \UserRequest.Headers.headerValue]
         )
@@ -247,7 +249,7 @@ class EndpointsTests: XCTestCase {
 
         XCTAssertEqual(request.httpMethod, "GET")
         XCTAssertEqual(request.url?.path, "/hey/3")
-        XCTAssertEqual(request.url?.query, "string=test:of:thing%25asdf")
+        XCTAssertEqual(request.url?.query, "string=test:of:thing%25asdf&hard_coded_query=true")
         XCTAssertEqual(request.allHTTPHeaderFields, [
             "HEADER_TYPE": "test",
             "Content-Type": "application/x-www-form-urlencoded"
@@ -258,7 +260,7 @@ class EndpointsTests: XCTestCase {
             String(data: request.httpBody ?? Data(), encoding: .utf8)?.contains("string=test%3Aof%3Athing%25asdf") ?? false
         )
         XCTAssertTrue(
-            String(data: request.httpBody ?? Data(), encoding: .utf8)?.contains("double=2.3&int=42&bool_true=true&bool_false=false&time_zone=America/Los_Angeles") ?? false
+            String(data: request.httpBody ?? Data(), encoding: .utf8)?.contains("double=2.3&int=42&bool_true=true&bool_false=false&time_zone=America/Los_Angeles&hard_coded_form=true") ?? false
         )
     }
 
