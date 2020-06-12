@@ -24,10 +24,16 @@ public enum Parameter<T> {
 
 public struct Empty: Codable { }
 
-public protocol EncoderType { }
+public protocol EncoderType {
+    func encode<T>(_ value: T) throws -> Data where T: Encodable
+}
+
 extension JSONEncoder: EncoderType { }
 
-public protocol DecoderType { }
+public protocol DecoderType {
+    func decode<T>(_ type: T.Type, from data: Data) throws -> T where T: Decodable
+}
+
 extension JSONDecoder: DecoderType { }
 
 public protocol RequestDataType {
@@ -39,16 +45,14 @@ public protocol RequestDataType {
     associatedtype Parameters = Void
     associatedtype Headers = Void
 
-    associatedtype BodyEncoder: EncoderType
-    associatedtype ErrorDecoder: DecoderType
-    associatedtype ResponseDecoder: DecoderType
+    associatedtype BodyEncoder: EncoderType = JSONEncoder
+    associatedtype ErrorDecoder: DecoderType = JSONDecoder
+    associatedtype ResponseDecoder: DecoderType = JSONDecoder
 
     var body: Body { get }
     var pathComponents: PathComponents { get }
     var parameters: Parameters { get }
     var headers: Headers { get }
-
-    static func encodeBody(with encoder: BodyEncoder)
 
     static var bodyEncoder: BodyEncoder { get }
     static var errorDecoder: ErrorDecoder { get }
@@ -97,16 +101,19 @@ public enum Method {
     }
 }
 
-public extension RequestDataType {
-    static var responseDecoder: DecoderType {
+public extension RequestDataType where ResponseDecoder == JSONDecoder {
+    static var responseDecoder: ResponseDecoder {
         return JSONDecoder()
     }
+}
 
-    static var errorDecoder: JSONDecoder {
+public extension RequestDataType where ErrorDecoder == JSONDecoder {
+    static var errorDecoder: ErrorDecoder {
         return JSONDecoder()
     }
-
-    static var bodyEncoder: JSONEncoder {
+}
+public extension RequestDataType where BodyEncoder == JSONEncoder {
+    static var bodyEncoder: BodyEncoder {
         return JSONEncoder()
     }
 }
