@@ -40,6 +40,7 @@ extension JSONDecoder: DecoderType { }
 public protocol RequestDataType {
     associatedtype Response
     associatedtype ErrorResponse: Decodable = Empty
+    typealias TaskError = EndpointTaskError<ErrorResponse>
 
     associatedtype Body: Encodable = Empty
     associatedtype PathComponents = Void
@@ -132,6 +133,7 @@ public extension EnvironmentType {
 }
 
 public struct Endpoint<T: RequestDataType> {
+
     public let method: Method
     public let path: PathTemplate<T.PathComponents>
     public let parameters: [Parameter<T.Parameters>]

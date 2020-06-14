@@ -22,7 +22,7 @@ public enum EndpointTaskError<ErrorResponseType>: Error {
 }
 
 extension Endpoint {
-    public func response(data: Data?, response: URLResponse?, error: Error?) -> Result<Data, EndpointTaskError<T.ErrorResponse>> {
+    public func response(data: Data?, response: URLResponse?, error: Error?) -> Result<Data, T.TaskError> {
         let responseCode = (response as? HTTPURLResponse)?.statusCode ?? 0
 
         if let error = error {
@@ -53,7 +53,7 @@ extension Endpoint {
 
 extension URLSession {
 
-    public func task<T: RequestDataType>(in environment: EnvironmentType, for endpoint: Endpoint<T>, with request: T, completion: @escaping (Result<T.Response, EndpointTaskError<T.ErrorResponse>>) -> Void) throws -> URLSessionDataTask where T.Response == Void {
+    public func task<T: RequestDataType>(in environment: EnvironmentType, for endpoint: Endpoint<T>, with request: T, completion: @escaping (Result<T.Response, T.TaskError>) -> Void) throws -> URLSessionDataTask where T.Response == Void {
 
         let urlRequest = try createUrlRequest(for: endpoint, in: environment, for: request)
 
@@ -62,7 +62,7 @@ extension URLSession {
         }
     }
 
-    public func task<T: RequestDataType>(in environment: EnvironmentType, for endpoint: Endpoint<T>, with request: T, completion: @escaping (Result<T.Response, EndpointTaskError<T.ErrorResponse>>) -> Void) throws -> URLSessionDataTask where T.Response == Data {
+    public func task<T: RequestDataType>(in environment: EnvironmentType, for endpoint: Endpoint<T>, with request: T, completion: @escaping (Result<T.Response, T.TaskError>) -> Void) throws -> URLSessionDataTask where T.Response == Data {
 
         let urlRequest = try createUrlRequest(for: endpoint, in: environment, for: request)
 
@@ -71,7 +71,7 @@ extension URLSession {
         }
     }
 
-    public func task<T: RequestDataType>(in environment: EnvironmentType, for endpoint: Endpoint<T>, with request: T, completion: @escaping (Result<T.Response, EndpointTaskError<T.ErrorResponse>>) -> Void) throws -> URLSessionDataTask where T.Response: Decodable {
+    public func task<T: RequestDataType>(in environment: EnvironmentType, for endpoint: Endpoint<T>, with request: T, completion: @escaping (Result<T.Response, T.TaskError>) -> Void) throws -> URLSessionDataTask where T.Response: Decodable {
 
         let urlRequest = try createUrlRequest(for: endpoint, in: environment, for: request)
 
@@ -103,7 +103,7 @@ extension URLSession {
                 fatalError("Unhandled endpoint error: \(error)")
             }
 
-            throw EndpointTaskError<T.ErrorResponse>.endpointError(endpointError)
+            throw T.TaskError.endpointError(endpointError)
         }
 
         return urlRequest
