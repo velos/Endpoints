@@ -23,7 +23,7 @@ public enum Parameter<T> {
 }
 
 /// A placeholder type for representing empty encodable or decodable Body values and ErrorResponse values.
-public struct Empty: Codable { }
+public struct EmptyResponse: Codable { }
 
 public protocol EncoderType {
     func encode<T: Encodable>(_ value: T) throws -> Data
@@ -39,10 +39,10 @@ extension JSONDecoder: DecoderType { }
 
 public protocol RequestDataType {
     associatedtype Response
-    associatedtype ErrorResponse: Decodable = Empty
+    associatedtype ErrorResponse: Decodable = EmptyResponse
     typealias TaskError = EndpointTaskError<ErrorResponse>
 
-    associatedtype Body: Encodable = Empty
+    associatedtype Body: Encodable = EmptyResponse
     associatedtype PathComponents = Void
     associatedtype Parameters = Void
     associatedtype Headers = Void
@@ -61,8 +61,8 @@ public protocol RequestDataType {
     static var responseDecoder: ResponseDecoder { get }
 }
 
-public extension RequestDataType where Body == Empty {
-    var body: Body { return Empty() }
+public extension RequestDataType where Body == EmptyResponse {
+    var body: Body { return EmptyResponse() }
 }
 
 public extension RequestDataType where PathComponents == Void {
@@ -231,7 +231,7 @@ public struct Endpoint<T: RequestDataType> {
 
         urlRequest.url = url
 
-        if !(request.body is Empty) {
+        if !(request.body is EmptyResponse) {
             do {
                 urlRequest.httpBody = try T.bodyEncoder.encode(request.body)
             } catch {
