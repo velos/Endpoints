@@ -210,23 +210,23 @@ class EndpointsTests: XCTestCase {
             method: .get,
             path: "hey" + \UserRequest.PathComponents.userId,
             parameters: [
-                .form(key: "string", value: \UserRequest.Parameters.string),
-                .form(key: "date", value: \UserRequest.Parameters.date),
-                .form(key: "double", value: \UserRequest.Parameters.double),
-                .form(key: "int", value: \UserRequest.Parameters.int),
-                .form(key: "bool_true", value: \UserRequest.Parameters.boolTrue),
-                .form(key: "bool_false", value: \UserRequest.Parameters.boolFalse),
-                .form(key: "time_zone", value: \UserRequest.Parameters.timeZone),
-                .form(key: "optional_string", value: \UserRequest.Parameters.optionalString),
-                .form(key: "optional_date", value: \UserRequest.Parameters.optionalDate),
-                .formValue(key: "hard_coded_form", value: "true"),
-                .query(key: "string", value: \UserRequest.Parameters.string),
-                .query(key: "optional_string", value: \UserRequest.Parameters.optionalString),
-                .query(key: "optional_date", value: \UserRequest.Parameters.optionalDate),
-                .queryValue(key: "hard_coded_query", value: "true")
+                .form("string", path: \UserRequest.Parameters.string),
+                .form("date", path: \UserRequest.Parameters.date),
+                .form("double", path: \UserRequest.Parameters.double),
+                .form("int", path: \UserRequest.Parameters.int),
+                .form("bool_true", path: \UserRequest.Parameters.boolTrue),
+                .form("bool_false", path: \UserRequest.Parameters.boolFalse),
+                .form("time_zone", path: \UserRequest.Parameters.timeZone),
+                .form("optional_string", path: \UserRequest.Parameters.optionalString),
+                .form("optional_date", path: \UserRequest.Parameters.optionalDate),
+                .formValue("hard_coded_form", value: "true"),
+                .query("string", path: \UserRequest.Parameters.string),
+                .query("optional_string", path: \UserRequest.Parameters.optionalString),
+                .query("optional_date", path: \UserRequest.Parameters.optionalDate),
+                .queryValue("hard_coded_query", value: "true")
             ],
             headers: [
-                "HEADER_TYPE": .field(value: \UserRequest.Headers.headerValue),
+                "HEADER_TYPE": .field(path: \UserRequest.Headers.headerValue),
                 "HARD_CODED_HEADER": .fieldValue(value: "test2"),
                 .keepAlive: .fieldValue(value: "timeout=5, max=1000")
             ]

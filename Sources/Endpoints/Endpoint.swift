@@ -17,14 +17,14 @@ public enum EndpointError: Error {
 }
 
 public enum Parameter<T> {
-    case form(key: String, value: PartialKeyPath<T>)
-    case formValue(key: String, value: PathRepresentable)
-    case query(key: String, value: PartialKeyPath<T>)
-    case queryValue(key: String, value: PathRepresentable)
+    case form(String, path: PartialKeyPath<T>)
+    case formValue(String, value: PathRepresentable)
+    case query(String, path: PartialKeyPath<T>)
+    case queryValue(String, value: PathRepresentable)
 }
 
-public enum FieldValue<T> {
-    case field(value: PartialKeyPath<T>)
+public enum HeaderField<T> {
+    case field(path: PartialKeyPath<T>)
     case fieldValue(value: CustomStringConvertible)
 }
 
@@ -146,7 +146,7 @@ public struct Endpoint<T: RequestDataType> {
     /// The parameters (form and query) that are included in the Endpoint
     public let parameters: [Parameter<T.Parameters>]
     /// The headers that are included in the Endpoint
-    public let headers: [Headers: FieldValue<T.Headers>]
+    public let headers: [Headers: HeaderField<T.Headers>]
 
     /// Initializes an Endpoint with the given properties, defining all dynamic pieces as type-safe parameters.
     /// - Parameters:
@@ -154,7 +154,7 @@ public struct Endpoint<T: RequestDataType> {
     ///   - path: The path template representing the path and all path-related parameters
     ///   - parameters: The parameters passed to the endpoint. Either through query or form body.
     ///   - headers: The headers associated with this request
-    public init(method: Method, path: PathTemplate<T.PathComponents>, parameters: [Parameter<T.Parameters>] = [], headers: [Headers: FieldValue<T.Headers>] = [:]) {
+    public init(method: Method, path: PathTemplate<T.PathComponents>, parameters: [Parameter<T.Parameters>] = [], headers: [Headers: HeaderField<T.Headers>] = [:]) {
         self.method = method
         self.path = path
         self.parameters = parameters
@@ -173,24 +173,24 @@ public struct Endpoint<T: RequestDataType> {
         let urlQueryItems: [URLQueryItem] = try self.parameters.compactMap { item in
 
             let value: Any
-            let key: String
+            let name: String
             switch item {
-            case .query(let queryKey, let valuePath):
+            case .query(let queryName, let valuePath):
                 value = request.parameters[keyPath: valuePath]
-                key = queryKey
-            case .queryValue(let queryKey, let queryValue):
+                name = queryName
+            case .queryValue(let queryName, let queryValue):
                 value = queryValue
-                key = queryKey
+                name = queryName
             default:
                 return nil
             }
 
             guard let queryValue = value as? ParameterRepresentable else {
-                throw EndpointError.invalidQuery(named: key, type: type(of: value))
+                throw EndpointError.invalidQuery(named: name, type: type(of: value))
             }
 
-            if let query = queryValue.parameterValue {
-                return URLQueryItem(name: key, value: query)
+            if let encodedValue = queryValue.parameterValue {
+                return URLQueryItem(name: name, value: encodedValue)
             }
 
             return nil
@@ -199,24 +199,24 @@ public struct Endpoint<T: RequestDataType> {
         let bodyFormItems: [URLQueryItem] = try self.parameters.compactMap { item in
 
             let value: Any
-            let key: String
+            let name: String
             switch item {
-            case .form(let formKey, let valuePath):
+            case .form(let formName, let valuePath):
                 value = request.parameters[keyPath: valuePath]
-                key = formKey
-            case .formValue(let formKey, let formValue):
+                name = formName
+            case .formValue(let formName, let formValue):
                 value = formValue
-                key = formKey
+                name = formName
             default:
                 return nil
             }
 
             guard let formValue = value as? ParameterRepresentable else {
-                throw EndpointError.invalidForm(named: key, type: type(of: value))
+                throw EndpointError.invalidForm(named: name, type: type(of: value))
             }
 
-            if let form = formValue.parameterValue {
-                return URLQueryItem(name: key, value: form)
+            if let encodedValue = formValue.parameterValue {
+                return URLQueryItem(name: name, value: encodedValue)
             }
 
             return nil
@@ -236,7 +236,7 @@ public struct Endpoint<T: RequestDataType> {
 
         let headerItems: [String: String] = try self.headers.reduce(into: [:]) { allHeaders, field in
             let value: Any
-            let key = field.key.description
+            let name = field.key.name
 
             switch field.value {
             case .field(let valuePath):
@@ -246,14 +246,14 @@ public struct Endpoint<T: RequestDataType> {
             }
 
             guard let headerValue = value as? CustomStringConvertible else {
-                throw EndpointError.invalidHeader(named: key, type: type(of: value))
+                throw EndpointError.invalidHeader(named: name, type: type(of: value))
             }
 
-            allHeaders[key] = headerValue.description
+            allHeaders[name] = headerValue.description
         }
 
-        for (key, value) in headerItems {
-            urlRequest.setValue(value, forHTTPHeaderField: key)
+        for (name, value) in headerItems {
+            urlRequest.setValue(value, forHTTPHeaderField: name)
         }
 
         urlRequest.url = url
