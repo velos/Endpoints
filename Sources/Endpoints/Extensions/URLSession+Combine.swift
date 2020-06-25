@@ -14,7 +14,7 @@ import Combine
 @available(OSX 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 extension URLSession {
 
-    /// Creates a publisher to fetch the given endpoint with the request.
+    /// Creates a publisher and starts the request for the given Endpoint. This function does not expect a result value from the endpoint.
     /// - Parameters:
     ///   - environment: The environment with which to make the request
     ///   - endpoint: The Endpoint to use when creating the request
@@ -44,7 +44,7 @@ extension URLSession {
             .eraseToAnyPublisher()
     }
 
-    /// Creates a publisher to fetch the given endpoint with the request.
+    /// Creates a publisher and starts the request for the given Endpoint. This function expects a result value of `Data`.
     /// - Parameters:
     ///   - environment: The environment with which to make the request
     ///   - endpoint: The Endpoint to use when creating the request
@@ -78,7 +78,7 @@ extension URLSession {
             .eraseToAnyPublisher()
     }
 
-    /// Creates a publisher to fetch the given endpoint with the request.
+    /// Creates a publisher and starts the request for the given Endpoint. This function expects a result value which is `Decodable`.
     /// - Parameters:
     ///   - environment: The environment with which to make the request
     ///   - endpoint: The Endpoint to use when creating the request
