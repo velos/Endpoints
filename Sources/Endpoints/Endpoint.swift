@@ -12,6 +12,7 @@ public enum EndpointError: Error {
     case invalid(components: URLComponents, relativeTo: URL)
     case invalidQuery(named: String, type: Any.Type)
     case invalidForm(named: String, type: Any.Type)
+    case invalidHeader(named: String, type: Any.Type)
     case invalidBody(Error)
 }
 
@@ -20,6 +21,11 @@ public enum Parameter<T> {
     case formValue(key: String, value: PathRepresentable)
     case query(key: String, value: PartialKeyPath<T>)
     case queryValue(key: String, value: PathRepresentable)
+}
+
+public enum FieldValue<T> {
+    case field(value: PartialKeyPath<T>)
+    case fieldValue(value: CustomStringConvertible)
 }
 
 /// A placeholder type for representing empty encodable or decodable Body values and ErrorResponse values.
@@ -133,10 +139,14 @@ public extension EnvironmentType {
 
 public struct Endpoint<T: RequestDataType> {
 
+    /// The HTTP method of the Endpoint
     public let method: Method
+    /// A template including all elements that appear in the path
     public let path: PathTemplate<T.PathComponents>
+    /// The parameters (form and query) that are included in the Endpoint
     public let parameters: [Parameter<T.Parameters>]
-    public let headers: [String: KeyPath<T.Headers, String>]
+    /// The headers that are included in the Endpoint
+    public let headers: [Headers: FieldValue<T.Headers>]
 
     /// Initializes an Endpoint with the given properties, defining all dynamic pieces as type-safe parameters.
     /// - Parameters:
@@ -144,7 +154,7 @@ public struct Endpoint<T: RequestDataType> {
     ///   - path: The path template representing the path and all path-related parameters
     ///   - parameters: The parameters passed to the endpoint. Either through query or form body.
     ///   - headers: The headers associated with this request
-    public init(method: Method, path: PathTemplate<T.PathComponents>, parameters: [Parameter<T.Parameters>] = [], headers: [String: KeyPath<T.Headers, String>] = [:]) {
+    public init(method: Method, path: PathTemplate<T.PathComponents>, parameters: [Parameter<T.Parameters>] = [], headers: [Headers: FieldValue<T.Headers>] = [:]) {
         self.method = method
         self.path = path
         self.parameters = parameters
@@ -224,8 +234,26 @@ public struct Endpoint<T: RequestDataType> {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = method.methodString
 
-        for header in headers {
-            urlRequest.addValue(request.headers[keyPath: header.value], forHTTPHeaderField: header.key)
+        let headerItems: [String: String] = try self.headers.reduce(into: [:]) { allHeaders, field in
+            let value: Any
+            let key = field.key.description
+
+            switch field.value {
+            case .field(let valuePath):
+                value = request.headers[keyPath: valuePath]
+            case .fieldValue(let fieldValue):
+                value = fieldValue
+            }
+
+            guard let headerValue = value as? CustomStringConvertible else {
+                throw EndpointError.invalidHeader(named: key, type: type(of: value))
+            }
+
+            allHeaders[key] = headerValue.description
+        }
+
+        for (key, value) in headerItems {
+            urlRequest.setValue(value, forHTTPHeaderField: key)
         }
 
         urlRequest.url = url

@@ -225,7 +225,11 @@ class EndpointsTests: XCTestCase {
                 .query(key: "optional_date", value: \UserRequest.Parameters.optionalDate),
                 .queryValue(key: "hard_coded_query", value: "true")
             ],
-            headers: ["HEADER_TYPE": \UserRequest.Headers.headerValue]
+            headers: [
+                "HEADER_TYPE": .field(value: \UserRequest.Headers.headerValue),
+                "HARD_CODED_HEADER": .fieldValue(value: "test2"),
+                .keepAlive: .fieldValue(value: "timeout=5, max=1000")
+            ]
         )
 
         let request = try test.request(
@@ -250,10 +254,11 @@ class EndpointsTests: XCTestCase {
         XCTAssertEqual(request.httpMethod, "GET")
         XCTAssertEqual(request.url?.path, "/hey/3")
         XCTAssertEqual(request.url?.query, "string=test:of:thing%25asdf&hard_coded_query=true")
-        XCTAssertEqual(request.allHTTPHeaderFields, [
-            "HEADER_TYPE": "test",
-            "Content-Type": "application/x-www-form-urlencoded"
-        ])
+
+        XCTAssertEqual(request.value(forHTTPHeaderField: "HEADER_TYPE"), "test")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "HARD_CODED_HEADER"), "test2")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Keep-Alive"), "timeout=5, max=1000")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/x-www-form-urlencoded")
 
         XCTAssertNotNil(request.httpBody)
         XCTAssertTrue(
