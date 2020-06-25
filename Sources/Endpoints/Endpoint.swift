@@ -40,7 +40,6 @@ extension JSONDecoder: DecoderType { }
 public protocol RequestDataType {
     associatedtype Response
     associatedtype ErrorResponse: Decodable = EmptyResponse
-    typealias TaskError = EndpointTaskError<ErrorResponse>
 
     associatedtype Body: Encodable = EmptyResponse
     associatedtype PathComponents = Void
