@@ -56,13 +56,26 @@ public protocol RequestDataType {
     associatedtype ErrorDecoder: DecoderType = JSONDecoder
     associatedtype ResponseDecoder: DecoderType = JSONDecoder
 
+    /// The instance of the associated `Body` type. Must be `Encodable`.
     var body: Body { get }
+
+    /// The instance of the associated `PathComponents` type. Used for filling in request data into the path template of the endpoint.
+    /// If none are necessary, this can be `Void`
     var pathComponents: PathComponents { get }
+
+    /// The instance of the associated `Parameters` type. Used for filling in request data into the query and form parameters of the endpoint.
     var parameters: Parameters { get }
+
+    /// The instance of the associated `Headers` type. Used for filling in request data into the headers of the endpoint.
     var headers: Headers { get }
 
+    /// The decoder instance to use when decoding the associated `Body` type
     static var bodyEncoder: BodyEncoder { get }
+
+    /// The decoder instance to use when decoding the associated `ErrorResponse` type
     static var errorDecoder: ErrorDecoder { get }
+
+    /// The decoder instance to use when decoding the associated `Response` type
     static var responseDecoder: ResponseDecoder { get }
 }
 

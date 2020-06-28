@@ -8,21 +8,35 @@
 
 import Foundation
 
+/// An HTTP header name and category
 public struct Headers: Hashable, ExpressibleByStringLiteral {
+
+    /// The name of the header. Example: "Accept-Language"
     public let name: String
+
+    /// The category of the header.
+    /// See: https://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.2
     public let category: HeaderCategory
 
+    /// Initializes a Headers instance with the name and a category.
+    /// - Parameters:
+    ///   - name: The name of the Header. Example: "Accept-Language"
+    ///   - category: The category of the header. Defaults to `.general`
     public init(name: String, category: HeaderCategory = .general) {
         self.name = name
         self.category = category
     }
 
+    /// Initializes a Headers instance with the name of the header as a string literal. The category defaults to `.general`
+    /// - Parameter value: <#value description#>
     public init(stringLiteral value: StringLiteralType) {
         self.name = value
         self.category = .general
     }
 }
 
+/// The Header category.
+/// See: https://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.2
 public enum HeaderCategory {
     case general
     case request

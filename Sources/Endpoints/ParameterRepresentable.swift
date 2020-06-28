@@ -15,30 +15,40 @@ public protocol ParameterRepresentable {
 }
 
 extension String: ParameterRepresentable {
+
+    /// Returns `self` as the parameter representable version.
     public var parameterValue: String? {
         return self
     }
 }
 
 extension Double: ParameterRepresentable {
+
+    /// Returns a string representation of the `Double` value.
     public var parameterValue: String? {
         return "\(self)"
     }
 }
 
 extension Int: ParameterRepresentable {
+
+    /// Returns a string representation of the `Int` value.
     public var parameterValue: String? {
         return "\(self)"
     }
 }
 
 extension Bool: ParameterRepresentable {
+
+    /// Returns "true" and "false" based on the value of `self`.
     public var parameterValue: String? {
         return self ? "true" : "false"
     }
 }
 
 extension Date: ParameterRepresentable {
+
+    /// Returns an ISO8601 formatted string for the value of `self`.
     public var parameterValue: String? {
         return ISO8601DateFormatter.string(from: self,
                                            timeZone: Calendar.current.timeZone,
@@ -47,6 +57,8 @@ extension Date: ParameterRepresentable {
 }
 
 extension TimeZone: ParameterRepresentable {
+
+    /// Returns the `identifier` string of this `TimeZone`.
     public var parameterValue: String? {
         return self.identifier
     }
