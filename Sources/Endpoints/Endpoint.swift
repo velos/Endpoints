@@ -43,7 +43,7 @@ public protocol DecoderType {
 
 extension JSONDecoder: DecoderType { }
 
-public protocol RequestDataType {
+public protocol RequestType {
     associatedtype Response
     associatedtype ErrorResponse: Decodable = EmptyResponse
 
@@ -77,21 +77,141 @@ public protocol RequestDataType {
 
     /// The decoder instance to use when decoding the associated `Response` type
     static var responseDecoder: ResponseDecoder { get }
+
+    static var endpoint: Endpoint<Self> { get }
 }
 
-public extension RequestDataType where Body == EmptyResponse {
+extension RequestType {
+
+    /// Generates a `URLRequest` given the associated request value.
+    /// - Parameter environment: The environment in which to create the request
+    /// - Throws: An `EndpointError` which describes the error filling in data to the associated `Endpoint`.
+    /// - Returns: A `URLRequest` ready for requesting with all values from `self` filled in according to the associated `Endpoint`.
+    public func urlRequest(in environment: EnvironmentType) throws -> URLRequest {
+
+        var components = URLComponents()
+        components.path = Self.endpoint.path.path(with: pathComponents)
+
+        let urlQueryItems: [URLQueryItem] = try Self.endpoint.parameters.compactMap { item in
+
+            let value: Any
+            let name: String
+            switch item {
+            case .query(let queryName, let valuePath):
+                value = parameters[keyPath: valuePath]
+                name = queryName
+            case .queryValue(let queryName, let queryValue):
+                value = queryValue
+                name = queryName
+            default:
+                return nil
+            }
+
+            guard let queryValue = value as? ParameterRepresentable else {
+                throw EndpointError.invalidQuery(named: name, type: type(of: value))
+            }
+
+            if let encodedValue = queryValue.parameterValue {
+                return URLQueryItem(name: name, value: encodedValue)
+            }
+
+            return nil
+        }
+
+        let bodyFormItems: [URLQueryItem] = try Self.endpoint.parameters.compactMap { item in
+
+            let value: Any
+            let name: String
+            switch item {
+            case .form(let formName, let valuePath):
+                value = parameters[keyPath: valuePath]
+                name = formName
+            case .formValue(let formName, let formValue):
+                value = formValue
+                name = formName
+            default:
+                return nil
+            }
+
+            guard let formValue = value as? ParameterRepresentable else {
+                throw EndpointError.invalidForm(named: name, type: type(of: value))
+            }
+
+            if let encodedValue = formValue.parameterValue {
+                return URLQueryItem(name: name, value: encodedValue)
+            }
+
+            return nil
+        }
+
+        if !urlQueryItems.isEmpty {
+            components.queryItems = urlQueryItems
+        }
+
+        let baseUrl = environment.baseUrl
+        guard let url = components.url(relativeTo: baseUrl) else {
+            throw EndpointError.invalid(components: components, relativeTo: baseUrl)
+        }
+
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = Self.endpoint.method.methodString
+
+        let headerItems: [String: String] = try Self.endpoint.headers.reduce(into: [:]) { allHeaders, field in
+            let value: Any
+            let name = field.key.name
+
+            switch field.value {
+            case .field(let valuePath):
+                value = headers[keyPath: valuePath]
+            case .fieldValue(let fieldValue):
+                value = fieldValue
+            }
+
+            guard let headerValue = value as? CustomStringConvertible else {
+                throw EndpointError.invalidHeader(named: name, type: type(of: value))
+            }
+
+            allHeaders[name] = headerValue.description
+        }
+
+        for (name, value) in headerItems {
+            urlRequest.setValue(value, forHTTPHeaderField: name)
+        }
+
+        urlRequest.url = url
+
+        if !(body is EmptyResponse) {
+            do {
+                urlRequest.httpBody = try Self.bodyEncoder.encode(body)
+            } catch {
+                throw EndpointError.invalidBody(error)
+            }
+
+            urlRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        } else if !bodyFormItems.isEmpty {
+            urlRequest.httpBody = bodyFormItems.formString.data(using: .utf8)
+            urlRequest.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        }
+
+        urlRequest = environment.requestProcessor(urlRequest)
+
+        return urlRequest
+    }
+}
+
+public extension RequestType where Body == EmptyResponse {
     var body: Body { return EmptyResponse() }
 }
 
-public extension RequestDataType where PathComponents == Void {
+public extension RequestType where PathComponents == Void {
     var pathComponents: PathComponents { return () }
 }
 
-public extension RequestDataType where Parameters == Void {
+public extension RequestType where Parameters == Void {
     var parameters: Parameters { return () }
 }
 
-public extension RequestDataType where Headers == Void {
+public extension RequestType where Headers == Void {
     var headers: Headers { return () }
 }
 
@@ -122,18 +242,18 @@ public enum Method {
     }
 }
 
-public extension RequestDataType where ResponseDecoder == JSONDecoder {
+public extension RequestType where ResponseDecoder == JSONDecoder {
     static var responseDecoder: ResponseDecoder {
         return JSONDecoder()
     }
 }
 
-public extension RequestDataType where ErrorDecoder == JSONDecoder {
+public extension RequestType where ErrorDecoder == JSONDecoder {
     static var errorDecoder: ErrorDecoder {
         return JSONDecoder()
     }
 }
-public extension RequestDataType where BodyEncoder == JSONEncoder {
+public extension RequestType where BodyEncoder == JSONEncoder {
     static var bodyEncoder: BodyEncoder {
         return JSONEncoder()
     }
@@ -150,7 +270,7 @@ public extension EnvironmentType {
     var requestProcessor: (URLRequest) -> URLRequest { return { $0 } }
 }
 
-public struct Endpoint<T: RequestDataType> {
+public struct Endpoint<T: RequestType> {
 
     /// The HTTP method of the Endpoint
     public let method: Method
@@ -172,121 +292,6 @@ public struct Endpoint<T: RequestDataType> {
         self.path = path
         self.parameters = parameters
         self.headers = headers
-    }
-
-    /// Generates a `URLRequest` given the associated request value. Throws an `EndpointError` if the request is invalid.
-    /// - Parameters:
-    ///   - environment: The environment in which to create the request
-    ///   - request: The associated request value to use to fill in call-time pieces of the Endpoint
-    public func request(in environment: EnvironmentType, for request: T) throws -> URLRequest {
-
-        var components = URLComponents()
-        components.path = path.path(with: request.pathComponents)
-
-        let urlQueryItems: [URLQueryItem] = try self.parameters.compactMap { item in
-
-            let value: Any
-            let name: String
-            switch item {
-            case .query(let queryName, let valuePath):
-                value = request.parameters[keyPath: valuePath]
-                name = queryName
-            case .queryValue(let queryName, let queryValue):
-                value = queryValue
-                name = queryName
-            default:
-                return nil
-            }
-
-            guard let queryValue = value as? ParameterRepresentable else {
-                throw EndpointError.invalidQuery(named: name, type: type(of: value))
-            }
-
-            if let encodedValue = queryValue.parameterValue {
-                return URLQueryItem(name: name, value: encodedValue)
-            }
-
-            return nil
-        }
-
-        let bodyFormItems: [URLQueryItem] = try self.parameters.compactMap { item in
-
-            let value: Any
-            let name: String
-            switch item {
-            case .form(let formName, let valuePath):
-                value = request.parameters[keyPath: valuePath]
-                name = formName
-            case .formValue(let formName, let formValue):
-                value = formValue
-                name = formName
-            default:
-                return nil
-            }
-
-            guard let formValue = value as? ParameterRepresentable else {
-                throw EndpointError.invalidForm(named: name, type: type(of: value))
-            }
-
-            if let encodedValue = formValue.parameterValue {
-                return URLQueryItem(name: name, value: encodedValue)
-            }
-
-            return nil
-        }
-
-        if !urlQueryItems.isEmpty {
-            components.queryItems = urlQueryItems
-        }
-
-        let baseUrl = environment.baseUrl
-        guard let url = components.url(relativeTo: baseUrl) else {
-            throw EndpointError.invalid(components: components, relativeTo: baseUrl)
-        }
-
-        var urlRequest = URLRequest(url: url)
-        urlRequest.httpMethod = method.methodString
-
-        let headerItems: [String: String] = try self.headers.reduce(into: [:]) { allHeaders, field in
-            let value: Any
-            let name = field.key.name
-
-            switch field.value {
-            case .field(let valuePath):
-                value = request.headers[keyPath: valuePath]
-            case .fieldValue(let fieldValue):
-                value = fieldValue
-            }
-
-            guard let headerValue = value as? CustomStringConvertible else {
-                throw EndpointError.invalidHeader(named: name, type: type(of: value))
-            }
-
-            allHeaders[name] = headerValue.description
-        }
-
-        for (name, value) in headerItems {
-            urlRequest.setValue(value, forHTTPHeaderField: name)
-        }
-
-        urlRequest.url = url
-
-        if !(request.body is EmptyResponse) {
-            do {
-                urlRequest.httpBody = try T.bodyEncoder.encode(request.body)
-            } catch {
-                throw EndpointError.invalidBody(error)
-            }
-
-            urlRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        } else if !bodyFormItems.isEmpty {
-            urlRequest.httpBody = bodyFormItems.formString.data(using: .utf8)
-            urlRequest.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        }
-
-        urlRequest = environment.requestProcessor(urlRequest)
-
-        return urlRequest
     }
 }
 
