@@ -24,6 +24,38 @@ struct SimpleRequest: RequestDataType {
     let pathComponents: PathComponents
 }
 
+struct JSONProviderRequest: RequestDataType {
+
+    struct Response: Decodable {
+        let responseOne: String
+    }
+
+    struct Body: Encodable {
+        let bodyValueOne: String
+    }
+
+    struct PathComponents {
+        let name: String
+        let id: String
+    }
+
+    let body: Body
+    let pathComponents: PathComponents
+
+    static let responseDecoder: JSONDecoder = {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return decoder
+    }()
+
+    static let bodyEncoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        return encoder
+    }()
+}
+
+
 struct UserRequest: RequestDataType {
     typealias Response = Void
     
@@ -56,16 +88,16 @@ struct UserRequest: RequestDataType {
 struct PostRequest1: RequestDataType {
     typealias Response = Void
 
-    struct Body: Encodable, JSONEncoderProvider {
-        static let jsonEncoder: JSONEncoder = {
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            return encoder
-        }()
-
+    struct Body: Encodable {
         let property1: Date
         let property2: Int?
     }
+
+    static let bodyEncoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }()
 
     let body: Body
 }
@@ -105,12 +137,36 @@ class EndpointsTests: XCTestCase {
         XCTAssertEqual(request.url?.path, "/user/zac/42/profile")
 
         let responseData = #"{"response1": "testing"}"#.data(using: .utf8)!
-        let response = try SimpleRequest.decode(data: responseData)
+        let response = try SimpleRequest.responseDecoder.decode(SimpleRequest.Response.self, from: responseData)
 
         XCTAssertEqual(response.response1, "testing")
-
-        print("request: \(request)")
     }
+
+    func testBasicEndpointWithCustomDecoder() throws {
+        let test: Endpoint<JSONProviderRequest> = Endpoint(
+            method: .get,
+            path: "user/\(path: \.name)/\(path: \.id)/profile"
+        )
+
+        let request = try test.request(
+            in: Environment.test,
+            for: JSONProviderRequest(
+                body: .init(bodyValueOne: "value"),
+                pathComponents: .init(name: "zac", id: "42")
+            )
+        )
+
+        XCTAssertEqual(request.url?.path, "/user/zac/42/profile")
+
+        let bodyData = #"{"body_value_one":"value"}"#.data(using: .utf8)!
+        XCTAssertEqual(request.httpBody, bodyData)
+
+        let responseData = #"{"response_one": "testing"}"#.data(using: .utf8)!
+        let response = try JSONProviderRequest.responseDecoder.decode(JSONProviderRequest.Response.self, from: responseData)
+
+        XCTAssertEqual(response.responseOne, "testing")
+    }
+
 
     func testPostEndpointWithEncoder() throws {
         let test: Endpoint<PostRequest1> = Endpoint(
@@ -118,14 +174,18 @@ class EndpointsTests: XCTestCase {
             path: "path"
         )
 
+        let date = Date()
+
         let request = try test.request(
             in: Environment.test,
             for: PostRequest1(
-                body: .init(property1: Date(), property2: nil)
+                body: .init(property1: date, property2: nil)
             )
         )
 
-        print("request: \(request)")
+        let encodedDate = ISO8601DateFormatter().string(from: date)
+        let bodyData = "{\"property1\":\"\(encodedDate)\"}".data(using: .utf8)!
+        XCTAssertEqual(request.httpBody, bodyData)
     }
 
     func testPostEndpoint() throws {
@@ -141,29 +201,35 @@ class EndpointsTests: XCTestCase {
             )
         )
 
-        print("request: \(request)")
+        XCTAssertEqual(request.url?.path, "/path")
+        XCTAssertEqual(request.httpMethod, "POST")
     }
-
 
     func testParameterEndpoint() throws {
         let test: Endpoint<UserRequest> = Endpoint(
             method: .get,
             path: "hey" + \UserRequest.PathComponents.userId,
             parameters: [
-                .form(key: "string", value: \UserRequest.Parameters.string),
-                .form(key: "date", value: \UserRequest.Parameters.date),
-                .form(key: "double", value: \UserRequest.Parameters.double),
-                .form(key: "int", value: \UserRequest.Parameters.int),
-                .form(key: "bool_true", value: \UserRequest.Parameters.boolTrue),
-                .form(key: "bool_false", value: \UserRequest.Parameters.boolFalse),
-                .form(key: "time_zone", value: \UserRequest.Parameters.timeZone),
-                .form(key: "optional_string", value: \UserRequest.Parameters.optionalString),
-                .form(key: "optional_date", value: \UserRequest.Parameters.optionalDate),
-                .query(key: "string", value: \UserRequest.Parameters.string),
-                .query(key: "optional_string", value: \UserRequest.Parameters.optionalString),
-                .query(key: "optional_date", value: \UserRequest.Parameters.optionalDate)
+                .form("string", path: \UserRequest.Parameters.string),
+                .form("date", path: \UserRequest.Parameters.date),
+                .form("double", path: \UserRequest.Parameters.double),
+                .form("int", path: \UserRequest.Parameters.int),
+                .form("bool_true", path: \UserRequest.Parameters.boolTrue),
+                .form("bool_false", path: \UserRequest.Parameters.boolFalse),
+                .form("time_zone", path: \UserRequest.Parameters.timeZone),
+                .form("optional_string", path: \UserRequest.Parameters.optionalString),
+                .form("optional_date", path: \UserRequest.Parameters.optionalDate),
+                .formValue("hard_coded_form", value: "true"),
+                .query("string", path: \UserRequest.Parameters.string),
+                .query("optional_string", path: \UserRequest.Parameters.optionalString),
+                .query("optional_date", path: \UserRequest.Parameters.optionalDate),
+                .queryValue("hard_coded_query", value: "true")
             ],
-            headers: ["HEADER_TYPE": \UserRequest.Headers.headerValue]
+            headers: [
+                "HEADER_TYPE": .field(path: \UserRequest.Headers.headerValue),
+                "HARD_CODED_HEADER": .fieldValue(value: "test2"),
+                .keepAlive: .fieldValue(value: "timeout=5, max=1000")
+            ]
         )
 
         let request = try test.request(
@@ -187,23 +253,25 @@ class EndpointsTests: XCTestCase {
 
         XCTAssertEqual(request.httpMethod, "GET")
         XCTAssertEqual(request.url?.path, "/hey/3")
-        XCTAssertEqual(request.url?.query, "string=test:of:thing%25asdf")
-        XCTAssertEqual(request.allHTTPHeaderFields, [
-            "HEADER_TYPE": "test",
-            "Content-Type": "application/x-www-form-urlencoded"
-        ])
+        XCTAssertEqual(request.url?.query, "string=test:of:thing%25asdf&hard_coded_query=true")
+
+        XCTAssertEqual(request.value(forHTTPHeaderField: "HEADER_TYPE"), "test")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "HARD_CODED_HEADER"), "test2")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Keep-Alive"), "timeout=5, max=1000")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/x-www-form-urlencoded")
 
         XCTAssertNotNil(request.httpBody)
         XCTAssertTrue(
             String(data: request.httpBody ?? Data(), encoding: .utf8)?.contains("string=test%3Aof%3Athing%25asdf") ?? false
         )
         XCTAssertTrue(
-            String(data: request.httpBody ?? Data(), encoding: .utf8)?.contains("double=2.3&int=42&bool_true=true&bool_false=false&time_zone=America/Los_Angeles") ?? false
+            String(data: request.httpBody ?? Data(), encoding: .utf8)?.contains("double=2.3&int=42&bool_true=true&bool_false=false&time_zone=America/Los_Angeles&hard_coded_form=true") ?? false
         )
     }
 
     static var allTests = [
         ("testBasicEndpoint", testBasicEndpoint),
+        ("testBasicEndpointWithCustomDecoder", testBasicEndpointWithCustomDecoder),
         ("testPostEndpointWithEncoder", testPostEndpointWithEncoder),
         ("testPostEndpoint", testPostEndpoint),
         ("testParameterEndpoint", testParameterEndpoint)

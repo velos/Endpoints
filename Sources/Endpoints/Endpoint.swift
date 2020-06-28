@@ -12,33 +12,75 @@ public enum EndpointError: Error {
     case invalid(components: URLComponents, relativeTo: URL)
     case invalidQuery(named: String, type: Any.Type)
     case invalidForm(named: String, type: Any.Type)
-    case invalidBodyParameter
+    case invalidHeader(named: String, type: Any.Type)
+    case invalidBody(Error)
 }
 
 public enum Parameter<T> {
-    case form(key: String, value: PartialKeyPath<T>)
-    case formValue(key: String, value: PathRepresentable)
-    case query(key: String, value: PartialKeyPath<T>)
-    case queryValue(key: String, value: PathRepresentable)
+    case form(String, path: PartialKeyPath<T>)
+    case formValue(String, value: PathRepresentable)
+    case query(String, path: PartialKeyPath<T>)
+    case queryValue(String, value: PathRepresentable)
 }
 
-public struct Empty: Encodable { }
+public enum HeaderField<T> {
+    case field(path: PartialKeyPath<T>)
+    case fieldValue(value: CustomStringConvertible)
+}
+
+/// A placeholder type for representing empty encodable or decodable Body values and ErrorResponse values.
+public struct EmptyResponse: Codable { }
+
+public protocol EncoderType {
+    func encode<T: Encodable>(_ value: T) throws -> Data
+}
+
+extension JSONEncoder: EncoderType { }
+
+public protocol DecoderType {
+    func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T
+}
+
+extension JSONDecoder: DecoderType { }
 
 public protocol RequestDataType {
     associatedtype Response
-    associatedtype Body: Encodable = Empty
+    associatedtype ErrorResponse: Decodable = EmptyResponse
+
+    associatedtype Body: Encodable = EmptyResponse
     associatedtype PathComponents = Void
     associatedtype Parameters = Void
     associatedtype Headers = Void
 
+    associatedtype BodyEncoder: EncoderType = JSONEncoder
+    associatedtype ErrorDecoder: DecoderType = JSONDecoder
+    associatedtype ResponseDecoder: DecoderType = JSONDecoder
+
+    /// The instance of the associated `Body` type. Must be `Encodable`.
     var body: Body { get }
+
+    /// The instance of the associated `PathComponents` type. Used for filling in request data into the path template of the endpoint.
+    /// If none are necessary, this can be `Void`
     var pathComponents: PathComponents { get }
+
+    /// The instance of the associated `Parameters` type. Used for filling in request data into the query and form parameters of the endpoint.
     var parameters: Parameters { get }
+
+    /// The instance of the associated `Headers` type. Used for filling in request data into the headers of the endpoint.
     var headers: Headers { get }
+
+    /// The decoder instance to use when decoding the associated `Body` type
+    static var bodyEncoder: BodyEncoder { get }
+
+    /// The decoder instance to use when decoding the associated `ErrorResponse` type
+    static var errorDecoder: ErrorDecoder { get }
+
+    /// The decoder instance to use when decoding the associated `Response` type
+    static var responseDecoder: ResponseDecoder { get }
 }
 
-public extension RequestDataType where Body == Empty {
-    var body: Body { return Empty() }
+public extension RequestDataType where Body == EmptyResponse {
+    var body: Body { return EmptyResponse() }
 }
 
 public extension RequestDataType where PathComponents == Void {
@@ -53,6 +95,7 @@ public extension RequestDataType where Headers == Void {
     var headers: Headers { return () }
 }
 
+/// The HTTP Method
 public enum Method {
     case options
     case get
@@ -79,28 +122,27 @@ public enum Method {
     }
 }
 
-public protocol JSONEncoderProvider {
-    static var jsonEncoder: JSONEncoder { get }
-}
-
-public protocol JSONDecoderProvider {
-    static var jsonDecoder: JSONDecoder { get }
-}
-
-extension RequestDataType where Response: Decodable {
-    public static func decode(data: Data) throws -> Self.Response {
-        return try JSONDecoder().decode(Response.self, from: data)
+public extension RequestDataType where ResponseDecoder == JSONDecoder {
+    static var responseDecoder: ResponseDecoder {
+        return JSONDecoder()
     }
 }
 
-extension RequestDataType where Self: JSONDecoderProvider, Response: Decodable {
-    public static func decode(data: Data) throws -> Self.Response {
-        return try jsonDecoder.decode(Response.self, from: data)
+public extension RequestDataType where ErrorDecoder == JSONDecoder {
+    static var errorDecoder: ErrorDecoder {
+        return JSONDecoder()
+    }
+}
+public extension RequestDataType where BodyEncoder == JSONEncoder {
+    static var bodyEncoder: BodyEncoder {
+        return JSONEncoder()
     }
 }
 
 public protocol EnvironmentType {
+    /// The baseUrl of the Environment
     var baseUrl: URL { get }
+    /// Processes the built URLRequest right before sending in order to attach any Environment related authentication or data to the outbound request
     var requestProcessor: (URLRequest) -> URLRequest { get }
 }
 
@@ -109,12 +151,23 @@ public extension EnvironmentType {
 }
 
 public struct Endpoint<T: RequestDataType> {
-    public let method: Method
-    public let path: PathTemplate<T.PathComponents>
-    public let parameters: [Parameter<T.Parameters>]
-    public let headers: [String: KeyPath<T.Headers, String>]
 
-    public init(method: Method, path: PathTemplate<T.PathComponents>, parameters: [Parameter<T.Parameters>] = [], headers: [String: KeyPath<T.Headers, String>] = [:]) {
+    /// The HTTP method of the Endpoint
+    public let method: Method
+    /// A template including all elements that appear in the path
+    public let path: PathTemplate<T.PathComponents>
+    /// The parameters (form and query) that are included in the Endpoint
+    public let parameters: [Parameter<T.Parameters>]
+    /// The headers that are included in the Endpoint
+    public let headers: [Headers: HeaderField<T.Headers>]
+
+    /// Initializes an Endpoint with the given properties, defining all dynamic pieces as type-safe parameters.
+    /// - Parameters:
+    ///   - method: The HTTP method to use when fetching this Endpoint
+    ///   - path: The path template representing the path and all path-related parameters
+    ///   - parameters: The parameters passed to the endpoint. Either through query or form body.
+    ///   - headers: The headers associated with this request
+    public init(method: Method, path: PathTemplate<T.PathComponents>, parameters: [Parameter<T.Parameters>] = [], headers: [Headers: HeaderField<T.Headers>] = [:]) {
         self.method = method
         self.path = path
         self.parameters = parameters
@@ -133,24 +186,24 @@ public struct Endpoint<T: RequestDataType> {
         let urlQueryItems: [URLQueryItem] = try self.parameters.compactMap { item in
 
             let value: Any
-            let key: String
+            let name: String
             switch item {
-            case .query(let queryKey, let valuePath):
+            case .query(let queryName, let valuePath):
                 value = request.parameters[keyPath: valuePath]
-                key = queryKey
-            case .queryValue(let queryKey, let queryValue):
+                name = queryName
+            case .queryValue(let queryName, let queryValue):
                 value = queryValue
-                key = queryKey
+                name = queryName
             default:
                 return nil
             }
 
             guard let queryValue = value as? ParameterRepresentable else {
-                throw EndpointError.invalidQuery(named: key, type: type(of: value))
+                throw EndpointError.invalidQuery(named: name, type: type(of: value))
             }
 
-            if let query = queryValue.parameterValue {
-                return URLQueryItem(name: key, value: query)
+            if let encodedValue = queryValue.parameterValue {
+                return URLQueryItem(name: name, value: encodedValue)
             }
 
             return nil
@@ -159,24 +212,24 @@ public struct Endpoint<T: RequestDataType> {
         let bodyFormItems: [URLQueryItem] = try self.parameters.compactMap { item in
 
             let value: Any
-            let key: String
+            let name: String
             switch item {
-            case .form(let formKey, let valuePath):
+            case .form(let formName, let valuePath):
                 value = request.parameters[keyPath: valuePath]
-                key = formKey
-            case .formValue(let formKey, let formValue):
+                name = formName
+            case .formValue(let formName, let formValue):
                 value = formValue
-                key = formKey
+                name = formName
             default:
                 return nil
             }
 
             guard let formValue = value as? ParameterRepresentable else {
-                throw EndpointError.invalidForm(named: key, type: type(of: value))
+                throw EndpointError.invalidForm(named: name, type: type(of: value))
             }
 
-            if let form = formValue.parameterValue {
-                return URLQueryItem(name: key, value: form)
+            if let encodedValue = formValue.parameterValue {
+                return URLQueryItem(name: name, value: encodedValue)
             }
 
             return nil
@@ -194,22 +247,37 @@ public struct Endpoint<T: RequestDataType> {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = method.methodString
 
-        for header in headers {
-            urlRequest.addValue(request.headers[keyPath: header.value], forHTTPHeaderField: header.key)
+        let headerItems: [String: String] = try self.headers.reduce(into: [:]) { allHeaders, field in
+            let value: Any
+            let name = field.key.name
+
+            switch field.value {
+            case .field(let valuePath):
+                value = request.headers[keyPath: valuePath]
+            case .fieldValue(let fieldValue):
+                value = fieldValue
+            }
+
+            guard let headerValue = value as? CustomStringConvertible else {
+                throw EndpointError.invalidHeader(named: name, type: type(of: value))
+            }
+
+            allHeaders[name] = headerValue.description
+        }
+
+        for (name, value) in headerItems {
+            urlRequest.setValue(value, forHTTPHeaderField: name)
         }
 
         urlRequest.url = url
 
-        if !(request.body is Empty) {
-
-            let encoder: JSONEncoder
-            if let bodyType = request.body as? JSONEncoderProvider {
-                encoder = type(of: bodyType).jsonEncoder
-            } else {
-                encoder = JSONEncoder()
+        if !(request.body is EmptyResponse) {
+            do {
+                urlRequest.httpBody = try T.bodyEncoder.encode(request.body)
+            } catch {
+                throw EndpointError.invalidBody(error)
             }
 
-            urlRequest.httpBody = try encoder.encode(request.body)
             urlRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
         } else if !bodyFormItems.isEmpty {
             urlRequest.httpBody = bodyFormItems.formString.data(using: .utf8)
