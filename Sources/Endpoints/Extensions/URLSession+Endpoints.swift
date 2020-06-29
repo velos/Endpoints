@@ -59,11 +59,11 @@ extension Endpoint {
 
 extension URLSession {
 
-    /// Creates a session data task using the given Endpoint on the passed in environment. This function does not expect a result value from the endpoint.
+    /// Creates a session data task using the Endpoint associated with the passed in request on the passed in environment.
+    /// This function does not expect a result value from the endpoint.
     /// Note: This does not start the request. That must be done with `resume()`.
     /// - Parameters:
     ///   - environment: An instance conforming to EnvironmentType, which is used to build the full request.
-    ///   - endpoint: The Endpoint to use when building the request
     ///   - request: The request data to use when filling in the Endpoint
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
     /// - Throws: Throws an `EndpointTaskError` of `.endpointError(EndpointError)` if there is an issue constructing the request.
@@ -77,11 +77,11 @@ extension URLSession {
         }
     }
 
-    /// Creates a session data task using the given Endpoint on the passed in environment. This function expects a result value of `Data`.
+    /// Creates a session data task using the Endpoint associated with the passed in request on the passed in environment.
+    /// This function expects a result value of `Data`.
     /// Note: This does not start the request. That must be done with `resume()`.
     /// - Parameters:
     ///   - environment: An instance conforming to EnvironmentType, which is used to build the full request.
-    ///   - endpoint: The Endpoint to use when building the request
     ///   - request: The request data to use when filling in the Endpoint
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
     /// - Throws: Throws an `EndpointTaskError` of `.endpointError(EndpointError)` if there is an issue constructing the request.
@@ -95,11 +95,11 @@ extension URLSession {
         }
     }
 
-    /// Creates a session data task using the given Endpoint on the passed in environment. This function expects a result value which is `Decodable`.
+    /// Creates a session data task using the Endpoint associated with the passed in request on the passed in environment.
+    /// This function expects a result value which is `Decodable`.
     /// Note: This does not start the request. That must be done with `resume()`.
     /// - Parameters:
     ///   - environment: An instance conforming to EnvironmentType, which is used to build the full request.
-    ///   - endpoint: The Endpoint to use when building the request
     ///   - request: The request data to use when filling in the Endpoint
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
     /// - Throws: Throws an `EndpointTaskError` of `.endpointError(EndpointError)` if there is an issue constructing the request.
