@@ -22,7 +22,7 @@ public enum EndpointTaskError<ErrorResponseType>: Error {
     case internetConnectionOffline
 }
 
-extension RequestDataType {
+extension RequestType {
     /// Shorthand for an `EndpointTaskError` with the request's generic `ErrorResponse`
     public typealias TaskError = EndpointTaskError<ErrorResponse>
 }
@@ -68,12 +68,12 @@ extension URLSession {
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
     /// - Throws: Throws an `EndpointTaskError` of `.endpointError(EndpointError)` if there is an issue constructing the request.
     /// - Returns: The new session data task.
-    public func endpointTask<T: RequestDataType>(in environment: EnvironmentType, for endpoint: Endpoint<T>, with request: T, completion: @escaping (Result<T.Response, T.TaskError>) -> Void) throws -> URLSessionDataTask where T.Response == Void {
+    public func endpointTask<T: RequestType>(in environment: EnvironmentType, with request: T, completion: @escaping (Result<T.Response, T.TaskError>) -> Void) throws -> URLSessionDataTask where T.Response == Void {
 
-        let urlRequest = try createUrlRequest(for: endpoint, in: environment, for: request)
+        let urlRequest = try createUrlRequest(in: environment, for: request)
 
         return dataTask(with: urlRequest) { (data, response, error) in
-            completion(endpoint.response(data: data, response: response, error: error).map { _ in })
+            completion(T.endpoint.response(data: data, response: response, error: error).map { _ in })
         }
     }
 
@@ -86,12 +86,12 @@ extension URLSession {
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
     /// - Throws: Throws an `EndpointTaskError` of `.endpointError(EndpointError)` if there is an issue constructing the request.
     /// - Returns: The new session data task.
-    public func endpointTask<T: RequestDataType>(in environment: EnvironmentType, for endpoint: Endpoint<T>, with request: T, completion: @escaping (Result<T.Response, T.TaskError>) -> Void) throws -> URLSessionDataTask where T.Response == Data {
+    public func endpointTask<T: RequestType>(in environment: EnvironmentType, with request: T, completion: @escaping (Result<T.Response, T.TaskError>) -> Void) throws -> URLSessionDataTask where T.Response == Data {
 
-        let urlRequest = try createUrlRequest(for: endpoint, in: environment, for: request)
+        let urlRequest = try createUrlRequest(in: environment, for: request)
 
         return dataTask(with: urlRequest) { (data, response, error) in
-            completion(endpoint.response(data: data, response: response, error: error))
+            completion(T.endpoint.response(data: data, response: response, error: error))
         }
     }
 
@@ -104,12 +104,12 @@ extension URLSession {
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
     /// - Throws: Throws an `EndpointTaskError` of `.endpointError(EndpointError)` if there is an issue constructing the request.
     /// - Returns: The new session data task.
-    public func endpointTask<T: RequestDataType>(in environment: EnvironmentType, for endpoint: Endpoint<T>, with request: T, completion: @escaping (Result<T.Response, T.TaskError>) -> Void) throws -> URLSessionDataTask where T.Response: Decodable {
+    public func endpointTask<T: RequestType>(in environment: EnvironmentType, with request: T, completion: @escaping (Result<T.Response, T.TaskError>) -> Void) throws -> URLSessionDataTask where T.Response: Decodable {
 
-        let urlRequest = try createUrlRequest(for: endpoint, in: environment, for: request)
+        let urlRequest = try createUrlRequest(in: environment, for: request)
 
         return dataTask(with: urlRequest) { (data, response, error) in
-            let response = endpoint.response(data: data, response: response, error: error)
+            let response = T.endpoint.response(data: data, response: response, error: error)
             switch response {
             case .success(let data):
                 let decoded: T.Response
@@ -126,11 +126,11 @@ extension URLSession {
         }
     }
 
-    func createUrlRequest<T: RequestDataType>(for endpoint: Endpoint<T>, in environment: EnvironmentType, for request: T) throws -> URLRequest {
+    func createUrlRequest<T: RequestType>(in environment: EnvironmentType, for request: T) throws -> URLRequest {
         let urlRequest: URLRequest
 
         do {
-            urlRequest = try endpoint.request(in: environment, for: request)
+            urlRequest = try request.urlRequest(in: environment)
         } catch {
             guard let endpointError = error as? EndpointError else {
                 fatalError("Unhandled endpoint error: \(error)")

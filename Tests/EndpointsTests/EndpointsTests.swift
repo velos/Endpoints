@@ -10,7 +10,11 @@
 import XCTest
 @testable import Endpoints
 
-struct SimpleRequest: RequestDataType {
+struct SimpleRequest: RequestType {
+    static var endpoint: Endpoint<SimpleRequest> = Endpoint(
+        method: .get,
+        path: "user/\(path: \.name)/\(path: \.id)/profile"
+    )
 
     struct Response: Decodable {
         let response1: String
@@ -24,7 +28,12 @@ struct SimpleRequest: RequestDataType {
     let pathComponents: PathComponents
 }
 
-struct JSONProviderRequest: RequestDataType {
+struct JSONProviderRequest: RequestType {
+
+    static var endpoint: Endpoint<JSONProviderRequest> = Endpoint(
+        method: .get,
+        path: "user/\(path: \.name)/\(path: \.id)/profile"
+    )
 
     struct Response: Decodable {
         let responseOne: String
@@ -56,7 +65,33 @@ struct JSONProviderRequest: RequestDataType {
 }
 
 
-struct UserRequest: RequestDataType {
+struct UserRequest: RequestType {
+    static var endpoint: Endpoint<UserRequest> = Endpoint(
+        method: .get,
+        path: "hey" + \UserRequest.PathComponents.userId,
+        parameters: [
+            .form("string", path: \UserRequest.Parameters.string),
+            .form("date", path: \UserRequest.Parameters.date),
+            .form("double", path: \UserRequest.Parameters.double),
+            .form("int", path: \UserRequest.Parameters.int),
+            .form("bool_true", path: \UserRequest.Parameters.boolTrue),
+            .form("bool_false", path: \UserRequest.Parameters.boolFalse),
+            .form("time_zone", path: \UserRequest.Parameters.timeZone),
+            .form("optional_string", path: \UserRequest.Parameters.optionalString),
+            .form("optional_date", path: \UserRequest.Parameters.optionalDate),
+            .formValue("hard_coded_form", value: "true"),
+            .query("string", path: \UserRequest.Parameters.string),
+            .query("optional_string", path: \UserRequest.Parameters.optionalString),
+            .query("optional_date", path: \UserRequest.Parameters.optionalDate),
+            .queryValue("hard_coded_query", value: "true")
+        ],
+        headers: [
+            "HEADER_TYPE": .field(path: \UserRequest.Headers.headerValue),
+            "HARD_CODED_HEADER": .fieldValue(value: "test2"),
+            .keepAlive: .fieldValue(value: "timeout=5, max=1000")
+        ]
+    )
+
     typealias Response = Void
     
     struct PathComponents {
@@ -85,7 +120,12 @@ struct UserRequest: RequestDataType {
     let headers: Headers
 }
 
-struct PostRequest1: RequestDataType {
+struct PostRequest1: RequestType {
+    static var endpoint: Endpoint<PostRequest1> = Endpoint(
+        method: .post,
+        path: "path"
+    )
+
     typealias Response = Void
 
     struct Body: Encodable {
@@ -102,7 +142,12 @@ struct PostRequest1: RequestDataType {
     let body: Body
 }
 
-struct PostRequest2: RequestDataType {
+struct PostRequest2: RequestType {
+    static var endpoint: Endpoint<PostRequest2> = Endpoint(
+        method: .post,
+        path: "path"
+    )
+
     typealias Response = Void
 
     struct Body: Encodable {
@@ -122,17 +167,9 @@ struct Environment: EnvironmentType {
 class EndpointsTests: XCTestCase {
 
     func testBasicEndpoint() throws {
-        let test: Endpoint<SimpleRequest> = Endpoint(
-            method: .get,
-            path: "user/\(path: \.name)/\(path: \.id)/profile"
-        )
-
-        let request = try test.request(
-            in: Environment.test,
-            for: SimpleRequest(
-                pathComponents: .init(name: "zac", id: "42")
-            )
-        )
+        let request = try SimpleRequest(
+            pathComponents: .init(name: "zac", id: "42")
+        ).urlRequest(in: Environment.test)
 
         XCTAssertEqual(request.url?.path, "/user/zac/42/profile")
 
@@ -143,18 +180,10 @@ class EndpointsTests: XCTestCase {
     }
 
     func testBasicEndpointWithCustomDecoder() throws {
-        let test: Endpoint<JSONProviderRequest> = Endpoint(
-            method: .get,
-            path: "user/\(path: \.name)/\(path: \.id)/profile"
-        )
-
-        let request = try test.request(
-            in: Environment.test,
-            for: JSONProviderRequest(
-                body: .init(bodyValueOne: "value"),
-                pathComponents: .init(name: "zac", id: "42")
-            )
-        )
+        let request = try JSONProviderRequest(
+            body: .init(bodyValueOne: "value"),
+            pathComponents: .init(name: "zac", id: "42")
+        ).urlRequest(in: Environment.test)
 
         XCTAssertEqual(request.url?.path, "/user/zac/42/profile")
 
@@ -169,19 +198,10 @@ class EndpointsTests: XCTestCase {
 
 
     func testPostEndpointWithEncoder() throws {
-        let test: Endpoint<PostRequest1> = Endpoint(
-            method: .post,
-            path: "path"
-        )
-
         let date = Date()
-
-        let request = try test.request(
-            in: Environment.test,
-            for: PostRequest1(
-                body: .init(property1: date, property2: nil)
-            )
-        )
+        let request = try PostRequest1(
+            body: .init(property1: date, property2: nil)
+        ).urlRequest(in: Environment.test)
 
         let encodedDate = ISO8601DateFormatter().string(from: date)
         let bodyData = "{\"property1\":\"\(encodedDate)\"}".data(using: .utf8)!
@@ -189,67 +209,31 @@ class EndpointsTests: XCTestCase {
     }
 
     func testPostEndpoint() throws {
-        let test: Endpoint<PostRequest2> = Endpoint(
-            method: .post,
-            path: "path"
-        )
-
-        let request = try test.request(
-            in: Environment.test,
-            for: PostRequest2(
-                body: .init(property1: "test", property2: nil)
-            )
-        )
+        let request = try PostRequest2(
+            body: .init(property1: "test", property2: nil)
+        ).urlRequest(in: Environment.test)
 
         XCTAssertEqual(request.url?.path, "/path")
         XCTAssertEqual(request.httpMethod, "POST")
     }
 
     func testParameterEndpoint() throws {
-        let test: Endpoint<UserRequest> = Endpoint(
-            method: .get,
-            path: "hey" + \UserRequest.PathComponents.userId,
-            parameters: [
-                .form("string", path: \UserRequest.Parameters.string),
-                .form("date", path: \UserRequest.Parameters.date),
-                .form("double", path: \UserRequest.Parameters.double),
-                .form("int", path: \UserRequest.Parameters.int),
-                .form("bool_true", path: \UserRequest.Parameters.boolTrue),
-                .form("bool_false", path: \UserRequest.Parameters.boolFalse),
-                .form("time_zone", path: \UserRequest.Parameters.timeZone),
-                .form("optional_string", path: \UserRequest.Parameters.optionalString),
-                .form("optional_date", path: \UserRequest.Parameters.optionalDate),
-                .formValue("hard_coded_form", value: "true"),
-                .query("string", path: \UserRequest.Parameters.string),
-                .query("optional_string", path: \UserRequest.Parameters.optionalString),
-                .query("optional_date", path: \UserRequest.Parameters.optionalDate),
-                .queryValue("hard_coded_query", value: "true")
-            ],
-            headers: [
-                "HEADER_TYPE": .field(path: \UserRequest.Headers.headerValue),
-                "HARD_CODED_HEADER": .fieldValue(value: "test2"),
-                .keepAlive: .fieldValue(value: "timeout=5, max=1000")
-            ]
-        )
 
-        let request = try test.request(
-            in: Environment.test,
-            for: UserRequest(
-                pathComponents: .init(userId: "3"),
-                parameters: .init(
-                    string: "test:of:thing%asdf",
-                    date: Date(),
-                    double: 2.3,
-                    int: 42,
-                    boolTrue: true,
-                    boolFalse: false,
-                    timeZone: TimeZone(identifier: "America/Los_Angeles")!,
-                    optionalString: nil,
-                    optionalDate: nil
-                ),
-                headers: .init(headerValue: "test")
-            )
-        )
+        let request = try UserRequest(
+            pathComponents: .init(userId: "3"),
+            parameters: .init(
+                string: "test:of:thing%asdf",
+                date: Date(),
+                double: 2.3,
+                int: 42,
+                boolTrue: true,
+                boolFalse: false,
+                timeZone: TimeZone(identifier: "America/Los_Angeles")!,
+                optionalString: nil,
+                optionalDate: nil
+            ),
+            headers: .init(headerValue: "test")
+        ).urlRequest(in: Environment.test)
 
         XCTAssertEqual(request.httpMethod, "GET")
         XCTAssertEqual(request.url?.path, "/hey/3")

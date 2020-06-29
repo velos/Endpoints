@@ -20,10 +20,10 @@ extension URLSession {
     ///   - endpoint: The Endpoint to use when creating the request
     ///   - request: The request data to insert into the Endpoint
     /// - Returns: A Publisher which fetches the Endpoints contents. Any failures when creating the request are sent as errors in the Publisher
-    public func endpointPublisher<T: RequestDataType>(in environment: EnvironmentType, for endpoint: Endpoint<T>, with request: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Void {
+    public func endpointPublisher<T: RequestType>(in environment: EnvironmentType, for endpoint: Endpoint<T>, with request: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Void {
         let urlRequest: URLRequest
         do {
-            urlRequest = try createUrlRequest(for: endpoint, in: environment, for: request)
+            urlRequest = try createUrlRequest(in: environment, for: request)
         } catch {
             return Fail(outputType: T.Response.self, failure: T.TaskError.endpointError(error as! EndpointError))
                 .eraseToAnyPublisher()
@@ -50,11 +50,11 @@ extension URLSession {
     ///   - endpoint: The Endpoint to use when creating the request
     ///   - request: The request data to insert into the Endpoint
     /// - Returns: A Publisher which fetches the Endpoints contents. Any failures when creating the request are sent as errors in the Publisher
-    public func endpointPublisher<T: RequestDataType>(in environment: EnvironmentType, for endpoint: Endpoint<T>, with request: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Data {
+    public func endpointPublisher<T: RequestType>(in environment: EnvironmentType, for endpoint: Endpoint<T>, with request: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Data {
 
         let urlRequest: URLRequest
         do {
-            urlRequest = try createUrlRequest(for: endpoint, in: environment, for: request)
+            urlRequest = try createUrlRequest(in: environment, for: request)
         } catch {
             return Fail(outputType: T.Response.self, failure: T.TaskError.endpointError(error as! EndpointError))
                 .eraseToAnyPublisher()
@@ -84,11 +84,11 @@ extension URLSession {
     ///   - endpoint: The Endpoint to use when creating the request
     ///   - request: The request data to insert into the Endpoint
     /// - Returns: A Publisher which fetches the Endpoints contents. Any failures when creating the request are sent as errors in the Publisher
-    public func endpointPublisher<T: RequestDataType>(in environment: EnvironmentType, for endpoint: Endpoint<T>, with request: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response: Decodable {
+    public func endpointPublisher<T: RequestType>(in environment: EnvironmentType, for endpoint: Endpoint<T>, with request: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response: Decodable {
 
         let urlRequest: URLRequest
         do {
-            urlRequest = try createUrlRequest(for: endpoint, in: environment, for: request)
+            urlRequest = try createUrlRequest(in: environment, for: request)
         } catch {
             return Fail(outputType: T.Response.self, failure: T.TaskError.endpointError(error as! EndpointError))
                 .eraseToAnyPublisher()
