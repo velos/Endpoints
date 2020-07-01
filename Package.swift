@@ -6,10 +6,9 @@ import PackageDescription
 let package = Package(
     name: "Endpoints",
     platforms: [
-        .macOS(.v10_12),
-        .iOS(.v10),
-        .tvOS(.v9),
-        .watchOS(.v3)
+        .macOS(.v10_15),
+        .iOS(.v13),
+        .watchOS(.v6)
     ],
     products: [
         .library(
