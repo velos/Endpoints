@@ -72,14 +72,14 @@ static let endpoint: Endpoint<UserRequest> = Endpoint(
     method: .get,
     path: "/request",
     headers: [
-        "X-TYPE": .field(path: \UserRequest.Headers.type),
+        "X-TYPE": HeaderField.field(path: \UserRequest.HeaderValues.type),
         "X-VALUE": .fieldValue(value: "value"),
         .keepAlive: .fieldValue(value: "timeout=5, max=1000")
     ]
 )
 ```
 
-Custom keys in the headers dictionary can be defined ad-hoc using a String, or by extending an encapsulating type `Headers`. Basic named headers, such as `.keepAlive`, `.accepts`, etc., are already defined as part of the library.
+Custom keys in the headers dictionary can be defined ad-hoc using a String, or by extending an encapsulating type `Headers`. Basic named headers, such as `.keepAlive`, `.accept`, etc., are already defined as part of the library.
 
 ### `BodyEncoder` (associatedtype, defaults to `JSONEncoder`)
 
@@ -97,7 +97,7 @@ Similar to `ResponseDecoder`, this allows customization of the decoder used when
 
 The `Endpoint` static var defines how all the pieces defined in the `RequestType` go together. It's usually the last step, since it requires all the properties of `RequestType` in order to put them together.
 
-An `Endpoint` is generic type with the type parameter conforming to `RequestType`, or equivalently `Self` since the static var is defined as part of the `RequestType` protocol.
+An `Endpoint` is generic type with the type parameter conforming to `RequestType`, or equivalently `Self` since the static let is defined as part of the `RequestType` protocol.
 
 ## Examples
 
@@ -106,7 +106,7 @@ An `Endpoint` is generic type with the type parameter conforming to `RequestType
 #### Request Definition
 ```Swift
 struct MyRequest: RequestType {
-    static var endpoint: Endpoint<MyRequest> = Endpoint(
+    static let endpoint: Endpoint<MyRequest> = Endpoint(
         method: .get,
         path: "path/to/resource"
     )
@@ -135,7 +135,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyRequest())
 #### Request Definition
 ```Swift
 struct MyRequest: RequestType {
-    static var endpoint: Endpoint<MyRequest> = Endpoint(
+    static let endpoint: Endpoint<MyRequest> = Endpoint(
         method: .get,
         path: "user/\(path: \.userId)/resource"
     )
@@ -168,8 +168,14 @@ URLSession.shared.endpointPublisher(in: .production, with: MyRequest(pathCompone
 
 #### Request Definition
 ```Swift
+extension Headers {
+    static let myCustomHeader = Headers(name: "X-CUSTOM")
+    static let myOtherCustomHeader = Headers(name: "X-OTHER-CUSTOM")
+    static let myHardCodedHeader = Headers(name: "X-HARD-CODED")
+}
+
 struct MyRequest: RequestType {
-    static var endpoint: Endpoint<MyRequest> = Endpoint(
+    static let endpoint: Endpoint<MyRequest> = Endpoint(
         method: .get,
         path: "path/to/resource",
         headers: [
@@ -209,7 +215,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyRequest(headerValue
 #### Request Definition
 ```Swift
 struct MyRequest: RequestType {
-    static var endpoint: Endpoint<MyRequest> = Endpoint(
+    static let endpoint: Endpoint<MyRequest> = Endpoint(
         method: .post,
         path: "path/to/resource"
     )
@@ -243,7 +249,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyRequest(body: .init
 #### Request Definition
 ```Swift
 struct MyRequest: RequestType {
-    static var endpoint: Endpoint<MyRequest> = Endpoint(
+    static let endpoint: Endpoint<MyRequest> = Endpoint(
         method: .post,
         path: "path/to/resource",
         parameters: [
@@ -284,7 +290,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyRequest(parameters:
 #### Request Definition
 ```Swift
 struct MyRequest: RequestType {
-    static var endpoint: Endpoint<MyRequest> = Endpoint(
+    static let endpoint: Endpoint<MyRequest> = Endpoint(
         method: .post,
         path: "path/to/resource",
         parameters: [
@@ -331,7 +337,7 @@ https://production.mydomain.com/path/to/resource?keyString=value&keyInt=42&key=h
 #### Request Definition
 ```Swift
 struct MyRequest: RequestType {
-    static var endpoint: Endpoint<MyRequest> = Endpoint(
+    static let endpoint: Endpoint<MyRequest> = Endpoint(
         method: .delete,
         path: "path/to/resource"
     )
@@ -357,7 +363,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyRequest())
 #### Request Definition
 ```Swift
 struct MyRequest: RequestType {
-    static var endpoint: Endpoint<MyRequest> = Endpoint(
+    static let endpoint: Endpoint<MyRequest> = Endpoint(
         method: .get,
         path: "path/to/resource"
     )
@@ -393,7 +399,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyRequest())
 #### Request Definition
 ```Swift
 struct MyRequest: RequestType {
-    static var endpoint: Endpoint<MyRequest> = Endpoint(
+    static let endpoint: Endpoint<MyRequest> = Endpoint(
         method: .post,
         path: "path/to/resource"
     )
@@ -439,7 +445,7 @@ struct ServerError: Decodable {
 }
 
 struct MyRequest: RequestType {
-    static var endpoint: Endpoint<MyRequest> = Endpoint(
+    static let endpoint: Endpoint<MyRequest> = Endpoint(
         method: .get,
         path: "path/to/resource"
     )
@@ -480,7 +486,7 @@ struct ServerError: Decodable {
 }
 
 struct MyRequest: RequestType {
-    static var endpoint: Endpoint<MyRequest> = Endpoint(
+    static let endpoint: Endpoint<MyRequest> = Endpoint(
         method: .get,
         path: "path/to/resource"
     )
