@@ -50,7 +50,7 @@ public protocol RequestType {
     associatedtype Body: Encodable = EmptyResponse
     associatedtype PathComponents = Void
     associatedtype Parameters = Void
-    associatedtype Headers = Void
+    associatedtype HeaderValues = Void
 
     associatedtype BodyEncoder: EncoderType = JSONEncoder
     associatedtype ErrorDecoder: DecoderType = JSONDecoder
@@ -67,7 +67,7 @@ public protocol RequestType {
     var parameters: Parameters { get }
 
     /// The instance of the associated `Headers` type. Used for filling in request data into the headers of the endpoint.
-    var headers: Headers { get }
+    var headerValues: HeaderValues { get }
 
     /// The decoder instance to use when decoding the associated `Body` type
     static var bodyEncoder: BodyEncoder { get }
@@ -162,7 +162,7 @@ extension RequestType {
 
             switch field.value {
             case .field(let valuePath):
-                value = headers[keyPath: valuePath]
+                value = headerValues[keyPath: valuePath]
             case .fieldValue(let fieldValue):
                 value = fieldValue
             }
@@ -211,8 +211,8 @@ public extension RequestType where Parameters == Void {
     var parameters: Parameters { return () }
 }
 
-public extension RequestType where Headers == Void {
-    var headers: Headers { return () }
+public extension RequestType where HeaderValues == Void {
+    var headerValues: HeaderValues { return () }
 }
 
 /// The HTTP Method
@@ -279,15 +279,15 @@ public struct Endpoint<T: RequestType> {
     /// The parameters (form and query) that are included in the Endpoint
     public let parameters: [Parameter<T.Parameters>]
     /// The headers that are included in the Endpoint
-    public let headers: [Headers: HeaderField<T.Headers>]
+    public let headers: [Headers: HeaderField<T.HeaderValues>]
 
     /// Initializes an Endpoint with the given properties, defining all dynamic pieces as type-safe parameters.
     /// - Parameters:
     ///   - method: The HTTP method to use when fetching this Endpoint
     ///   - path: The path template representing the path and all path-related parameters
     ///   - parameters: The parameters passed to the endpoint. Either through query or form body.
-    ///   - headers: The headers associated with this request
-    public init(method: Method, path: PathTemplate<T.PathComponents>, parameters: [Parameter<T.Parameters>] = [], headers: [Headers: HeaderField<T.Headers>] = [:]) {
+    ///   - headerValues: The headers associated with this request
+    public init(method: Method, path: PathTemplate<T.PathComponents>, parameters: [Parameter<T.Parameters>] = [], headers: [Headers: HeaderField<T.HeaderValues>] = [:]) {
         self.method = method
         self.path = path
         self.parameters = parameters

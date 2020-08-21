@@ -64,7 +64,6 @@ struct JSONProviderRequest: RequestType {
     }()
 }
 
-
 struct UserRequest: RequestType {
     static var endpoint: Endpoint<UserRequest> = Endpoint(
         method: .get,
@@ -86,7 +85,7 @@ struct UserRequest: RequestType {
             .queryValue("hard_coded_query", value: "true")
         ],
         headers: [
-            "HEADER_TYPE": .field(path: \UserRequest.Headers.headerValue),
+            "HEADER_TYPE": .field(path: \UserRequest.HeaderValues.headerValue),
             "HARD_CODED_HEADER": .fieldValue(value: "test2"),
             .keepAlive: .fieldValue(value: "timeout=5, max=1000")
         ]
@@ -111,13 +110,13 @@ struct UserRequest: RequestType {
         let optionalDate: String?
     }
 
-    struct Headers {
+    struct HeaderValues {
         let headerValue: String
     }
 
     let pathComponents: PathComponents
     let parameters: Parameters
-    let headers: Headers
+    let headerValues: HeaderValues
 }
 
 struct PostRequest1: RequestType {
@@ -232,7 +231,7 @@ class EndpointsTests: XCTestCase {
                 optionalString: nil,
                 optionalDate: nil
             ),
-            headers: .init(headerValue: "test")
+            headerValues: .init(headerValue: "test")
         ).urlRequest(in: Environment.test)
 
         XCTAssertEqual(request.httpMethod, "GET")
