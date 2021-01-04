@@ -2,7 +2,7 @@
 
 ![CI](https://github.com/velos/Endpoints/workflows/CI/badge.svg) ![Documentation](https://github.com/velos/Endpoints/workflows/Documentation/badge.svg)
 
-A Swift package for creating staticly and strongly-typed definitions of endpoint with paths, methods, inputs and outputs.
+A Swift package for creating statically and strongly-typed definitions of endpoint with paths, methods, inputs and outputs.
 
 ## Purpose
 
@@ -479,7 +479,6 @@ URLSession.shared.endpointPublisher(in: .production, with: MyRequest())
 
 #### Request Definition
 ```Swift
-
 struct ServerError: Decodable {
     let code: Int
     let message: String

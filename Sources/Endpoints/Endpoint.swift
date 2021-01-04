@@ -43,6 +43,11 @@ public protocol DecoderType {
 
 extension JSONDecoder: DecoderType { }
 
+/// The `Response` is an associated type which defines the response from the server. Note that this is just type information which helpers, such as the built-in `URLSession` extensions, can use to know how to handle particular types. For instance, if this type conforms to `Decodable`, then a JSON decoder is used on the data coming from the server. If it's typealiased to `Void`, then the extension can know to ignore the response. If it's `Data`, then it can deliver the response data unmodified.
+/// An `ErrorResponse` type can be associated to define what value conforming to `Decodable` to use when parsing an error response from the server. This can be useful if your server returns a different JSON structure when there's an error versus a success. Often in a project, this can be defined globally and `typealias` can be used to associate this global type on all `RequestType`s.
+/// 
+///
+///
 public protocol RequestType {
     associatedtype Response
     associatedtype ErrorResponse: Decodable = EmptyResponse
