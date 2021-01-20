@@ -2,11 +2,11 @@
 
 ![CI](https://github.com/velos/Endpoints/workflows/CI/badge.svg) ![Documentation](https://github.com/velos/Endpoints/workflows/Documentation/badge.svg)
 
-A Swift package for creating statically and strongly-typed definitions of endpoint with paths, methods, inputs and outputs.
+Endpoints is a small library for creating statically and strongly-typed definitions of endpoint with paths, methods, inputs and outputs.
 
 ## Purpose
 
-The purpose of Endpoints is to, in a type-safe way, define how to create a `URLRequest` from typed properties and, additionally, define how a response for the request should be handled. The library not only includes the ability to create these requests in a type-safe way, but also includes helpers to perform the requests using `URLSession`.
+The purpose of Endpoints is to, in a type-safe way, define how to create a `URLRequest` from typed properties and, additionally, define how a response for the request should be handled. The library not only includes the ability to create these requests in a type-safe way, but also includes helpers to perform the requests using `URLSession`. Endpoints does not try to wrap the URL loading system to provide features on top of it like Alamofire. Instead, Endpoints focuses on defining requests and converting those requests into `URLRequest` objects to be plugged into vanilla `URLSession`s. However, this library could be used in conjunction with Alamofire if desired.
 
 ## Overview of Defining an Endpoint
 
