@@ -20,6 +20,7 @@ jobs:
         with:
           inputs: "Sources"
           module-name: Endpoints
+          base-url: "https://github.com/velos/Endpoints/wiki"
           output: "docs"
 
       - name: Upload Documentation to Wiki
