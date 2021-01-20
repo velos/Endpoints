@@ -21,6 +21,7 @@ jobs:
           inputs: "Sources"
           module-name: Endpoints
           output: "docs"
+
       - name: Upload Documentation to Wiki
         uses: SwiftDocOrg/github-wiki-publish-action@v1
         with:
