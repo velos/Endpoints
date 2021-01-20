@@ -48,6 +48,8 @@ extension Headers {
 
     // Request Headers
     // https://www.w3.org/Protocols/rfc2616/rfc2616-sec5.html#sec5.3
+
+    /// See [Accept](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept) header documentation.
     public static let accept = Headers(name: "Accept", category: .request)
     public static let acceptCharset = Headers(name: "Accept-Charset", category: .request)
     public static let acceptEncoding = Headers(name: "Accept-Encoding", category: .request)

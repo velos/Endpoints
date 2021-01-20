@@ -20,10 +20,12 @@ jobs:
         with:
           inputs: "Sources"
           module-name: Endpoints
-          output: "Documentation"
+          base-url: "https://github.com/velos/Endpoints/wiki"
+          output: "docs"
+
       - name: Upload Documentation to Wiki
         uses: SwiftDocOrg/github-wiki-publish-action@v1
         with:
-          path: "Documentation"
+          path: "docs"
         env:
           GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
