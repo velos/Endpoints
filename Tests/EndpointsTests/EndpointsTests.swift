@@ -119,8 +119,8 @@ struct UserEndpoint: Endpoint {
     let headerValues: HeaderValues
 }
 
-struct PostRequest1: Endpoint {
-    static var definition: Definition<PostRequest1> = Definition(
+struct PostEndpoint1: Endpoint {
+    static var definition: Definition<PostEndpoint1> = Definition(
         method: .post,
         path: "path"
     )
@@ -141,8 +141,8 @@ struct PostRequest1: Endpoint {
     let body: Body
 }
 
-struct PostRequest2: Endpoint {
-    static var definition: Definition<PostRequest2> = Definition(
+struct PostEndpoint2: Endpoint {
+    static var definition: Definition<PostEndpoint2> = Definition(
         method: .post,
         path: "path"
     )
@@ -198,7 +198,7 @@ class EndpointsTests: XCTestCase {
 
     func testPostEndpointWithEncoder() throws {
         let date = Date()
-        let request = try PostRequest1(
+        let request = try PostEndpoint1(
             body: .init(property1: date, property2: nil)
         ).urlRequest(in: Environment.test)
 
@@ -208,7 +208,7 @@ class EndpointsTests: XCTestCase {
     }
 
     func testPostEndpoint() throws {
-        let request = try PostRequest2(
+        let request = try PostEndpoint2(
             body: .init(property1: "test", property2: nil)
         ).urlRequest(in: Environment.test)
 
