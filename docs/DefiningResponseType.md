@@ -51,7 +51,7 @@ With this enum, either hard-coded values can be injected into the `Endpoint` (wi
 
 ### `HeaderValues` (associatedtype, defaults to `Void`)
 
-Custom headers can be included in your `Endpoint` definition by associating a type with `HeaderValues` in your `Endpoint`. These properties can be referenced by key paths in the `Endpoint` definition:
+Custom headers can be included in your `Definition` by passing `Headers` to the headers dictionary. These enum values can include references by key paths to `HeaderValue`s or to hard-coded strings:
 
 ```Swift
 static let definition: Definition<UserEndpoint> = Definition(
@@ -65,7 +65,7 @@ static let definition: Definition<UserEndpoint> = Definition(
 )
 ```
 
-Custom keys in the headers dictionary can be defined ad-hoc using a String, or by extending an encapsulating type `Headers`. Basic named headers, such as `.keepAlive`, `.accept`, etc., are already defined as part of the library.
+Custom keys in the headers dictionary can be defined ad-hoc using a String, or by extending the encapsulating type `Headers`. Basic named headers, such as `.keepAlive`, `.accept`, etc., are already defined as part of the library.
 
 ### `BodyEncoder` (associatedtype, defaults to `JSONEncoder`)
 
@@ -81,6 +81,6 @@ Similar to `ResponseDecoder`, this allows customization of the decoder used when
 
 ### `definition` (static var, required)
 
-The `Endpoint` static var defines how all the pieces defined in the `Endpoint` go together. When creating a `Endpoint`, it's usually the last step, since it requires all the properties of the `Endpoint` defined in order to put them together.
+The `definition` static var defines how all the pieces defined in the `Endpoint` go together. Creating a `Definition` is usually the last step, since it requires all the properties of the `Endpoint` defined in order to put them together.
 
-An `Endpoint` is generic type with the type parameter conforming to `Endpoint`, or equivalently `Self` since the static let is defined as part of the `Endpoint` protocol.
+A `Definition` is a generic type with the type parameter conforming to `Endpoint`, or equivalently `Self` since the static let is defined as part of the `Endpoint` protocol.

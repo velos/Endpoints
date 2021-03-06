@@ -64,7 +64,7 @@ extension URLSession {
     /// Note: This does not start the request. That must be done with `resume()`.
     /// - Parameters:
     ///   - environment: An instance conforming to EnvironmentType, which is used to build the full request.
-    ///   - request: The request data to use when filling in the Definition
+    ///   - endpoint: The request data to use when filling in the Definition
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
     /// - Throws: Throws an `EndpointTaskError` of `.endpointError(EndpointError)` if there is an issue constructing the request.
     /// - Returns: The new session data task.
@@ -82,7 +82,7 @@ extension URLSession {
     /// Note: This does not start the request. That must be done with `resume()`.
     /// - Parameters:
     ///   - environment: An instance conforming to EnvironmentType, which is used to build the full request.
-    ///   - request: The request data to use when filling in the Definition
+    ///   - endpoint: The request data to use when filling in the Definition
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
     /// - Throws: Throws an `EndpointTaskError` of `.endpointError(EndpointError)` if there is an issue constructing the request.
     /// - Returns: The new session data task.
@@ -100,7 +100,7 @@ extension URLSession {
     /// Note: This does not start the request. That must be done with `resume()`.
     /// - Parameters:
     ///   - environment: An instance conforming to EnvironmentType, which is used to build the full request.
-    ///   - request: The request data to use when filling in the Definition
+    ///   - endpoint: The request data to use when filling in the Definition
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
     /// - Throws: Throws an `EndpointTaskError` of `.endpointError(EndpointError)` if there is an issue constructing the request.
     /// - Returns: The new session data task.
