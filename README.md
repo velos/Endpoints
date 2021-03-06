@@ -14,7 +14,7 @@ The basic process for defining an Endpoint starts with defining a value conformi
 
 To get started, first create a type (struct or class) conforming to `Endpoint`. There are only two required elements to conform: defining the `Response` and creating the `Definition`.
 
-Endpoints and Definitions do not contain base URLs so that these requests can be used on different environments. Environments are defined as conforming to the `EnvironmentType` and implement a `baseURL` as well as an optional `requestProcessor` which has a final hook before `URLRequest` creation to modify the `URLRequest` to attach authentication or signatures.
+`Endpoints` and `Definitions` do not contain base URLs so that these requests can be used on different environments. Environments are defined as conforming to the `EnvironmentType` and implement a `baseURL` as well as an optional `requestProcessor` which has a final hook before `URLRequest` creation to modify the `URLRequest` to attach authentication or signatures.
 
 To find out more about the pieces of the `Endpoint`, check out [Defining a ResponseType](https://github.com/velos/Endpoints/wiki/DefiningResponseType) on the wiki.
 
