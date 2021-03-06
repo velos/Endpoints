@@ -10,8 +10,8 @@
 import XCTest
 @testable import Endpoints
 
-struct SimpleRequest: RequestType {
-    static var endpoint: Endpoint<SimpleRequest> = Endpoint(
+struct SimpleEndpoint: Endpoint {
+    static var definition: Definition<SimpleEndpoint> = Definition(
         method: .get,
         path: "user/\(path: \.name)/\(path: \.id)/profile"
     )
@@ -28,9 +28,9 @@ struct SimpleRequest: RequestType {
     let pathComponents: PathComponents
 }
 
-struct JSONProviderRequest: RequestType {
+struct JSONProviderEndpoint: Endpoint {
 
-    static var endpoint: Endpoint<JSONProviderRequest> = Endpoint(
+    static var definition: Definition<JSONProviderEndpoint> = Definition(
         method: .get,
         path: "user/\(path: \.name)/\(path: \.id)/profile"
     )
@@ -64,28 +64,28 @@ struct JSONProviderRequest: RequestType {
     }()
 }
 
-struct UserRequest: RequestType {
-    static var endpoint: Endpoint<UserRequest> = Endpoint(
+struct UserEndpoint: Endpoint {
+    static var definition: Definition<UserEndpoint> = Definition(
         method: .get,
-        path: "hey" + \UserRequest.PathComponents.userId,
+        path: "hey" + \UserEndpoint.PathComponents.userId,
         parameters: [
-            .form("string", path: \UserRequest.Parameters.string),
-            .form("date", path: \UserRequest.Parameters.date),
-            .form("double", path: \UserRequest.Parameters.double),
-            .form("int", path: \UserRequest.Parameters.int),
-            .form("bool_true", path: \UserRequest.Parameters.boolTrue),
-            .form("bool_false", path: \UserRequest.Parameters.boolFalse),
-            .form("time_zone", path: \UserRequest.Parameters.timeZone),
-            .form("optional_string", path: \UserRequest.Parameters.optionalString),
-            .form("optional_date", path: \UserRequest.Parameters.optionalDate),
+            .form("string", path: \UserEndpoint.Parameters.string),
+            .form("date", path: \UserEndpoint.Parameters.date),
+            .form("double", path: \UserEndpoint.Parameters.double),
+            .form("int", path: \UserEndpoint.Parameters.int),
+            .form("bool_true", path: \UserEndpoint.Parameters.boolTrue),
+            .form("bool_false", path: \UserEndpoint.Parameters.boolFalse),
+            .form("time_zone", path: \UserEndpoint.Parameters.timeZone),
+            .form("optional_string", path: \UserEndpoint.Parameters.optionalString),
+            .form("optional_date", path: \UserEndpoint.Parameters.optionalDate),
             .formValue("hard_coded_form", value: "true"),
-            .query("string", path: \UserRequest.Parameters.string),
-            .query("optional_string", path: \UserRequest.Parameters.optionalString),
-            .query("optional_date", path: \UserRequest.Parameters.optionalDate),
+            .query("string", path: \UserEndpoint.Parameters.string),
+            .query("optional_string", path: \UserEndpoint.Parameters.optionalString),
+            .query("optional_date", path: \UserEndpoint.Parameters.optionalDate),
             .queryValue("hard_coded_query", value: "true")
         ],
         headers: [
-            "HEADER_TYPE": .field(path: \UserRequest.HeaderValues.headerValue),
+            "HEADER_TYPE": .field(path: \UserEndpoint.HeaderValues.headerValue),
             "HARD_CODED_HEADER": .fieldValue(value: "test2"),
             .keepAlive: .fieldValue(value: "timeout=5, max=1000")
         ]
@@ -119,8 +119,8 @@ struct UserRequest: RequestType {
     let headerValues: HeaderValues
 }
 
-struct PostRequest1: RequestType {
-    static var endpoint: Endpoint<PostRequest1> = Endpoint(
+struct PostRequest1: Endpoint {
+    static var definition: Definition<PostRequest1> = Definition(
         method: .post,
         path: "path"
     )
@@ -141,8 +141,8 @@ struct PostRequest1: RequestType {
     let body: Body
 }
 
-struct PostRequest2: RequestType {
-    static var endpoint: Endpoint<PostRequest2> = Endpoint(
+struct PostRequest2: Endpoint {
+    static var definition: Definition<PostRequest2> = Definition(
         method: .post,
         path: "path"
     )
@@ -166,20 +166,20 @@ struct Environment: EnvironmentType {
 class EndpointsTests: XCTestCase {
 
     func testBasicEndpoint() throws {
-        let request = try SimpleRequest(
+        let request = try SimpleEndpoint(
             pathComponents: .init(name: "zac", id: "42")
         ).urlRequest(in: Environment.test)
 
         XCTAssertEqual(request.url?.path, "/user/zac/42/profile")
 
         let responseData = #"{"response1": "testing"}"#.data(using: .utf8)!
-        let response = try SimpleRequest.responseDecoder.decode(SimpleRequest.Response.self, from: responseData)
+        let response = try SimpleEndpoint.responseDecoder.decode(SimpleEndpoint.Response.self, from: responseData)
 
         XCTAssertEqual(response.response1, "testing")
     }
 
     func testBasicEndpointWithCustomDecoder() throws {
-        let request = try JSONProviderRequest(
+        let request = try JSONProviderEndpoint(
             body: .init(bodyValueOne: "value"),
             pathComponents: .init(name: "zac", id: "42")
         ).urlRequest(in: Environment.test)
@@ -190,7 +190,7 @@ class EndpointsTests: XCTestCase {
         XCTAssertEqual(request.httpBody, bodyData)
 
         let responseData = #"{"response_one": "testing"}"#.data(using: .utf8)!
-        let response = try JSONProviderRequest.responseDecoder.decode(JSONProviderRequest.Response.self, from: responseData)
+        let response = try JSONProviderEndpoint.responseDecoder.decode(JSONProviderEndpoint.Response.self, from: responseData)
 
         XCTAssertEqual(response.responseOne, "testing")
     }
@@ -218,7 +218,7 @@ class EndpointsTests: XCTestCase {
 
     func testParameterEndpoint() throws {
 
-        let request = try UserRequest(
+        let request = try UserEndpoint(
             pathComponents: .init(userId: "3"),
             parameters: .init(
                 string: "test:of:thing%asdf",

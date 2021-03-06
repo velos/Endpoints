@@ -6,7 +6,7 @@ The `Response` is an associated type which defines the response from the server.
 
 ### `ErrorResponse` (associatedtype, optional, defaults to `EmptyResponse`)
 
-An `ErrorResponse` type can be associated to define what value conforming to `Decodable` to use when parsing an error response from the server. This can be useful if your server returns a different JSON structure when there's an error versus a success. Often in a project, this can be defined globally and `typealias` can be used to associate this global type on all `RequestType`s.
+An `ErrorResponse` type can be associated to define what value conforming to `Decodable` to use when parsing an error response from the server. This can be useful if your server returns a different JSON structure when there's an error versus a success. Often in a project, this can be defined globally and `typealias` can be used to associate this global type on all `Endpoint`s.
 
 ### `Body` (associatedtype, optional, defaults to `EmptyResponse`)
 
@@ -17,8 +17,8 @@ When POST-ing JSON to your server, a `Body` conforming to `Encodable` can be ass
 If a `PathComponents` type is associated, properties of that type can be utilized in the `path` of the `Endpoint` using a path string interpolation syntax:
 
 ```Swift
-struct DeleteRequest: RequestType {
-    static let endpoint: Endpoint<DeleteRequest> = Endpoint(
+struct DeleteEndpoint: Endpoint {
+    static let definition: Definition<DeleteEndpoint> = Definition(
         method: .delete,
         path: "calendar/v3/calendars/\(path: \.calendarId)/events\(path: \.eventId)"
     )
@@ -51,14 +51,14 @@ With this enum, either hard-coded values can be injected into the `Endpoint` (wi
 
 ### `HeaderValues` (associatedtype, defaults to `Void`)
 
-Custom headers can be included in your `Endpoint` definition by associating a type with `HeaderValues` in your `RequestType`. These properties can be referenced by key paths in the `Endpoint` definition:
+Custom headers can be included in your `Endpoint` definition by associating a type with `HeaderValues` in your `Endpoint`. These properties can be referenced by key paths in the `Endpoint` definition:
 
 ```Swift
-static let endpoint: Endpoint<UserRequest> = Endpoint(
+static let definition: Definition<UserEndpoint> = Definition(
     method: .get,
     path: "/request",
     headers: [
-        "X-TYPE": HeaderField.field(path: \UserRequest.HeaderValues.type),
+        "X-TYPE": HeaderField.field(path: \UserEndpoint.HeaderValues.type),
         "X-VALUE": .fieldValue(value: "value"),
         .keepAlive: .fieldValue(value: "timeout=5, max=1000")
     ]
@@ -79,8 +79,8 @@ Similar to custom body encoding, the `ResponseDecoder` with the `responseDecoder
 
 Similar to `ResponseDecoder`, this allows customization of the decoder used when errors are encountered and parsed using the `ErrorResponse` type.
 
-### `endpoint` (static var, required)
+### `definition` (static var, required)
 
-The `Endpoint` static var defines how all the pieces defined in the `RequestType` go together. When creating a `RequestType`, it's usually the last step, since it requires all the properties of the `RequestType` defined in order to put them together.
+The `Endpoint` static var defines how all the pieces defined in the `Endpoint` go together. When creating a `Endpoint`, it's usually the last step, since it requires all the properties of the `Endpoint` defined in order to put them together.
 
-An `Endpoint` is generic type with the type parameter conforming to `RequestType`, or equivalently `Self` since the static let is defined as part of the `RequestType` protocol.
+An `Endpoint` is generic type with the type parameter conforming to `Endpoint`, or equivalently `Self` since the static let is defined as part of the `Endpoint` protocol.

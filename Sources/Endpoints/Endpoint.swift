@@ -1,5 +1,5 @@
 //
-//  Endpoint.swift
+//  Definition.swift
 //  Endpoints
 //
 //  Created by Zac White on 1/26/19.
@@ -44,11 +44,11 @@ public protocol DecoderType {
 extension JSONDecoder: DecoderType { }
 
 /// The `Response` is an associated type which defines the response from the server. Note that this is just type information which helpers, such as the built-in `URLSession` extensions, can use to know how to handle particular types. For instance, if this type conforms to `Decodable`, then a JSON decoder is used on the data coming from the server. If it's typealiased to `Void`, then the extension can know to ignore the response. If it's `Data`, then it can deliver the response data unmodified.
-/// An `ErrorResponse` type can be associated to define what value conforming to `Decodable` to use when parsing an error response from the server. This can be useful if your server returns a different JSON structure when there's an error versus a success. Often in a project, this can be defined globally and `typealias` can be used to associate this global type on all `RequestType`s.
+/// An `ErrorResponse` type can be associated to define what value conforming to `Decodable` to use when parsing an error response from the server. This can be useful if your server returns a different JSON structure when there's an error versus a success. Often in a project, this can be defined globally and `typealias` can be used to associate this global type on all `Endpoint`s.
 /// 
 ///
 ///
-public protocol RequestType {
+public protocol Endpoint {
     associatedtype Response
     associatedtype ErrorResponse: Decodable = EmptyResponse
 
@@ -83,21 +83,21 @@ public protocol RequestType {
     /// The decoder instance to use when decoding the associated `Response` type
     static var responseDecoder: ResponseDecoder { get }
 
-    static var endpoint: Endpoint<Self> { get }
+    static var definition: Definition<Self> { get }
 }
 
-extension RequestType {
+extension Endpoint {
 
     /// Generates a `URLRequest` given the associated request value.
     /// - Parameter environment: The environment in which to create the request
-    /// - Throws: An `EndpointError` which describes the error filling in data to the associated `Endpoint`.
+    /// - Throws: An `EndpointError` which describes the error filling in data to the associated `Definition`.
     /// - Returns: A `URLRequest` ready for requesting with all values from `self` filled in according to the associated `Endpoint`.
     public func urlRequest(in environment: EnvironmentType) throws -> URLRequest {
 
         var components = URLComponents()
-        components.path = Self.endpoint.path.path(with: pathComponents)
+        components.path = Self.definition.path.path(with: pathComponents)
 
-        let urlQueryItems: [URLQueryItem] = try Self.endpoint.parameters.compactMap { item in
+        let urlQueryItems: [URLQueryItem] = try Self.definition.parameters.compactMap { item in
 
             let value: Any
             let name: String
@@ -123,7 +123,7 @@ extension RequestType {
             return nil
         }
 
-        let bodyFormItems: [URLQueryItem] = try Self.endpoint.parameters.compactMap { item in
+        let bodyFormItems: [URLQueryItem] = try Self.definition.parameters.compactMap { item in
 
             let value: Any
             let name: String
@@ -159,9 +159,9 @@ extension RequestType {
         }
 
         var urlRequest = URLRequest(url: url)
-        urlRequest.httpMethod = Self.endpoint.method.methodString
+        urlRequest.httpMethod = Self.definition.method.methodString
 
-        let headerItems: [String: String] = try Self.endpoint.headers.reduce(into: [:]) { allHeaders, field in
+        let headerItems: [String: String] = try Self.definition.headers.reduce(into: [:]) { allHeaders, field in
             let value: Any
             let name = field.key.name
 
@@ -206,19 +206,19 @@ extension RequestType {
     }
 }
 
-public extension RequestType where Body == EmptyResponse {
+public extension Endpoint where Body == EmptyResponse {
     var body: Body { return EmptyResponse() }
 }
 
-public extension RequestType where PathComponents == Void {
+public extension Endpoint where PathComponents == Void {
     var pathComponents: PathComponents { return () }
 }
 
-public extension RequestType where Parameters == Void {
+public extension Endpoint where Parameters == Void {
     var parameters: Parameters { return () }
 }
 
-public extension RequestType where HeaderValues == Void {
+public extension Endpoint where HeaderValues == Void {
     var headerValues: HeaderValues { return () }
 }
 
@@ -249,18 +249,18 @@ public enum Method {
     }
 }
 
-public extension RequestType where ResponseDecoder == JSONDecoder {
+public extension Endpoint where ResponseDecoder == JSONDecoder {
     static var responseDecoder: ResponseDecoder {
         return JSONDecoder()
     }
 }
 
-public extension RequestType where ErrorDecoder == JSONDecoder {
+public extension Endpoint where ErrorDecoder == JSONDecoder {
     static var errorDecoder: ErrorDecoder {
         return JSONDecoder()
     }
 }
-public extension RequestType where BodyEncoder == JSONEncoder {
+public extension Endpoint where BodyEncoder == JSONEncoder {
     static var bodyEncoder: BodyEncoder {
         return JSONEncoder()
     }
@@ -277,20 +277,20 @@ public extension EnvironmentType {
     var requestProcessor: (URLRequest) -> URLRequest { return { $0 } }
 }
 
-public struct Endpoint<T: RequestType> {
+public struct Definition<T: Endpoint> {
 
     /// The HTTP method of the Endpoint
     public let method: Method
     /// A template including all elements that appear in the path
     public let path: PathTemplate<T.PathComponents>
-    /// The parameters (form and query) that are included in the Endpoint
+    /// The parameters (form and query) that are included in the Definition
     public let parameters: [Parameter<T.Parameters>]
-    /// The headers that are included in the Endpoint
+    /// The headers that are included in the Definition
     public let headers: [Headers: HeaderField<T.HeaderValues>]
 
-    /// Initializes an Endpoint with the given properties, defining all dynamic pieces as type-safe parameters.
+    /// Initializes a Definition with the given properties, defining all dynamic pieces as type-safe parameters.
     /// - Parameters:
-    ///   - method: The HTTP method to use when fetching this Endpoint
+    ///   - method: The HTTP method to use when fetching the owning Endpoint
     ///   - path: The path template representing the path and all path-related parameters
     ///   - parameters: The parameters passed to the endpoint. Either through query or form body.
     ///   - headerValues: The headers associated with this request

@@ -2,7 +2,7 @@
 
 ![CI](https://github.com/velos/Endpoints/workflows/CI/badge.svg) ![Documentation](https://github.com/velos/Endpoints/workflows/Documentation/badge.svg)
 
-Endpoints is a small library for creating statically and strongly-typed definitions of endpoint with paths, methods, inputs and outputs.
+Endpoints is a small library for creating statically and strongly-typed definitions of endpoints with paths, methods, inputs and outputs.
 
 ## Purpose
 
@@ -10,21 +10,21 @@ The purpose of Endpoints is to, in a type-safe way, define how to create a `URLR
 
 ## Getting Started
 
-The basic process for defining an Endpoint starts with defining a value conforming to `RequestType`. With the `RequestType` protocol, you are encapsulating all the properties that are needed for making a request and the types for parsing the response. Within the `RequestType`, the `endpoint` static var serves as an immutable definition of the server's endpoint and how the variable pieces of the `RequestType` should fit together when making the full request.
+The basic process for defining an Endpoint starts with defining a value conforming to `Endpoint`. With the `Endpoint` protocol, you are encapsulating all the properties that are needed for making a request and the types for parsing the response. Within the `Endpoint`, the `definition` static var serves as an immutable definition of the server's endpoint and how the variable pieces of the `Endpoint` should fit together when making the full request.
 
-To get started, first create a type (struct or class) conforming to `RequestType`. There are only two required elements to conform: defining the `Response` and creating the `Endpoint`.
+To get started, first create a type (struct or class) conforming to `Endpoint`. There are only two required elements to conform: defining the `Response` and creating the `Endpoint`.
 
-Requests and Endpoints do not contain base URLs so that these requests can be used on different environments. Environments are defined as conforming to the `EnvironmentType` and implement a `baseURL` as well as an optional `requestProcessor` which has a final hook before `URLRequest` creation to modify the `URLRequest` to attach authentication or signatures.
+Endpoints and Definitions do not contain base URLs so that these requests can be used on different environments. Environments are defined as conforming to the `EnvironmentType` and implement a `baseURL` as well as an optional `requestProcessor` which has a final hook before `URLRequest` creation to modify the `URLRequest` to attach authentication or signatures.
 
-To find out more about the pieces of the `RequestType`, check out [Defining a ResponseType](https://github.com/velos/Endpoints/wiki/DefiningResponseType) on the wiki.
+To find out more about the pieces of the `Endpoint`, check out [Defining a ResponseType](https://github.com/velos/Endpoints/wiki/DefiningResponseType) on the wiki.
 
 ## Examples
 
-The most basic example of defining an Endpoint is creating a simple GET request. This means defining a type that conforms to `RequestType` such as:
+The most basic example of defining an Endpoint is creating a simple GET request. This means defining a type that conforms to `Endpoint` such as:
 
 ```Swift
-struct MyRequest: RequestType {
-    static let endpoint: Endpoint<MyRequest> = Endpoint(
+struct MyEndpoint: Endpoint {
+    static let definition: Definition<MyEndpoint> = Definition(
         method: .get,
         path: "path/to/resource"
     )
@@ -42,12 +42,12 @@ Then usage can employ the `URLSession` extensions:
 
 #### Usage
 ```Swift
-URLSession.shared.endpointPublisher(in: .production, with: MyRequest())
+URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
     .sink { completion in
         guard case .failure(let error) = completion else { return }
         // handle error
-    } receiveValue: { (response: MyRequest.Response) in
-        // handle MyRequest.Response
+    } receiveValue: { (response: MyEndpoint.Response) in
+        // handle MyEndpoint.Response
     }
     .store(in: &cancellables)
 ```

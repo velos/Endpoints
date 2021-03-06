@@ -1,5 +1,5 @@
 //
-//  Endpoint.swift
+//  Definition.swift
 //  Headers
 //
 //  Created by Zac White on 6/25/20.
