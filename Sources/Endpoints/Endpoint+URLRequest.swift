@@ -24,7 +24,7 @@ extension Endpoint {
             let name: String
             switch item {
             case .query(let queryName, let valuePath):
-                value = parameters[keyPath: valuePath]
+                value = parameterComponents[keyPath: valuePath]
                 name = queryName
             case .queryValue(let queryName, let queryValue):
                 value = queryValue
@@ -50,7 +50,7 @@ extension Endpoint {
             let name: String
             switch item {
             case .form(let formName, let valuePath):
-                value = parameters[keyPath: valuePath]
+                value = parameterComponents[keyPath: valuePath]
                 name = formName
             case .formValue(let formName, let formValue):
                 value = formValue
@@ -88,7 +88,7 @@ extension Endpoint {
 
             switch field.value {
             case .field(let valuePath):
-                value = headerValues[keyPath: valuePath]
+                value = headerComponents[keyPath: valuePath]
             case .fieldValue(let fieldValue):
                 value = fieldValue
             }
@@ -106,7 +106,7 @@ extension Endpoint {
 
         urlRequest.url = url
 
-        if !(body is EmptyResponse) {
+        if !(body is Empty) {
             do {
                 urlRequest.httpBody = try Self.bodyEncoder.encode(body)
             } catch {

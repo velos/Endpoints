@@ -69,23 +69,23 @@ struct UserEndpoint: Endpoint {
         method: .get,
         path: "hey" + \UserEndpoint.PathComponents.userId,
         parameters: [
-            .form("string", path: \UserEndpoint.Parameters.string),
-            .form("date", path: \UserEndpoint.Parameters.date),
-            .form("double", path: \UserEndpoint.Parameters.double),
-            .form("int", path: \UserEndpoint.Parameters.int),
-            .form("bool_true", path: \UserEndpoint.Parameters.boolTrue),
-            .form("bool_false", path: \UserEndpoint.Parameters.boolFalse),
-            .form("time_zone", path: \UserEndpoint.Parameters.timeZone),
-            .form("optional_string", path: \UserEndpoint.Parameters.optionalString),
-            .form("optional_date", path: \UserEndpoint.Parameters.optionalDate),
+            .form("string", path: \UserEndpoint.ParameterComponents.string),
+            .form("date", path: \UserEndpoint.ParameterComponents.date),
+            .form("double", path: \UserEndpoint.ParameterComponents.double),
+            .form("int", path: \UserEndpoint.ParameterComponents.int),
+            .form("bool_true", path: \UserEndpoint.ParameterComponents.boolTrue),
+            .form("bool_false", path: \UserEndpoint.ParameterComponents.boolFalse),
+            .form("time_zone", path: \UserEndpoint.ParameterComponents.timeZone),
+            .form("optional_string", path: \UserEndpoint.ParameterComponents.optionalString),
+            .form("optional_date", path: \UserEndpoint.ParameterComponents.optionalDate),
             .formValue("hard_coded_form", value: "true"),
-            .query("string", path: \UserEndpoint.Parameters.string),
-            .query("optional_string", path: \UserEndpoint.Parameters.optionalString),
-            .query("optional_date", path: \UserEndpoint.Parameters.optionalDate),
+            .query("string", path: \UserEndpoint.ParameterComponents.string),
+            .query("optional_string", path: \UserEndpoint.ParameterComponents.optionalString),
+            .query("optional_date", path: \UserEndpoint.ParameterComponents.optionalDate),
             .queryValue("hard_coded_query", value: "true")
         ],
         headers: [
-            "HEADER_TYPE": .field(path: \UserEndpoint.HeaderValues.headerValue),
+            "HEADER_TYPE": .field(path: \UserEndpoint.HeaderComponents.headerValue),
             "HARD_CODED_HEADER": .fieldValue(value: "test2"),
             .keepAlive: .fieldValue(value: "timeout=5, max=1000")
         ]
@@ -97,7 +97,7 @@ struct UserEndpoint: Endpoint {
         let userId: String
     }
 
-    struct Parameters {
+    struct ParameterComponents {
         let string: String
         let date: Date
         let double: Double
@@ -110,13 +110,13 @@ struct UserEndpoint: Endpoint {
         let optionalDate: String?
     }
 
-    struct HeaderValues {
+    struct HeaderComponents {
         let headerValue: String
     }
 
     let pathComponents: PathComponents
-    let parameters: Parameters
-    let headerValues: HeaderValues
+    let parameterComponents: ParameterComponents
+    let headerComponents: HeaderComponents
 }
 
 struct PostEndpoint1: Endpoint {
@@ -220,7 +220,7 @@ class EndpointsTests: XCTestCase {
 
         let request = try UserEndpoint(
             pathComponents: .init(userId: "3"),
-            parameters: .init(
+            parameterComponents: .init(
                 string: "test:of:thing%asdf",
                 date: Date(),
                 double: 2.3,
@@ -231,7 +231,7 @@ class EndpointsTests: XCTestCase {
                 optionalString: nil,
                 optionalDate: nil
             ),
-            headerValues: .init(headerValue: "test")
+            headerComponents: .init(headerValue: "test")
         ).urlRequest(in: Environment.test)
 
         XCTAssertEqual(request.httpMethod, "GET")
