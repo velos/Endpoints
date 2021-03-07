@@ -29,7 +29,7 @@ public enum HeaderField<T> {
 }
 
 /// A placeholder type for representing empty encodable or decodable Body values and ErrorResponse values.
-public struct EmptyResponse: Codable { }
+public struct Empty: Codable { }
 
 public protocol EncoderType {
     func encode<T: Encodable>(_ value: T) throws -> Data
@@ -53,12 +53,12 @@ extension JSONDecoder: DecoderType { }
 /// and `typealias` can be used to associate this global type on all `Endpoint`s.
 public protocol Endpoint {
     associatedtype Response
-    associatedtype ErrorResponse: Decodable = EmptyResponse
+    associatedtype ErrorResponse: Decodable = Empty
 
-    associatedtype Body: Encodable = EmptyResponse
+    associatedtype Body: Encodable = Empty
     associatedtype PathComponents = Void
-    associatedtype Parameters = Void
-    associatedtype HeaderValues = Void
+    associatedtype ParameterComponents = Void
+    associatedtype HeaderComponents = Void
 
     associatedtype BodyEncoder: EncoderType = JSONEncoder
     associatedtype ErrorDecoder: DecoderType = JSONDecoder
@@ -74,11 +74,11 @@ public protocol Endpoint {
     /// If none are necessary, this can be `Void`
     var pathComponents: PathComponents { get }
 
-    /// The instance of the associated `Parameters` type. Used for filling in request data into the query and form parameters of the endpoint.
-    var parameters: Parameters { get }
+    /// The instance of the associated `ParameterComponents` type. Used for filling in request data into the query and form parameters of the endpoint.
+    var parameterComponents: ParameterComponents { get }
 
-    /// The instance of the associated `Headers` type. Used for filling in request data into the headers of the endpoint.
-    var headerValues: HeaderValues { get }
+    /// The instance of the associated `HeaderComponents` type. Used for filling in request data into the headers of the endpoint.
+    var headerComponents: HeaderComponents { get }
 
     /// The decoder instance to use when decoding the associated `Body` type
     static var bodyEncoder: BodyEncoder { get }
@@ -90,20 +90,20 @@ public protocol Endpoint {
     static var responseDecoder: ResponseDecoder { get }
 }
 
-public extension Endpoint where Body == EmptyResponse {
-    var body: Body { return EmptyResponse() }
+public extension Endpoint where Body == Empty {
+    var body: Body { return Empty() }
 }
 
 public extension Endpoint where PathComponents == Void {
     var pathComponents: PathComponents { return () }
 }
 
-public extension Endpoint where Parameters == Void {
-    var parameters: Parameters { return () }
+public extension Endpoint where ParameterComponents == Void {
+    var parameterComponents: ParameterComponents { return () }
 }
 
-public extension Endpoint where HeaderValues == Void {
-    var headerValues: HeaderValues { return () }
+public extension Endpoint where HeaderComponents == Void {
+    var headerComponents: HeaderComponents { return () }
 }
 
 public extension Endpoint where ResponseDecoder == JSONDecoder {
@@ -130,9 +130,9 @@ public struct Definition<T: Endpoint> {
     /// A template including all elements that appear in the path
     public let path: PathTemplate<T.PathComponents>
     /// The parameters (form and query) that are included in the Definition
-    public let parameters: [Parameter<T.Parameters>]
+    public let parameters: [Parameter<T.ParameterComponents>]
     /// The headers that are included in the Definition
-    public let headers: [Header: HeaderField<T.HeaderValues>]
+    public let headers: [Header: HeaderField<T.HeaderComponents>]
 
     /// Initializes a Definition with the given properties, defining all dynamic pieces as type-safe parameters.
     /// - Parameters:
@@ -142,8 +142,8 @@ public struct Definition<T: Endpoint> {
     ///   - headerValues: The headers associated with this request
     public init(method: Method,
                 path: PathTemplate<T.PathComponents>,
-                parameters: [Parameter<T.Parameters>] = [],
-                headers: [Header: HeaderField<T.HeaderValues>] = [:]) {
+                parameters: [Parameter<T.ParameterComponents>] = [],
+                headers: [Header: HeaderField<T.HeaderComponents>] = [:]) {
         self.method = method
         self.path = path
         self.parameters = parameters

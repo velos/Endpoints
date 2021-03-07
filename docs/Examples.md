@@ -152,8 +152,8 @@ struct MyEndpoint: Endpoint {
         method: .post,
         path: "path/to/resource",
         parameters: [
-            .form("keyString", path: \MyEndpoint.Parameters.keyString),
-            .form("keyInt", path: \MyEndpoint.Parameters.keyInt),
+            .form("keyString", path: \MyEndpoint.ParameterComponents.keyString),
+            .form("keyInt", path: \MyEndpoint.ParameterComponents.keyInt),
             .formValue("key", value: "hard-coded")
         ]
     )
@@ -193,8 +193,8 @@ struct MyEndpoint: Endpoint {
         method: .post,
         path: "path/to/resource",
         parameters: [
-            .query("keyString", path: \MyEndpoint.Parameters.keyString),
-            .query("keyInt", path: \MyEndpoint.Parameters.keyInt),
+            .query("keyString", path: \MyEndpoint.ParameterComponents.keyString),
+            .query("keyInt", path: \MyEndpoint.ParameterComponents.keyInt),
             .queryValue("key", value: "hard-coded")
         ]
     )
