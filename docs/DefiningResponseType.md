@@ -51,7 +51,7 @@ With this enum, either hard-coded values can be injected into the `Endpoint` (wi
 
 ### `HeaderValues` (associatedtype, defaults to `Void`)
 
-Custom headers can be included in your `Definition` by passing `Headers` to the headers dictionary. These enum values can include references by key paths to `HeaderValue`s or to hard-coded strings:
+Custom headers can be included in your `Definition` by passing a dictionary of `[Header: HeaderField]` to the headers property. The `HeaderField` enum values can include references by key paths to `HeaderComponent`s or to hard-coded strings:
 
 ```Swift
 static let definition: Definition<UserEndpoint> = Definition(
@@ -65,7 +65,7 @@ static let definition: Definition<UserEndpoint> = Definition(
 )
 ```
 
-Custom keys in the headers dictionary can be defined ad-hoc using a String, or by extending the encapsulating type `Headers`. Basic named headers, such as `.keepAlive`, `.accept`, etc., are already defined as part of the library.
+Custom keys in the headers dictionary can be defined ad-hoc using a String, or by extending the encapsulating type `Header`. Basic named headers, such as `.keepAlive`, `.accept`, etc., are already defined as part of the library.
 
 ### `BodyEncoder` (associatedtype, defaults to `JSONEncoder`)
 
