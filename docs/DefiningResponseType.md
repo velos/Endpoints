@@ -4,11 +4,11 @@
 
 The `Response` is an associated type which defines the response from the server. Note that this is just type information which helpers, such as the built-in `URLSession` extensions, can use to know how to handle particular types. For instance, if this type conforms to `Decodable`, then a JSON decoder is used on the data coming from the server. If it's typealiased to `Void`, then the extension can know to ignore the response. If it's `Data`, then it can deliver the response data unmodified.
 
-### `ErrorResponse` (associatedtype, optional, defaults to `EmptyResponse`)
+### `ErrorResponse` (associatedtype, optional, defaults to `EmptyCodable`)
 
 An `ErrorResponse` type can be associated to define what value conforming to `Decodable` to use when parsing an error response from the server. This can be useful if your server returns a different JSON structure when there's an error versus a success. Often in a project, this can be defined globally and `typealias` can be used to associate this global type on all `Endpoint`s.
 
-### `Body` (associatedtype, optional, defaults to `EmptyResponse`)
+### `Body` (associatedtype, optional, defaults to `EmptyCodable`)
 
 When POST-ing JSON to your server, a `Body` conforming to `Encodable` can be associated. This value will be encoded as JSON into the body of the HTTP request.
 

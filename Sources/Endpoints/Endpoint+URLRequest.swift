@@ -111,7 +111,7 @@ extension Endpoint {
 
         urlRequest.url = url
 
-        if !(body is Empty) {
+        if !(body is EmptyCodable) {
             do {
                 urlRequest.httpBody = try Self.bodyEncoder.encode(body)
             } catch {

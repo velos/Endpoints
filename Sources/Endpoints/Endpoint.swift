@@ -33,7 +33,7 @@ public enum HeaderField<T> {
 }
 
 /// A placeholder type for representing empty encodable or decodable Body values and ErrorResponse values.
-public struct Empty: Codable { }
+public struct EmptyCodable: Codable { }
 
 public protocol EncoderType {
     func encode<T: Encodable>(_ value: T) throws -> Data
@@ -57,9 +57,9 @@ extension JSONDecoder: DecoderType { }
 /// and `typealias` can be used to associate this global type on all `Endpoint`s.
 public protocol Endpoint {
     associatedtype Response
-    associatedtype ErrorResponse: Decodable = Empty
+    associatedtype ErrorResponse: Decodable = EmptyCodable
 
-    associatedtype Body: Encodable = Empty
+    associatedtype Body: Encodable = EmptyCodable
     associatedtype PathComponents = Void
     associatedtype ParameterComponents = Void
     associatedtype HeaderComponents = Void
@@ -94,8 +94,8 @@ public protocol Endpoint {
     static var responseDecoder: ResponseDecoder { get }
 }
 
-public extension Endpoint where Body == Empty {
-    var body: Body { return Empty() }
+public extension Endpoint where Body == EmptyCodable {
+    var body: Body { return EmptyCodable() }
 }
 
 public extension Endpoint where PathComponents == Void {
