@@ -1,8 +1,9 @@
 //
-//  File.swift
-//  
+//  Method.swift
+//  Endpoints
 //
-//  Created by Zac White on 3/6/21.
+//  Created by Zac White on 1/26/19.
+//  Copyright © 2019 Velos Mobile LLC. All rights reserved.
 //
 
 import Foundation

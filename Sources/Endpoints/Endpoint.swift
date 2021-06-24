@@ -8,6 +8,10 @@
 
 import Foundation
 
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+
 public enum EndpointError: Error {
     case invalid(components: URLComponents, relativeTo: URL)
     case invalidQuery(named: String, type: Any.Type)
