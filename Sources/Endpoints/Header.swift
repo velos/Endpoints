@@ -18,7 +18,7 @@ public struct Header: Hashable, ExpressibleByStringLiteral {
     /// See: https://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.2
     public let category: HeaderCategory
 
-    /// Initializes a Headers instance with the name and a category.
+    /// Initializes a Header instance with the name and a category.
     /// - Parameters:
     ///   - name: The name of the Header. Example: "Accept-Language"
     ///   - category: The category of the header. Defaults to `.general`
@@ -27,8 +27,8 @@ public struct Header: Hashable, ExpressibleByStringLiteral {
         self.category = category
     }
 
-    /// Initializes a Headers instance with the name of the header as a string literal. The category defaults to `.general`
-    /// - Parameter value: <#value description#>
+    /// Initializes a Header instance with the name of the header as a string literal. The category defaults to `.general`
+    /// - Parameter value: The string literal to use as the name of the Header. Example: "X-MY-CUSTOM-HEADER"
     public init(stringLiteral value: StringLiteralType) {
         self.name = value
         self.category = .general

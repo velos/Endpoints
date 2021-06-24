@@ -67,10 +67,10 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(pathCompon
 
 #### Endpoint and Definition
 ```Swift
-extension Headers {
-    static let myCustomHeader = Headers(name: "X-CUSTOM")
-    static let myOtherCustomHeader = Headers(name: "X-OTHER-CUSTOM")
-    static let myHardCodedHeader = Headers(name: "X-HARD-CODED")
+extension Header {
+    static let myCustomHeader = Header(name: "X-CUSTOM")
+    static let myOtherCustomHeader = Header(name: "X-OTHER-CUSTOM")
+    static let myHardCodedHeader = Header(name: "X-HARD-CODED")
 }
 
 struct MyEndpoint: Endpoint {
