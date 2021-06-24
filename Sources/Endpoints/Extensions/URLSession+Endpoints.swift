@@ -8,6 +8,10 @@
 
 import Foundation
 
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+
 /// A error when creating or requesting an Endpoint
 public enum EndpointTaskError<ErrorResponseType>: Error {
     case endpointError(EndpointError)

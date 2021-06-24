@@ -6,7 +6,6 @@
 //  Copyright © 2019 Velos Mobile LLC. All rights reserved.
 //
 
-#if !os(watchOS)
 import XCTest
 @testable import Endpoints
 
@@ -61,12 +60,4 @@ class PathTemplateTests: XCTestCase {
         let path = template.path(with: Test(string: "first", integer: 2))
         XCTAssertEqual(path, "testing")
     }
-
-    static var allTests = [
-        ("testStringInterpolation", testStringInterpolation),
-        ("testStringConcatenation", testStringConcatenation),
-        ("testNoSlash", testNoSlash),
-        ("testStringLiteral", testStringLiteral)
-    ]
 }
-#endif
