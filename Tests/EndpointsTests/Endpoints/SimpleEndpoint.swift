@@ -15,8 +15,12 @@ struct SimpleEndpoint: Endpoint {
         path: "user/\(path: \.name)/\(path: \.id)/profile"
     )
 
-    struct Response: Decodable {
+    struct Response: Codable {
         let response1: String
+    }
+
+    struct ErrorResponse: Codable, Equatable {
+        let errorDescription: String
     }
 
     struct PathComponents {

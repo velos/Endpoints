@@ -24,7 +24,7 @@ extension URLSession {
         do {
             urlRequest = try createUrlRequest(in: environment, for: endpoint)
         } catch {
-            return Fail(outputType: T.Response.self, failure: T.TaskError.endpointError(error as! EndpointError))
+            return Fail(outputType: T.Response.self, failure: error as! T.TaskError)
                 .eraseToAnyPublisher()
         }
 
@@ -57,7 +57,7 @@ extension URLSession {
         do {
             urlRequest = try createUrlRequest(in: environment, for: endpoint)
         } catch {
-            return Fail(outputType: T.Response.self, failure: T.TaskError.endpointError(error as! EndpointError))
+            return Fail(outputType: T.Response.self, failure: error as! T.TaskError)
                 .eraseToAnyPublisher()
         }
 
@@ -90,7 +90,7 @@ extension URLSession {
         do {
             urlRequest = try createUrlRequest(in: environment, for: endpoint)
         } catch {
-            return Fail(outputType: T.Response.self, failure: T.TaskError.endpointError(error as! EndpointError))
+            return Fail(outputType: T.Response.self, failure: error as! T.TaskError)
                 .eraseToAnyPublisher()
         }
 

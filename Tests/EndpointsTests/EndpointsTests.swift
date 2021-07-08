@@ -41,7 +41,6 @@ class EndpointsTests: XCTestCase {
         XCTAssertEqual(response.responseOne, "testing")
     }
 
-
     func testPostEndpointWithEncoder() throws {
         let date = Date()
         let request = try PostEndpoint1(
@@ -93,8 +92,94 @@ class EndpointsTests: XCTestCase {
         XCTAssertTrue(
             String(data: request.httpBody ?? Data(), encoding: .utf8)?.contains("string=test%3Aof%3Athing%25asdf") ?? false
         )
+        XCTAssertFalse(
+            String(data: request.httpBody ?? Data(), encoding: .utf8)?.contains("optional_string") ?? true
+        )
         XCTAssertTrue(
             String(data: request.httpBody ?? Data(), encoding: .utf8)?.contains("double=2.3&int=42&bool_true=true&bool_false=false&time_zone=America/Los_Angeles&hard_coded_form=true") ?? false
         )
+    }
+
+    func testInvalidParameter() {
+        XCTAssertThrowsError(
+            try InvalidEndpoint(
+                parameterComponents: .init(nonEncodable: .value)
+            ).urlRequest(in: Environment.test)
+        ) { error in
+            XCTAssertTrue(error is EndpointError, "error is \(type(of: error)) and not an EndpointError")
+        }
+    }
+
+    func testResponseSuccess() throws {
+
+        let successResponse = HTTPURLResponse(url: URL(fileURLWithPath: ""), statusCode: 200, httpVersion: nil, headerFields: nil)
+        let jsonData = try JSONEncoder().encode(SimpleEndpoint.Response(response1: "testing"))
+        let result = SimpleEndpoint.definition.response(
+            data: jsonData,
+            response: successResponse,
+            error: nil
+        )
+
+        guard case .success(let data) = result else {
+            XCTFail("Unexpected failure")
+            return
+        }
+
+        XCTAssertEqual(data, jsonData)
+    }
+
+    func testResponseNetworkError() throws {
+
+        let jsonData = try JSONEncoder().encode(SimpleEndpoint.Response(response1: "testing"))
+        let result = SimpleEndpoint.definition.response(
+            data: jsonData,
+            response: nil,
+            error: NSError(domain: URLError.errorDomain, code: URLError.Code.notConnectedToInternet.rawValue, userInfo: nil)
+        )
+
+        guard case .failure(let taskError) = result, case .internetConnectionOffline = taskError else {
+            XCTFail("Unexpected failure")
+            return
+        }
+    }
+
+    func testResponseURLLoadError() throws {
+
+        let jsonData = try JSONEncoder().encode(SimpleEndpoint.Response(response1: "testing"))
+        let result = SimpleEndpoint.definition.response(
+            data: jsonData,
+            response: nil,
+            error: NSError(domain: URLError.errorDomain, code: URLError.Code.badServerResponse.rawValue, userInfo: nil)
+        )
+
+        guard case .failure(let taskError) = result, case .urlLoadError = taskError else {
+            XCTFail("Unexpected failure")
+            return
+        }
+    }
+
+    func testResponseErrorParsing() throws {
+
+        let failureResponse = HTTPURLResponse(url: URL(fileURLWithPath: ""), statusCode: 404, httpVersion: nil, headerFields: nil)
+        let errorResponse = SimpleEndpoint.ErrorResponse(errorDescription: "testing")
+        let jsonData = try JSONEncoder().encode(errorResponse)
+        let result = SimpleEndpoint.definition.response(
+            data: jsonData,
+            response: failureResponse,
+            error: nil
+        )
+
+        guard case .failure(let error) = result else {
+            XCTFail("Unexpected failure")
+            return
+        }
+
+        guard case .errorResponse(let code, let decoded) = error else {
+            XCTFail("Unexpected error case")
+            return
+        }
+
+        XCTAssertEqual(code, 404)
+        XCTAssertEqual(decoded, errorResponse)
     }
 }
