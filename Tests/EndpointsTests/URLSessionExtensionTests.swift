@@ -27,7 +27,7 @@ class URLSessionExtensionTests: XCTestCase {
     }
 
     func testPublisherCreationFailure() {
-        let expectation = expectation(description: "publisher creation failure")
+        let publisherExpectation = expectation(description: "publisher creation failure")
         URLSession.shared.endpointPublisher(
             in: Environment.test,
             with: InvalidEndpoint(parameterComponents: .init(nonEncodable: .value))
@@ -37,7 +37,7 @@ class URLSessionExtensionTests: XCTestCase {
                 return
             }
 
-            expectation.fulfill()
+            publisherExpectation.fulfill()
         } receiveValue: { _ in
             XCTFail()
         }
