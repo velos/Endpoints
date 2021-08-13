@@ -25,7 +25,6 @@ extension URLSession {
             return Fail(outputType: T.Response.self, failure: T.TaskError.endpointError(error as! EndpointError))
                 .eraseToAnyPublisher()
         }
-        
 
         return dataTaskPublisher(for: urlRequest)
             .subscribe(on: DispatchQueue.global())
@@ -37,7 +36,11 @@ extension URLSession {
 
                 return responseError
             }
-            .map { _ in }
+            .tryMap { result in
+                _ = try T.endpoint.response(data: result.data, response: result.response, error: nil).get()
+            }
+            // swiftlint:disable:next force_cast
+            .mapError { $0 as! T.TaskError }
             .eraseToAnyPublisher()
     }
 
