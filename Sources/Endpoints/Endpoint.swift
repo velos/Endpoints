@@ -86,6 +86,15 @@ public protocol RequestType {
     static var endpoint: Endpoint<Self> { get }
 }
 
+///
+/// Adopted by `RequestType`s to indicate that the response is potentially cachable for offline use when internet is disconnected.
+///
+public protocol CacheableRequestType {
+
+    /// If `true`, `URLSession.endpointPublisher` attempts to satisfy failing requests using previously cached responses when device is offline
+    var isCacheable: Bool { get }
+}
+
 extension RequestType {
 
     /// Generates a `URLRequest` given the associated request value.

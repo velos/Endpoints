@@ -84,6 +84,8 @@ extension URLSession {
     /// - Returns: A Publisher which fetches the Endpoints contents. Any failures when creating the request are sent as errors in the Publisher
     public func endpointPublisher<T: RequestType>(in environment: EnvironmentType, with request: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response: Decodable {
 
+        let shouldCache = (request as? CacheableRequestType)?.isCacheable ?? false
+
         let urlRequest: URLRequest
         do {
             urlRequest = try createUrlRequest(in: environment, for: request)
@@ -95,6 +97,27 @@ extension URLSession {
         return dataTaskPublisher(for: urlRequest)
             .subscribe(on: DispatchQueue.global())
             .receive(on: DispatchQueue.global())
+            .tryCatch { error -> AnyPublisher<URLSession.DataTaskPublisher.Output, URLSession.DataTaskPublisher.Failure> in
+                guard shouldCache, let urlCache = URLSession.shared.configuration.urlCache else {
+                    throw error
+                }
+
+                switch error.code {
+                case .notConnectedToInternet,
+                     .networkConnectionLost,
+                     .timedOut,
+                     .dataNotAllowed:
+                    guard let cachedResponse = urlCache.cachedResponse(for: urlRequest) else {
+                        throw error // not found in cache
+                    }
+                    return Just((data: cachedResponse.data, response: cachedResponse.response))
+                        .setFailureType(to: URLSession.DataTaskPublisher.Failure.self)
+                        .eraseToAnyPublisher()
+
+                default:
+                    throw error
+                }
+            }
             .mapError { error -> T.TaskError in
                 guard case let .failure(responseError) = T.endpoint.response(data: nil, response: nil, error: error) else {
                     fatalError("Unhandled error")
@@ -102,6 +125,19 @@ extension URLSession {
 
                 return responseError
             }
+            .handleEvents(receiveOutput: {
+                guard shouldCache, let urlCache = URLSession.shared.configuration.urlCache else { return }
+
+                // Check whether manual caching is necessary:
+                let previousCachedResponse = urlCache.cachedResponse(for: urlRequest)
+                guard !Self.compareHeadersAsStringDictionaries(response1: previousCachedResponse?.response, response2: $0.response) else {
+                    // Unchanged headers indicate this was already cached
+                    return
+                }
+
+                let cachedResponse = CachedURLResponse(response: $0.response, data: $0.data)
+                urlCache.storeCachedResponse(cachedResponse, for: urlRequest)
+            })
             .tryMap { result -> T.Response in
                 let data = try T.endpoint.response(data: result.data, response: result.response, error: nil).get()
                 do {
@@ -114,4 +150,12 @@ extension URLSession {
             .mapError { $0 as! T.TaskError }
             .eraseToAnyPublisher()
     }
+
+    private static func compareHeadersAsStringDictionaries(response1: URLResponse?, response2: URLResponse?) -> Bool {
+        guard let fields1 = (response1 as? HTTPURLResponse)?.allHeaderFields as? [String: String],
+              let fields2 = (response2 as? HTTPURLResponse)?.allHeaderFields as? [String: String]
+        else { return false }
+        return fields1 == fields2
+    }
 }
+
