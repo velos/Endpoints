@@ -11,12 +11,12 @@ import Foundation
 /// A error when creating or requesting an Endpoint
 public enum EndpointTaskError<ErrorResponseType>: Error {
     case endpointError(EndpointError)
-    case responseParseError(Error)
+    case responseParseError(data: Data, error: Error)
 
-    case unexpectedResponse(code: Int)
+    case unexpectedResponse(httpResponse: HTTPURLResponse)
 
-    case errorResponse(code: Int, response: ErrorResponseType)
-    case errorResponseParseError(Error)
+    case errorResponse(httpResponse: HTTPURLResponse, response: ErrorResponseType)
+    case errorResponseParseError(httpResponse: HTTPURLResponse, data: Data, error: Error)
 
     case urlLoadError(Error)
     case internetConnectionOffline
@@ -29,30 +29,35 @@ extension RequestType {
 
 extension Endpoint {
     func response(data: Data?, response: URLResponse?, error: Error?) -> Result<Data, T.TaskError> {
-        let responseCode = (response as? HTTPURLResponse)?.statusCode ?? 0
-
         if let error = error {
             guard (error as NSError).code != URLError.Code.notConnectedToInternet.rawValue else {
                 return .failure(.internetConnectionOffline)
             }
 
             return .failure(.urlLoadError(error))
-        } else if responseCode == 204 {
+        }
+
+        // if we don't have an `error`, we must have an `HTTPURLResponse`
+        guard let httpResponse = response as? HTTPURLResponse else {
+            return .failure(.urlLoadError(URLError(.badServerResponse)))
+        }
+
+        if httpResponse.statusCode == 204 {
             // handle empty response
             return .success(Data())
-        } else if (200..<300).contains(responseCode), let data = data {
+        } else if (200..<300).contains(httpResponse.statusCode), let data = data {
             return .success(data)
         } else if let data = data {
             let decoded: T.ErrorResponse
             do {
                 decoded = try T.errorDecoder.decode(T.ErrorResponse.self, from: data)
             } catch {
-                return .failure(.errorResponseParseError(error))
+                return .failure(.errorResponseParseError(httpResponse: httpResponse, data: data, error: error))
             }
 
-            return .failure(.errorResponse(code: responseCode, response: decoded))
+            return .failure(.errorResponse(httpResponse: httpResponse, response: decoded))
         } else {
-            return .failure(.unexpectedResponse(code: responseCode))
+            return .failure(.unexpectedResponse(httpResponse: httpResponse))
         }
     }
 }
@@ -116,7 +121,7 @@ extension URLSession {
                 do {
                     decoded = try T.responseDecoder.decode(T.Response.self, from: data)
                 } catch {
-                    completion(.failure(.responseParseError(error)))
+                    completion(.failure(.responseParseError(data: data, error: error)))
                     return
                 }
                 completion(.success(decoded))
