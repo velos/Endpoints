@@ -107,7 +107,7 @@ extension URLSession {
                 do {
                     return try T.responseDecoder.decode(T.Response.self, from: data)
                 } catch {
-                    throw T.TaskError.responseParseError(error)
+                    throw T.TaskError.responseParseError(data: data, error: error)
                 }
             }
             // swiftlint:disable:next force_cast
