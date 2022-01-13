@@ -192,10 +192,12 @@ extension RequestType {
                 throw EndpointError.invalidBody(error)
             }
 
-            urlRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
+            if headerItems[Headers.contentType.name] == nil {
+                urlRequest.addValue("application/json", forHTTPHeaderField: Headers.contentType.name)
+            }
         } else if !bodyFormItems.isEmpty {
             urlRequest.httpBody = bodyFormItems.formString.data(using: .utf8)
-            urlRequest.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+            urlRequest.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: Headers.contentType.name)
         }
 
         urlRequest = environment.requestProcessor(urlRequest)
