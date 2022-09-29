@@ -37,7 +37,7 @@ extension URLSession {
                 return responseError
             }
             .tryMap { result in
-                _ = try T.endpoint.response(data: result.data, response: result.response, error: nil).get()
+                _ = try T.definition.response(data: result.data, response: result.response, error: nil).get()
             }
             // swiftlint:disable:next force_cast
             .mapError { $0 as! T.TaskError }
