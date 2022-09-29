@@ -174,12 +174,12 @@ class EndpointsTests: XCTestCase {
             return
         }
 
-        guard case .errorResponse(let code, let decoded) = error else {
+        guard case .errorResponse(let response, let decoded) = error else {
             XCTFail("Unexpected error case")
             return
         }
 
-        XCTAssertEqual(code, 404)
+        XCTAssertEqual(response.statusCode, 404)
         XCTAssertEqual(decoded, errorResponse)
     }
 }
