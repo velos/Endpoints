@@ -88,7 +88,7 @@ extension URLSession {
         do {
             urlRequest = try createUrlRequest(in: environment, for: request)
         } catch {
-            return Fail(outputType: T.Response.self, failure: T.TaskError.endpointError(error as! EndpointError))
+            return Fail(outputType: T.Response.self, failure: error as! EndpointTaskError)
                 .eraseToAnyPublisher()
         }
 
