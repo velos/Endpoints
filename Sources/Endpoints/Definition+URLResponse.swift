@@ -9,6 +9,13 @@
 import Foundation
 
 extension Definition {
+
+    /// Converts data, response and error into a Result type by processing data and throwing errors based on response codes and response data.
+    /// - Parameters:
+    ///   - data: The raw data fetched in the response
+    ///   - response: The response object
+    ///   - error: Any error encountered by the fetch
+    /// - Returns: A Result value with either the Data or the T.TaskError
     public func response(data: Data?, response: URLResponse?, error: Error?) -> Result<Data, T.TaskError> {
         if let error = error {
             guard (error as NSError).code != URLError.Code.notConnectedToInternet.rawValue else {
