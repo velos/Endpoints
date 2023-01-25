@@ -43,6 +43,9 @@ extension URLSession {
         do {
             result = try await data(for: urlRequest)
         } catch {
+            if (error as NSError).code == URLError.Code.notConnectedToInternet.rawValue {
+                throw T.TaskError.internetConnectionOffline
+            }
             throw T.TaskError.urlLoadError(error)
         }
 
