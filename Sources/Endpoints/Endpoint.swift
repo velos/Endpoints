@@ -47,25 +47,36 @@ public protocol DecoderType {
 
 extension JSONDecoder: DecoderType { }
 
-/// The `Response` is an associated type which defines the response from the server. Note that this is just type information which helpers, such as the built-in
-/// `URLSession` extensions, can use to know how to handle particular types. For instance, if this type conforms to `Decodable`, then a JSON decoder is used
-/// on the data coming from the server. If it's typealiased to `Void`, then the extension can know to ignore the response. If it's `Data`, then it can deliver the
-/// response data unmodified.
-///
-/// An `ErrorResponse` type can be associated to define what value conforming to `Decodable` to use when parsing an error response from the server.
-/// This can be useful if your server returns a different JSON structure when there's an error versus a success. Often in a project, this can be defined globally
-/// and `typealias` can be used to associate this global type on all `Endpoint`s.
 public protocol Endpoint {
+
+    /// The response type received from the server. Note that this is just type information which helpers, such as the built-in `URLSession` extensions,
+    /// can use to know how to handle particular types. For instance, if this type conforms to `Decodable`, then a JSON decoder is used
+    /// on the data coming from the server. If it's typealiased to `Void`, then the extension can know to ignore the response. If it's `Data`, then it can deliver the
+    /// response data unmodified.
     associatedtype Response
+
+    /// The type representing the `Decodable` error response from the server. Defaults to an empty `Decodable` struct, `EmptyCodable`.
+    /// This can be useful if your server returns a different JSON structure when there's an error versus a success. Often in a project, this can be defined globally
+    /// and `typealias` can be used to associate this global type on all `Endpoint`s.
     associatedtype ErrorResponse: Decodable = EmptyCodable
 
+    /// The body type conforming to `Encodable`. Defaults to `EmptyCodable`.
     associatedtype Body: Encodable = EmptyCodable
+
+    /// The values needed to fill the `Definition`'s path.
     associatedtype PathComponents = Void
+
+    /// The values needed to fill the `Definition`'s parameters.
     associatedtype ParameterComponents = Void
+
+    /// The values needed to fill the `Definition`'s headers.
     associatedtype HeaderComponents = Void
 
+    /// The `EncoderType` to use when encoding the body of the request. Defaults to `JSONEncoder`.
     associatedtype BodyEncoder: EncoderType = JSONEncoder
+    /// The `DecoderType` to use when decoding the body of the request. Defaults to `JSONDecoder`.
     associatedtype ErrorDecoder: DecoderType = JSONDecoder
+    /// The `DecoderType` to use when decoding the response. Defaults to `JSONDecoder`.
     associatedtype ResponseDecoder: DecoderType = JSONDecoder
 
     /// A `Definition` which pieces together all the components defined in the endpoint.
