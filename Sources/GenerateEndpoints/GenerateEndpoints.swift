@@ -2,6 +2,9 @@ import Foundation
 import ArgumentParser
 import OpenAPIKit
 import Yams
+import SwiftSyntax
+import SwiftSyntaxBuilder
+import Endpoints
 
 struct GeneratorError: Error {
     let message: String
@@ -45,10 +48,45 @@ struct GenerateEndpoints: AsyncParsableCommand {
     var clean = false
 
     func run() async throws {
-        var document = try await parseInputSpec()
+        let document = try await parseInputSpec()
         for route in document.routes {
-            print("route: \(route)")
+            for pathItemEndpoint in route.pathItem.endpoints {
+                let endpointSource = try generateEndpoint(with: pathItemEndpoint, for: route.path)
+                print(endpointSource.formatted().description)
+            }
         }
+    }
+    
+
+    private func generateEndpoint(with endpoint: OpenAPI.PathItem.Endpoint, for path: OpenAPI.Path) throws -> SourceFileSyntax {
+
+        guard let operationId = endpoint.operation.operationId else {
+            throw GeneratorError("Missing operationId for endpoint...\n\(endpoint)")
+        }
+
+        let name = operationId.withFirstLetterUppercased() + String(describing: (any Endpoint).self)
+
+        let source = SourceFileSyntax {
+            StructDeclSyntax(
+                leadingTrivia: endpoint.operation.summary.map { "/// \($0)\n" },
+                modifiers: [.init(name: "public")],
+                name: "\(raw: name)",
+                inheritanceClause: .init(
+                    inheritedTypes: .init([InheritedTypeSyntax(type: TypeSyntax(stringLiteral: String(describing: (any Endpoint).self)))])
+                )
+            ) {
+                DeclSyntax(
+                """
+                public static var definition: Endpoints.Definition<\(raw: name)> = .init(
+                    method: \(raw: "." + endpoint.method.rawValue.lowercased()),
+                    path: "\(raw: path.rawValue.dropFirst())"
+                )
+                """
+                )
+            }
+        }
+
+        return source
     }
 
     private func parseInputSpec() async throws -> OpenAPI.Document {
@@ -71,4 +109,14 @@ struct GenerateEndpoints: AsyncParsableCommand {
 
         return spec
     }
+}
+
+extension String {
+  func withFirstLetterUppercased() -> String {
+    if let firstLetter = self.first {
+      return firstLetter.uppercased() + self.dropFirst()
+    } else {
+      return self
+    }
+  }
 }

@@ -28,6 +28,16 @@
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES">
       <Testables>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "EndpointsTests"
+               BuildableName = "EndpointsTests"
+               BlueprintName = "EndpointsTests"
+               ReferencedContainer = "container:">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction
@@ -54,7 +64,19 @@
       <CommandLineArguments>
          <CommandLineArgument
             argument = "~/Projects/acrylic/model-generation/base-api.bundled.json"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "/Users/charleshieger/Projects/velos/Endpoints/Sources/GenerateEndpoints/openapi.yaml"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "/Users/charleshieger/Projects/velos/Endpoints/Sources/GenerateEndpoints/openapi-openai-2.yaml"
             isEnabled = "YES">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "/Users/charleshieger/Projects/velos/openapi-collab.json"
+            isEnabled = "NO">
          </CommandLineArgument>
       </CommandLineArguments>
    </LaunchAction>
