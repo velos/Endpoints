@@ -6,180 +6,26 @@
 //  Copyright © 2019 Velos Mobile LLC. All rights reserved.
 //
 
-#if !os(watchOS)
 import XCTest
 @testable import Endpoints
-
-struct SimpleRequest: RequestType {
-    static var endpoint: Endpoint<SimpleRequest> = Endpoint(
-        method: .get,
-        path: "user/\(path: \.name)/\(path: \.id)/profile"
-    )
-
-    struct Response: Decodable {
-        let response1: String
-    }
-
-    struct PathComponents {
-        let name: String
-        let id: String
-    }
-
-    let pathComponents: PathComponents
-}
-
-struct JSONProviderRequest: RequestType {
-
-    static var endpoint: Endpoint<JSONProviderRequest> = Endpoint(
-        method: .get,
-        path: "user/\(path: \.name)/\(path: \.id)/profile"
-    )
-
-    struct Response: Decodable {
-        let responseOne: String
-    }
-
-    struct Body: Encodable {
-        let bodyValueOne: String
-    }
-
-    struct PathComponents {
-        let name: String
-        let id: String
-    }
-
-    let body: Body
-    let pathComponents: PathComponents
-
-    static let responseDecoder: JSONDecoder = {
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return decoder
-    }()
-
-    static let bodyEncoder: JSONEncoder = {
-        let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = .convertToSnakeCase
-        return encoder
-    }()
-}
-
-struct UserRequest: RequestType {
-    static var endpoint: Endpoint<UserRequest> = Endpoint(
-        method: .get,
-        path: "hey" + \UserRequest.PathComponents.userId,
-        parameters: [
-            .form("string", path: \UserRequest.Parameters.string),
-            .form("date", path: \UserRequest.Parameters.date),
-            .form("double", path: \UserRequest.Parameters.double),
-            .form("int", path: \UserRequest.Parameters.int),
-            .form("bool_true", path: \UserRequest.Parameters.boolTrue),
-            .form("bool_false", path: \UserRequest.Parameters.boolFalse),
-            .form("time_zone", path: \UserRequest.Parameters.timeZone),
-            .form("optional_string", path: \UserRequest.Parameters.optionalString),
-            .form("optional_date", path: \UserRequest.Parameters.optionalDate),
-            .formValue("hard_coded_form", value: "true"),
-            .query("string", path: \UserRequest.Parameters.string),
-            .query("optional_string", path: \UserRequest.Parameters.optionalString),
-            .query("optional_date", path: \UserRequest.Parameters.optionalDate),
-            .queryValue("hard_coded_query", value: "true")
-        ],
-        headers: [
-            "HEADER_TYPE": .field(path: \UserRequest.HeaderValues.headerValue),
-            "HARD_CODED_HEADER": .fieldValue(value: "test2"),
-            .keepAlive: .fieldValue(value: "timeout=5, max=1000")
-        ]
-    )
-
-    typealias Response = Void
-    
-    struct PathComponents {
-        let userId: String
-    }
-
-    struct Parameters {
-        let string: String
-        let date: Date
-        let double: Double
-        let int: Int
-        let boolTrue: Bool
-        let boolFalse: Bool
-        let timeZone: TimeZone
-
-        let optionalString: String?
-        let optionalDate: String?
-    }
-
-    struct HeaderValues {
-        let headerValue: String
-    }
-
-    let pathComponents: PathComponents
-    let parameters: Parameters
-    let headerValues: HeaderValues
-}
-
-struct PostRequest1: RequestType {
-    static var endpoint: Endpoint<PostRequest1> = Endpoint(
-        method: .post,
-        path: "path"
-    )
-
-    typealias Response = Void
-
-    struct Body: Encodable {
-        let property1: Date
-        let property2: Int?
-    }
-
-    static let bodyEncoder: JSONEncoder = {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        return encoder
-    }()
-
-    let body: Body
-}
-
-struct PostRequest2: RequestType {
-    static var endpoint: Endpoint<PostRequest2> = Endpoint(
-        method: .post,
-        path: "path"
-    )
-
-    typealias Response = Void
-
-    struct Body: Encodable {
-        let property1: String
-        let property2: Int?
-    }
-
-    let body: Body
-}
-
-struct Environment: EnvironmentType {
-    let baseUrl: URL
-
-    static let test = Environment(baseUrl: URL(string: "https://velosmobile.com")!)
-}
 
 class EndpointsTests: XCTestCase {
 
     func testBasicEndpoint() throws {
-        let request = try SimpleRequest(
+        let request = try SimpleEndpoint(
             pathComponents: .init(name: "zac", id: "42")
         ).urlRequest(in: Environment.test)
 
         XCTAssertEqual(request.url?.path, "/user/zac/42/profile")
 
         let responseData = #"{"response1": "testing"}"#.data(using: .utf8)!
-        let response = try SimpleRequest.responseDecoder.decode(SimpleRequest.Response.self, from: responseData)
+        let response = try SimpleEndpoint.responseDecoder.decode(SimpleEndpoint.Response.self, from: responseData)
 
         XCTAssertEqual(response.response1, "testing")
     }
 
     func testBasicEndpointWithCustomDecoder() throws {
-        let request = try JSONProviderRequest(
+        let request = try JSONProviderEndpoint(
             body: .init(bodyValueOne: "value"),
             pathComponents: .init(name: "zac", id: "42")
         ).urlRequest(in: Environment.test)
@@ -190,15 +36,14 @@ class EndpointsTests: XCTestCase {
         XCTAssertEqual(request.httpBody, bodyData)
 
         let responseData = #"{"response_one": "testing"}"#.data(using: .utf8)!
-        let response = try JSONProviderRequest.responseDecoder.decode(JSONProviderRequest.Response.self, from: responseData)
+        let response = try JSONProviderEndpoint.responseDecoder.decode(JSONProviderEndpoint.Response.self, from: responseData)
 
         XCTAssertEqual(response.responseOne, "testing")
     }
 
-
     func testPostEndpointWithEncoder() throws {
         let date = Date()
-        let request = try PostRequest1(
+        let request = try PostEndpoint1(
             body: .init(property1: date, property2: nil)
         ).urlRequest(in: Environment.test)
 
@@ -208,7 +53,7 @@ class EndpointsTests: XCTestCase {
     }
 
     func testPostEndpoint() throws {
-        let request = try PostRequest2(
+        let request = try PostEndpoint2(
             body: .init(property1: "test", property2: nil)
         ).urlRequest(in: Environment.test)
 
@@ -218,9 +63,9 @@ class EndpointsTests: XCTestCase {
 
     func testParameterEndpoint() throws {
 
-        let request = try UserRequest(
+        let request = try UserEndpoint(
             pathComponents: .init(userId: "3"),
-            parameters: .init(
+            parameterComponents: .init(
                 string: "test:of:thing%asdf",
                 date: Date(),
                 double: 2.3,
@@ -231,7 +76,7 @@ class EndpointsTests: XCTestCase {
                 optionalString: nil,
                 optionalDate: nil
             ),
-            headerValues: .init(headerValue: "test")
+            headerComponents: .init(headerValue: "test")
         ).urlRequest(in: Environment.test)
 
         XCTAssertEqual(request.httpMethod, "GET")
@@ -247,17 +92,94 @@ class EndpointsTests: XCTestCase {
         XCTAssertTrue(
             String(data: request.httpBody ?? Data(), encoding: .utf8)?.contains("string=test%3Aof%3Athing%25asdf") ?? false
         )
+        XCTAssertFalse(
+            String(data: request.httpBody ?? Data(), encoding: .utf8)?.contains("optional_string") ?? true
+        )
         XCTAssertTrue(
             String(data: request.httpBody ?? Data(), encoding: .utf8)?.contains("double=2.3&int=42&bool_true=true&bool_false=false&time_zone=America/Los_Angeles&hard_coded_form=true") ?? false
         )
     }
 
-    static var allTests = [
-        ("testBasicEndpoint", testBasicEndpoint),
-        ("testBasicEndpointWithCustomDecoder", testBasicEndpointWithCustomDecoder),
-        ("testPostEndpointWithEncoder", testPostEndpointWithEncoder),
-        ("testPostEndpoint", testPostEndpoint),
-        ("testParameterEndpoint", testParameterEndpoint)
-    ]
+    func testInvalidParameter() {
+        XCTAssertThrowsError(
+            try InvalidEndpoint(
+                parameterComponents: .init(nonEncodable: .value)
+            ).urlRequest(in: Environment.test)
+        ) { error in
+            XCTAssertTrue(error is EndpointError, "error is \(type(of: error)) and not an EndpointError")
+        }
+    }
+
+    func testResponseSuccess() throws {
+
+        let successResponse = HTTPURLResponse(url: URL(fileURLWithPath: ""), statusCode: 200, httpVersion: nil, headerFields: nil)
+        let jsonData = try JSONEncoder().encode(SimpleEndpoint.Response(response1: "testing"))
+        let result = SimpleEndpoint.definition.response(
+            data: jsonData,
+            response: successResponse,
+            error: nil
+        )
+
+        guard case .success(let data) = result else {
+            XCTFail("Unexpected failure")
+            return
+        }
+
+        XCTAssertEqual(data, jsonData)
+    }
+
+    func testResponseNetworkError() throws {
+
+        let jsonData = try JSONEncoder().encode(SimpleEndpoint.Response(response1: "testing"))
+        let result = SimpleEndpoint.definition.response(
+            data: jsonData,
+            response: nil,
+            error: NSError(domain: URLError.errorDomain, code: URLError.Code.notConnectedToInternet.rawValue, userInfo: nil)
+        )
+
+        guard case .failure(let taskError) = result, case .internetConnectionOffline = taskError else {
+            XCTFail("Unexpected failure")
+            return
+        }
+    }
+
+    func testResponseURLLoadError() throws {
+
+        let jsonData = try JSONEncoder().encode(SimpleEndpoint.Response(response1: "testing"))
+        let result = SimpleEndpoint.definition.response(
+            data: jsonData,
+            response: nil,
+            error: NSError(domain: URLError.errorDomain, code: URLError.Code.badServerResponse.rawValue, userInfo: nil)
+        )
+
+        guard case .failure(let taskError) = result, case .urlLoadError = taskError else {
+            XCTFail("Unexpected failure")
+            return
+        }
+    }
+
+    func testResponseErrorParsing() throws {
+
+        let failureResponse = HTTPURLResponse(url: URL(fileURLWithPath: ""), statusCode: 404, httpVersion: nil, headerFields: nil)
+        let errorResponse = SimpleEndpoint.ErrorResponse(errorDescription: "testing")
+        let jsonData = try JSONEncoder().encode(errorResponse)
+        let result = SimpleEndpoint.definition.response(
+            data: jsonData,
+            response: failureResponse,
+            error: nil
+        )
+
+        guard case .failure(let error) = result else {
+            XCTFail("Unexpected failure")
+            return
+        }
+
+        guard case .errorResponse(let response, let decoded) = error else {
+            XCTFail("Unexpected error case")
+            return
+        }
+
+        XCTAssertEqual(response.statusCode, 404)
+        XCTAssertEqual(decoded, errorResponse)
+    }
 }
-#endif

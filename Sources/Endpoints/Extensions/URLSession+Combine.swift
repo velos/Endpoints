@@ -7,22 +7,24 @@
 //
 
 import Foundation
+
+#if canImport(Combine)
 import Combine
 
-@available(OSX 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
+@available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 10.15, *)
 extension URLSession {
 
-    /// Creates a publisher and starts the request for the given Endpoint. This function does not expect a result value from the endpoint.
+    /// Creates a publisher and starts the request for the given Definition. This function does not expect a result value from the endpoint.
     /// - Parameters:
     ///   - environment: The environment with which to make the request
-    ///   - request: The request data to insert into the Endpoint
+    ///   - endpoint: The request data to insert into the Definition
     /// - Returns: A Publisher which fetches the Endpoints contents. Any failures when creating the request are sent as errors in the Publisher
-    public func endpointPublisher<T: RequestType>(in environment: EnvironmentType, with request: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Void {
+    public func endpointPublisher<T: Endpoint>(in environment: EnvironmentType, with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Void {
         let urlRequest: URLRequest
         do {
-            urlRequest = try createUrlRequest(in: environment, for: request)
+            urlRequest = try createUrlRequest(in: environment, for: endpoint)
         } catch {
-            return Fail(outputType: T.Response.self, failure: T.TaskError.endpointError(error as! EndpointError))
+            return Fail(outputType: T.Response.self, failure: error as! T.TaskError)
                 .eraseToAnyPublisher()
         }
 
@@ -30,32 +32,32 @@ extension URLSession {
             .subscribe(on: DispatchQueue.global())
             .receive(on: DispatchQueue.global())
             .mapError { error -> T.TaskError in
-                guard case let .failure(responseError) = T.endpoint.response(data: nil, response: nil, error: error) else {
+                guard case let .failure(responseError) = T.definition.response(data: nil, response: nil, error: error) else {
                     fatalError("Unhandled error")
                 }
 
                 return responseError
             }
             .tryMap { result in
-                _ = try T.endpoint.response(data: result.data, response: result.response, error: nil).get()
+                _ = try T.definition.response(data: result.data, response: result.response, error: nil).get()
             }
             // swiftlint:disable:next force_cast
             .mapError { $0 as! T.TaskError }
             .eraseToAnyPublisher()
     }
 
-    /// Creates a publisher and starts the request for the given Endpoint. This function expects a result value of `Data`.
+    /// Creates a publisher and starts the request for the given Definition. This function expects a result value of `Data`.
     /// - Parameters:
     ///   - environment: The environment with which to make the request
-    ///   - request: The request data to insert into the Endpoint
+    ///   - endpoint: The request data to insert into the Definition
     /// - Returns: A Publisher which fetches the Endpoints contents. Any failures when creating the request are sent as errors in the Publisher
-    public func endpointPublisher<T: RequestType>(in environment: EnvironmentType, with request: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Data {
+    public func endpointPublisher<T: Endpoint>(in environment: EnvironmentType, with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Data {
 
         let urlRequest: URLRequest
         do {
-            urlRequest = try createUrlRequest(in: environment, for: request)
+            urlRequest = try createUrlRequest(in: environment, for: endpoint)
         } catch {
-            return Fail(outputType: T.Response.self, failure: T.TaskError.endpointError(error as! EndpointError))
+            return Fail(outputType: T.Response.self, failure: error as! T.TaskError)
                 .eraseToAnyPublisher()
         }
 
@@ -63,32 +65,32 @@ extension URLSession {
             .subscribe(on: DispatchQueue.global())
             .receive(on: DispatchQueue.global())
             .mapError { error -> T.TaskError in
-                guard case let .failure(responseError) = T.endpoint.response(data: nil, response: nil, error: error) else {
+                guard case let .failure(responseError) = T.definition.response(data: nil, response: nil, error: error) else {
                     fatalError("Unhandled error")
                 }
 
                 return responseError
             }
             .tryMap { result -> T.Response in
-                try T.endpoint.response(data: result.data, response: result.response, error: nil).get()
+                try T.definition.response(data: result.data, response: result.response, error: nil).get()
             }
             // swiftlint:disable:next force_cast
             .mapError { $0 as! T.TaskError }
             .eraseToAnyPublisher()
     }
 
-    /// Creates a publisher and starts the request for the given Endpoint. This function expects a result value which is `Decodable`.
+    /// Creates a publisher and starts the request for the given Definition. This function expects a result value which is `Decodable`.
     /// - Parameters:
     ///   - environment: The environment with which to make the request
-    ///   - request: The request data to insert into the Endpoint
+    ///   - endpoint: The request data to insert into the Definition
     /// - Returns: A Publisher which fetches the Endpoints contents. Any failures when creating the request are sent as errors in the Publisher
-    public func endpointPublisher<T: RequestType>(in environment: EnvironmentType, with request: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response: Decodable {
+    public func endpointPublisher<T: Endpoint>(in environment: EnvironmentType, with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response: Decodable {
 
         let urlRequest: URLRequest
         do {
-            urlRequest = try createUrlRequest(in: environment, for: request)
+            urlRequest = try createUrlRequest(in: environment, for: endpoint)
         } catch {
-            return Fail(outputType: T.Response.self, failure: T.TaskError.endpointError(error as! EndpointError))
+            return Fail(outputType: T.Response.self, failure: error as! T.TaskError)
                 .eraseToAnyPublisher()
         }
 
@@ -96,14 +98,14 @@ extension URLSession {
             .subscribe(on: DispatchQueue.global())
             .receive(on: DispatchQueue.global())
             .mapError { error -> T.TaskError in
-                guard case let .failure(responseError) = T.endpoint.response(data: nil, response: nil, error: error) else {
+                guard case let .failure(responseError) = T.definition.response(data: nil, response: nil, error: error) else {
                     fatalError("Unhandled error")
                 }
 
                 return responseError
             }
             .tryMap { result -> T.Response in
-                let data = try T.endpoint.response(data: result.data, response: result.response, error: nil).get()
+                let data = try T.definition.response(data: result.data, response: result.response, error: nil).get()
                 do {
                     return try T.responseDecoder.decode(T.Response.self, from: data)
                 } catch {
@@ -115,3 +117,5 @@ extension URLSession {
             .eraseToAnyPublisher()
     }
 }
+
+#endif
