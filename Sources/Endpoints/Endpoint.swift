@@ -49,13 +49,16 @@ extension JSONDecoder: DecoderType { }
 
 public protocol Endpoint {
 
-    /// The response type received from the server. Note that this is just type information which helpers, such as the built-in `URLSession` extensions,
+    /// The response type received from the server.
+    ///
+    /// This conveys type information which helpers, such as the built-in `URLSession` extensions,
     /// can use to know how to handle particular types. For instance, if this type conforms to `Decodable`, then a JSON decoder is used
     /// on the data coming from the server. If it's typealiased to `Void`, then the extension can know to ignore the response. If it's `Data`, then it can deliver the
     /// response data unmodified.
     associatedtype Response
 
     /// The type representing the `Decodable` error response from the server. Defaults to an empty `Decodable` struct, `EmptyCodable`.
+    /// 
     /// This can be useful if your server returns a different JSON structure when there's an error versus a success. Often in a project, this can be defined globally
     /// and `typealias` can be used to associate this global type on all `Endpoint`s.
     associatedtype ErrorResponse: Decodable = EmptyCodable
@@ -64,9 +67,42 @@ public protocol Endpoint {
     associatedtype Body: Encodable = EmptyCodable
 
     /// The values needed to fill the `Definition`'s path.
+    ///
+    /// If a `PathComponents` type is associated, properties of that type can be utilized in the `path` of the `Endpoint` using a path string interpolation syntax:
+    ///
+    /// ```swift
+    /// struct DeleteEndpoint: Endpoint {
+    ///     static let definition: Definition<DeleteEndpoint> = Definition(
+    ///         method: .delete,
+    ///         path: "calendar/v3/calendars/\(path: \.calendarId)/events\(path: \.eventId)"
+    ///     )
+    ///
+    ///     typealias Response = Void
+    ///
+    ///     struct PathComponents {
+    ///         let calendarId: String
+    ///         let eventId: String
+    ///     }
+    ///
+    ///     let pathComponents: PathComponents
+    /// }
+    /// ```
     associatedtype PathComponents = Void
 
     /// The values needed to fill the `Definition`'s parameters.
+    ///
+    /// A `ParameterComponents` type, in a similar way to `PathComponents`, holds properties that can be referenced in the `Endpoint` as `Parameter<Parameters>` in order to define form parameters used in the body or query parameters attached to the URL. The enum type is defined as:
+    ///
+    /// ```swift
+    /// public enum Parameter<T> {
+    ///     case form(String, path: PartialKeyPath<T>)
+    ///     case formValue(String, value: PathRepresentable)
+    ///     case query(String, path: PartialKeyPath<T>)
+    ///     case queryValue(String, value: PathRepresentable)
+    /// }
+    /// ```
+    ///
+    /// With this enum, either hard-coded values can be injected into the `Endpoint` (with ``Parameter/formValue(_:value:)`` or ``Parameter/queryValue(_:value:)``) or key paths can define which reference properties in the `Parameters` associated type to define a form or query parameter that is needed at the time of the request.
     associatedtype ParameterComponents = Void
 
     /// The values needed to fill the `Definition`'s headers.

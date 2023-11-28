@@ -3,7 +3,7 @@
 ### GET Request
 
 #### Endpoint and Definition
-```Swift
+```swift
 struct MyEndpoint: Endpoint {
     static let definition: Definition<MyEndpoint> = Definition(
         method: .get,
@@ -18,7 +18,7 @@ struct MyEndpoint: Endpoint {
 ```
 
 #### Usage
-```Swift
+```swift
 URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
     .sink { completion in
         guard case .failure(let error) = completion else { return }
@@ -32,7 +32,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
 ### GET Request with `PathComponents`
 
 #### Endpoint and Definition
-```Swift
+```swift
 struct MyEndpoint: Endpoint {
     static let definition: Definition<MyEndpoint> = Definition(
         method: .get,
@@ -52,7 +52,7 @@ struct MyEndpoint: Endpoint {
 ```
 
 #### Usage
-```Swift
+```swift
 URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(pathComponents: .init(userId: "42")))
     .sink { completion in
         guard case .failure(let error) = completion else { return }
@@ -66,7 +66,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(pathCompon
 ### GET Request with `HeaderValues`
 
 #### Endpoint and Definition
-```Swift
+```swift
 extension Header {
     static let myCustomHeader = Header(name: "X-CUSTOM")
     static let myOtherCustomHeader = Header(name: "X-OTHER-CUSTOM")
@@ -98,7 +98,7 @@ struct MyEndpoint: Endpoint {
 ```
 
 #### Usage
-```Swift
+```swift
 URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(headerValues: .init(headerString: "headerValue", headerInt: 42)))
     .sink { completion in
         guard case .failure(let error) = completion else { return }
@@ -112,7 +112,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(headerValu
 ### POST Request with `Body`
 
 #### Endpoint and Definition
-```Swift
+```swift
 struct MyEndpoint: Endpoint {
     static let definition: Definition<MyEndpoint> = Definition(
         method: .post,
@@ -132,7 +132,7 @@ struct MyEndpoint: Endpoint {
 ```
 
 #### Usage
-```Swift
+```swift
 URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(body: .init(bodyName: "value")))
     .sink { completion in
         guard case .failure(let error) = completion else { return }
@@ -146,7 +146,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(body: .ini
 ### POST Request with form `Parameters`
 
 #### Endpoint and Definition
-```Swift
+```swift
 struct MyEndpoint: Endpoint {
     static let definition: Definition<MyEndpoint> = Definition(
         method: .post,
@@ -173,7 +173,7 @@ struct MyEndpoint: Endpoint {
 ```
 
 #### Usage
-```Swift
+```swift
 URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(parameters: .init(keyString: "value", keyInt: 42)))
     .sink { completion in
         guard case .failure(let error) = completion else { return }
@@ -187,7 +187,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(parameters
 ### POST Request with query `Parameters`
 
 #### Endpoint and Definition
-```Swift
+```swift
 struct MyEndpoint: Endpoint {
     static let definition: Definition<MyEndpoint> = Definition(
         method: .post,
@@ -214,7 +214,7 @@ struct MyEndpoint: Endpoint {
 ```
 
 #### Usage
-```Swift
+```swift
 URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(parameters: .init(keyString: "value", keyInt: 42)))
     .sink { completion in
         guard case .failure(let error) = completion else { return }
@@ -234,7 +234,7 @@ https://production.mydomain.com/path/to/resource?keyString=value&keyInt=42&key=h
 ### DELETE Request with Void `Response`
 
 #### Endpoint and Definition
-```Swift
+```swift
 struct MyEndpoint: Endpoint {
     static let definition: Definition<MyEndpoint> = Definition(
         method: .delete,
@@ -246,7 +246,7 @@ struct MyEndpoint: Endpoint {
 ```
 
 #### Usage
-```Swift
+```swift
 URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
     .sink { completion in
         guard case .failure(let error) = completion else { return }
@@ -260,7 +260,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
 ### GET Request with custom `ResponseDecoder`
 
 #### Endpoint and Definition
-```Swift
+```swift
 struct MyEndpoint: Endpoint {
     static let definition: Definition<MyEndpoint> = Definition(
         method: .get,
@@ -281,7 +281,7 @@ struct MyEndpoint: Endpoint {
 ```
 
 #### Usage
-```Swift
+```swift
 URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
     .sink { completion in
         guard case .failure(let error) = completion else { return }
@@ -296,7 +296,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
 ### POST Request with custom `BodyEncoder`
 
 #### Endpoint and Definition
-```Swift
+```swift
 struct MyEndpoint: Endpoint {
     static let definition: Definition<MyEndpoint> = Definition(
         method: .post,
@@ -322,7 +322,7 @@ struct MyEndpoint: Endpoint {
 ```
 
 #### Usage
-```Swift
+```swift
 URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(body: .init(bodyValue: "value")))
     .sink { completion in
         guard case .failure(let error) = completion else { return }
@@ -336,7 +336,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(body: .ini
 ### GET Request with custom `ErrorResponse`
 
 #### Endpoint and Definition
-```Swift
+```swift
 
 struct ServerError: Decodable {
     let code: Int
@@ -358,7 +358,7 @@ struct MyEndpoint: Endpoint {
 ```
 
 #### Usage
-```Swift
+```swift
 URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
     .sink { completion in
         guard case .failure(let error) = completion else { return }
@@ -377,7 +377,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
 ### GET Request with custom `ErrorResponse` and `ErrorDecoder`
 
 #### Endpoint and Definition
-```Swift
+```swift
 struct ServerError: Decodable {
     let code: Int
     let message: String
@@ -404,7 +404,7 @@ struct MyEndpoint: Endpoint {
 ```
 
 #### Usage
-```Swift
+```swift
 URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
     .sink { completion in
         guard case .failure(let error) = completion else { return }

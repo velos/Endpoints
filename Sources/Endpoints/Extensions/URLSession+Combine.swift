@@ -12,14 +12,14 @@ import Foundation
 import Combine
 
 @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 10.15, *)
-extension URLSession {
+public extension URLSession {
 
     /// Creates a publisher and starts the request for the given Definition. This function does not expect a result value from the endpoint.
     /// - Parameters:
     ///   - environment: The environment with which to make the request
     ///   - endpoint: The request data to insert into the Definition
     /// - Returns: A Publisher which fetches the Endpoints contents. Any failures when creating the request are sent as errors in the Publisher
-    public func endpointPublisher<T: Endpoint>(in environment: EnvironmentType, with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Void {
+    func endpointPublisher<T: Endpoint>(in environment: EnvironmentType, with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Void {
         let urlRequest: URLRequest
         do {
             urlRequest = try createUrlRequest(in: environment, for: endpoint)
@@ -51,7 +51,7 @@ extension URLSession {
     ///   - environment: The environment with which to make the request
     ///   - endpoint: The request data to insert into the Definition
     /// - Returns: A Publisher which fetches the Endpoints contents. Any failures when creating the request are sent as errors in the Publisher
-    public func endpointPublisher<T: Endpoint>(in environment: EnvironmentType, with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Data {
+    func endpointPublisher<T: Endpoint>(in environment: EnvironmentType, with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Data {
 
         let urlRequest: URLRequest
         do {
@@ -84,7 +84,7 @@ extension URLSession {
     ///   - environment: The environment with which to make the request
     ///   - endpoint: The request data to insert into the Definition
     /// - Returns: A Publisher which fetches the Endpoints contents. Any failures when creating the request are sent as errors in the Publisher
-    public func endpointPublisher<T: Endpoint>(in environment: EnvironmentType, with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response: Decodable {
+    func endpointPublisher<T: Endpoint>(in environment: EnvironmentType, with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response: Decodable {
 
         let urlRequest: URLRequest
         do {
