@@ -29,7 +29,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
     .store(in: &cancellables)
 ```
 
-### GET Request with `PathComponents`
+### GET Request with ``Endpoint/PathComponents``
 
 #### Endpoint and Definition
 ```swift
@@ -63,7 +63,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(pathCompon
     .store(in: &cancellables)
 ```
 
-### GET Request with `HeaderValues`
+### GET Request with ``Endpoint/HeaderValues``
 
 #### Endpoint and Definition
 ```swift
@@ -109,7 +109,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(headerValu
     .store(in: &cancellables)
 ```
 
-### POST Request with `Body`
+### POST Request with ``Enpdoint/Body``
 
 #### Endpoint and Definition
 ```swift
@@ -143,7 +143,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(body: .ini
     .store(in: &cancellables)
 ```
 
-### POST Request with form `Parameters`
+### POST Request with form ``Endpoint/ParameterComponents``
 
 #### Endpoint and Definition
 ```swift
@@ -184,7 +184,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(parameters
     .store(in: &cancellables)
 ```
 
-### POST Request with query `Parameters`
+### POST Request with query ``Endpoint/ParameterComponents``
 
 #### Endpoint and Definition
 ```swift
@@ -231,7 +231,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(parameters
 https://production.mydomain.com/path/to/resource?keyString=value&keyInt=42&key=hard-coded
 ```
 
-### DELETE Request with Void `Response`
+### DELETE Request with Void ``Endpoint/Response``
 
 #### Endpoint and Definition
 ```swift
@@ -257,7 +257,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
     .store(in: &cancellables)
 ```
 
-### GET Request with custom `ResponseDecoder`
+### GET Request with custom ``Endpoint/ResponseDecoder``
 
 #### Endpoint and Definition
 ```swift
@@ -293,7 +293,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
     .store(in: &cancellables)
 ```
 
-### POST Request with custom `BodyEncoder`
+### POST Request with custom ``Endpoint/BodyEncoder``
 
 #### Endpoint and Definition
 ```swift
@@ -333,7 +333,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(body: .ini
     .store(in: &cancellables)
 ```
 
-### GET Request with custom `ErrorResponse`
+### GET Request with custom ``Endpoint/ErrorResponse``
 
 #### Endpoint and Definition
 ```swift
@@ -374,7 +374,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
     .store(in: &cancellables)
 ```
 
-### GET Request with custom `ErrorResponse` and `ErrorDecoder`
+### GET Request with custom ``Endpoint/ErrorResponse`` and ``Endpoint/ErrorDecoder``
 
 #### Endpoint and Definition
 ```swift

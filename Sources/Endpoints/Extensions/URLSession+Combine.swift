@@ -14,11 +14,11 @@ import Combine
 @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 10.15, *)
 public extension URLSession {
 
-    /// Creates a publisher and starts the request for the given Definition. This function does not expect a result value from the endpoint.
+    /// Creates a publisher and starts the request for the given ``Definition``. This function does not expect a result value from the endpoint.
     /// - Parameters:
     ///   - environment: The environment with which to make the request
-    ///   - endpoint: The request data to insert into the Definition
-    /// - Returns: A Publisher which fetches the Endpoints contents. Any failures when creating the request are sent as errors in the Publisher
+    ///   - endpoint: The request data to insert into the ``Definition``
+    /// - Returns: A `Publisher` which fetches the ``Endpoint``'s contents. Any failures when creating the request are sent as errors in the `Publisher`
     func endpointPublisher<T: Endpoint>(in environment: EnvironmentType, with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Void {
         let urlRequest: URLRequest
         do {
@@ -46,11 +46,11 @@ public extension URLSession {
             .eraseToAnyPublisher()
     }
 
-    /// Creates a publisher and starts the request for the given Definition. This function expects a result value of `Data`.
+    /// Creates a publisher and starts the request for the given ``Definition``. This function expects a result value of `Data`.
     /// - Parameters:
     ///   - environment: The environment with which to make the request
-    ///   - endpoint: The request data to insert into the Definition
-    /// - Returns: A Publisher which fetches the Endpoints contents. Any failures when creating the request are sent as errors in the Publisher
+    ///   - endpoint: The request data to insert into the ``Definition``
+    /// - Returns: A `Publisher` which fetches the ``Endpoint``'s contents. Any failures when creating the request are sent as errors in the `Publisher`
     func endpointPublisher<T: Endpoint>(in environment: EnvironmentType, with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Data {
 
         let urlRequest: URLRequest
@@ -79,11 +79,11 @@ public extension URLSession {
             .eraseToAnyPublisher()
     }
 
-    /// Creates a publisher and starts the request for the given Definition. This function expects a result value which is `Decodable`.
+    /// Creates a publisher and starts the request for the given ``Definition``. This function expects a result value which is `Decodable`.
     /// - Parameters:
     ///   - environment: The environment with which to make the request
-    ///   - endpoint: The request data to insert into the Definition
-    /// - Returns: A Publisher which fetches the Endpoints contents. Any failures when creating the request are sent as errors in the Publisher
+    ///   - endpoint: The request data to insert into the ``Definition``
+    /// - Returns: A `Publisher` which fetches the ``Endpoint``'s contents. Any failures when creating the request are sent as errors in the `Publisher`
     func endpointPublisher<T: Endpoint>(in environment: EnvironmentType, with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response: Decodable {
 
         let urlRequest: URLRequest

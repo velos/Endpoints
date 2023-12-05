@@ -10,7 +10,7 @@ import Foundation
 
 /// An HTTP header name and category
 ///
-/// Custom headers can be included in your `Definition` by passing a dictionary of `[Header: HeaderField]` to the headers property. The `HeaderField` enum values can include references by key paths to `HeaderComponent`s or to hard-coded strings:
+/// Custom headers can be included in your ``Definition`` by passing a dictionary of `[Header: HeaderField]` to the headers property. The ``HeaderField`` enum values can include references by key paths to ``Endpoint/HeaderComponent``s or to hard-coded strings:
 ///
 /// ```swift
 /// static let definition: Definition<UserEndpoint> = Definition(

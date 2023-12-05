@@ -12,7 +12,7 @@ The purpose of Endpoints is to, in a type-safe way, define how to create a `URLR
 
 The basic process for defining an Endpoint starts with defining a value conforming to `Endpoint`. With the `Endpoint` protocol, you are encapsulating the definition of the endpoint, all the properties that are plugged into the definition and the types for parsing the response. Within the `Endpoint`, the `definition` static var serves as an immutable definition of the server's endpoint and how the variable pieces of the `Endpoint` should fit together when making the full request.
 
-To get started, first create a type (struct or class) conforming to `Endpoint`. There are only two required elements to conform: defining the `Response` and creating the `Definition`.
+To get started, first create a type (struct or class) conforming to `Endpoint`. There are only two required elements to conform: defining the `Response` and creating the ``Definition``.
 
 `Endpoints` and `Definitions` do not contain base URLs so that these requests can be used on different environments. Environments are defined as conforming to the `EnvironmentType` and implement a `baseURL` as well as an optional `requestProcessor` which has a final hook before `URLRequest` creation to modify the `URLRequest` to attach authentication or signatures.
 

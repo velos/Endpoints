@@ -27,20 +27,20 @@ public enum EndpointTaskError<ErrorResponseType>: Error {
 }
 
 public extension Endpoint {
-    /// Shorthand for an `EndpointTaskError` with the request's generic `ErrorResponse`
+    /// Shorthand for an ``EndpointTaskError`` with the request's generic ``Endpoint/ErrorResponse``
     typealias TaskError = EndpointTaskError<ErrorResponse>
 }
 
 public extension URLSession {
 
-    /// Creates a session data task using the Definition associated with the passed in request on the passed in environment.
+    /// Creates a session data task using the ``Definition`` associated with the passed in request on the passed in environment.
     /// This function does not expect a result value from the endpoint.
     /// Note: This does not start the request. That must be done with `resume()`.
     /// - Parameters:
-    ///   - environment: An instance conforming to EnvironmentType, which is used to build the full request.
-    ///   - endpoint: The request data to use when filling in the Definition
+    ///   - environment: An instance conforming to ``EnvironmentType``, which is used to build the full request.
+    ///   - endpoint: The request data to use when filling in the ``Definition``
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
-    /// - Throws: Throws an `EndpointTaskError` of `.endpointError(EndpointError)` if there is an issue constructing the request.
+    /// - Throws: Throws an ``EndpointTaskError`` of ``EndpointTaskError/endpointError(_:)`` if there is an issue constructing the request.
     /// - Returns: The new session data task.
     func endpointTask<T: Endpoint>(in environment: EnvironmentType, with endpoint: T, completion: @escaping (Result<T.Response, T.TaskError>) -> Void) throws -> URLSessionDataTask where T.Response == Void {
 
@@ -51,14 +51,14 @@ public extension URLSession {
         }
     }
 
-    /// Creates a session data task using the Definition associated with the passed in request on the passed in environment.
+    /// Creates a session data task using the ``Definition`` associated with the passed in request on the passed in environment.
     /// This function expects a result value of `Data`.
     /// Note: This does not start the request. That must be done with `resume()`.
     /// - Parameters:
-    ///   - environment: An instance conforming to EnvironmentType, which is used to build the full request.
-    ///   - endpoint: The request data to use when filling in the Definition
+    ///   - environment: An instance conforming to ``EnvironmentType``, which is used to build the full request.
+    ///   - endpoint: The request data to use when filling in the ``Definition``
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
-    /// - Throws: Throws an `EndpointTaskError` of `.endpointError(EndpointError)` if there is an issue constructing the request.
+    /// - Throws: Throws an ``EndpointTaskError`` of ``EndpointTaskError/endpointError(_:)`` if there is an issue constructing the request.
     /// - Returns: The new session data task.
     func endpointTask<T: Endpoint>(in environment: EnvironmentType, with endpoint: T, completion: @escaping (Result<T.Response, T.TaskError>) -> Void) throws -> URLSessionDataTask where T.Response == Data {
 
@@ -69,14 +69,14 @@ public extension URLSession {
         }
     }
 
-    /// Creates a session data task using the Definition associated with the passed in request on the passed in environment.
+    /// Creates a session data task using the ``Definition`` associated with the passed in request on the passed in environment.
     /// This function expects a result value which is `Decodable`.
     /// Note: This does not start the request. That must be done with `resume()`.
     /// - Parameters:
-    ///   - environment: An instance conforming to EnvironmentType, which is used to build the full request.
-    ///   - endpoint: The request data to use when filling in the Definition
+    ///   - environment: An instance conforming to ``EnvironmentType``, which is used to build the full request.
+    ///   - endpoint: The request data to use when filling in the ``Definition``
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
-    /// - Throws: Throws an `EndpointTaskError` of `.endpointError(EndpointError)` if there is an issue constructing the request.
+    /// - Throws: Throws an ``EndpointTaskError`` of ``EndpointTaskError/endpointError(_:)`` if there is an issue constructing the request.
     /// - Returns: The new session data task.
     func endpointTask<T: Endpoint>(in environment: EnvironmentType, with endpoint: T, completion: @escaping (Result<T.Response, T.TaskError>) -> Void) throws -> URLSessionDataTask where T.Response: Decodable {
 

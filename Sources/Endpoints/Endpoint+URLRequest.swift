@@ -16,8 +16,8 @@ extension Endpoint {
 
     /// Generates a `URLRequest` given the associated request value.
     /// - Parameter environment: The environment in which to create the request
-    /// - Throws: An `EndpointError` which describes the error filling in data to the associated `Definition`.
-    /// - Returns: A `URLRequest` ready for requesting with all values from `self` filled in according to the associated `Endpoint`.
+    /// - Throws: An ``EndpointError`` which describes the error filling in data to the associated ``Definition``.
+    /// - Returns: A `URLRequest` ready for requesting with all values from `self` filled in according to the associated ``Endpoint``.
     public func urlRequest(in environment: EnvironmentType) throws -> URLRequest {
 
         var components = URLComponents()
