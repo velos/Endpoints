@@ -9,6 +9,22 @@
 import Foundation
 
 /// An HTTP header name and category
+///
+/// Custom headers can be included in your ``Definition`` by passing a dictionary of `[Header: HeaderField]` to the headers property. The ``HeaderField`` enum values can include references by key paths to ``Endpoint/HeaderComponents``s or to hard-coded strings:
+///
+/// ```swift
+/// static let definition: Definition<UserEndpoint> = Definition(
+///     method: .get,
+///     path: "/request",
+///     headers: [
+///         "X-TYPE": HeaderField.field(path: \UserEndpoint.HeaderValues.type),
+///         "X-VALUE": .fieldValue(value: "value"),
+///         .keepAlive: .fieldValue(value: "timeout=5, max=1000")
+///     ]
+/// )
+/// ```
+///
+/// Custom keys in the headers dictionary can be defined ad-hoc using a String, or by extending the encapsulating type `Header`. Basic named headers, such as `.keepAlive`, `.accept`, etc., are already defined as part of the library.
 public struct Header: Hashable, ExpressibleByStringLiteral {
 
     /// The name of the header. Example: "Accept-Language"

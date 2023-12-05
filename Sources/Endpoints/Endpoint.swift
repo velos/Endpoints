@@ -49,59 +49,95 @@ extension JSONDecoder: DecoderType { }
 
 public protocol Endpoint {
 
-    /// The response type received from the server. Note that this is just type information which helpers, such as the built-in `URLSession` extensions,
+    /// The response type received from the server.
+    ///
+    /// This conveys type information which helpers, such as the built-in ``Foundation/URLSession`` extensions,
     /// can use to know how to handle particular types. For instance, if this type conforms to `Decodable`, then a JSON decoder is used
     /// on the data coming from the server. If it's typealiased to `Void`, then the extension can know to ignore the response. If it's `Data`, then it can deliver the
     /// response data unmodified.
     associatedtype Response
 
-    /// The type representing the `Decodable` error response from the server. Defaults to an empty `Decodable` struct, `EmptyCodable`.
+    /// The type representing the `Decodable` error response from the server. Defaults to an empty `Decodable` struct, ``EmptyCodable``.
+    ///
     /// This can be useful if your server returns a different JSON structure when there's an error versus a success. Often in a project, this can be defined globally
-    /// and `typealias` can be used to associate this global type on all `Endpoint`s.
+    /// and `typealias` can be used to associate this global type on all ``Endpoint``s.
     associatedtype ErrorResponse: Decodable = EmptyCodable
 
-    /// The body type conforming to `Encodable`. Defaults to `EmptyCodable`.
+    /// The body type conforming to `Encodable`. Defaults to ``EmptyCodable``.
     associatedtype Body: Encodable = EmptyCodable
 
-    /// The values needed to fill the `Definition`'s path.
+    /// The values needed to fill the ``Definition``'s path.
+    ///
+    /// If a ``Endpoint/PathComponents`` type is associated, properties of that type can be utilized in the `path` of the ``Endpoint`` using a path string interpolation syntax:
+    ///
+    /// ```swift
+    /// struct DeleteEndpoint: Endpoint {
+    ///     static let definition: Definition<DeleteEndpoint> = Definition(
+    ///         method: .delete,
+    ///         path: "calendar/v3/calendars/\(path: \.calendarId)/events\(path: \.eventId)"
+    ///     )
+    ///
+    ///     typealias Response = Void
+    ///
+    ///     struct PathComponents {
+    ///         let calendarId: String
+    ///         let eventId: String
+    ///     }
+    ///
+    ///     let pathComponents: PathComponents
+    /// }
+    /// ```
     associatedtype PathComponents = Void
 
-    /// The values needed to fill the `Definition`'s parameters.
+    /// The values needed to fill the ``Definition``'s parameters.
+    ///
+    /// A ``Endpoint/ParameterComponents`` type, in a similar way to ``Endpoint/PathComponents``, holds properties that can be referenced in the ``Endpoint`` via ``Parameter`` values  in order to define form parameters used in the body or query parameters attached to the URL. The enum type is defined as:
+    ///
+    /// ```swift
+    /// public enum Parameter<T> {
+    ///     case form(String, path: PartialKeyPath<T>)
+    ///     case formValue(String, value: PathRepresentable)
+    ///     case query(String, path: PartialKeyPath<T>)
+    ///     case queryValue(String, value: PathRepresentable)
+    /// }
+    /// ```
+    ///
+    /// With this enum, either hard-coded values can be injected into the ``Endpoint`` (with ``Parameter/formValue(_:value:)`` or ``Parameter/queryValue(_:value:)``) or key paths can define which reference properties in the ``Endpoint/ParameterComponents`` associated type to define a form or query parameter that is needed at the time of the request.
     associatedtype ParameterComponents = Void
 
-    /// The values needed to fill the `Definition`'s headers.
+    /// The values needed to fill the ``Definition``'s headers.
     associatedtype HeaderComponents = Void
 
-    /// The `EncoderType` to use when encoding the body of the request. Defaults to `JSONEncoder`.
+    /// The ``EncoderType`` to use when encoding the body of the request. Defaults to `JSONEncoder`.
     associatedtype BodyEncoder: EncoderType = JSONEncoder
-    /// The `DecoderType` to use when decoding the body of the request. Defaults to `JSONDecoder`.
+    /// The ``DecoderType`` to use when decoding the body of the request. Defaults to `JSONDecoder`.
     associatedtype ErrorDecoder: DecoderType = JSONDecoder
-    /// The `DecoderType` to use when decoding the response. Defaults to `JSONDecoder`.
+    /// The ``DecoderType`` to use when decoding the response. Defaults to `JSONDecoder`.
     associatedtype ResponseDecoder: DecoderType = JSONDecoder
 
-    /// A `Definition` which pieces together all the components defined in the endpoint.
+    /// A ``Definition`` which pieces together all the components defined in the endpoint.
     static var definition: Definition<Self> { get }
 
     /// The instance of the associated `Body` type. Must be `Encodable`.
     var body: Body { get }
 
-    /// The instance of the associated `PathComponents` type. Used for filling in request data into the path template of the endpoint.
+    /// The instance of the associated ``Endpoint/PathComponents`` type. Used for filling in request data into the path template of the endpoint.
     /// If none are necessary, this can be `Void`
     var pathComponents: PathComponents { get }
 
-    /// The instance of the associated `ParameterComponents` type. Used for filling in request data into the query and form parameters of the endpoint.
+    /// The instance of the associated ``Endpoint/ParameterComponents`` type. Used for filling in request data into the query and form parameters of the endpoint.
     var parameterComponents: ParameterComponents { get }
 
-    /// The instance of the associated `HeaderComponents` type. Used for filling in request data into the headers of the endpoint.
+    /// The instance of the associated ``Endpoint/HeaderComponents`` type. Used for filling in request data into the headers of the endpoint.
     var headerComponents: HeaderComponents { get }
 
-    /// The decoder instance to use when decoding the associated `Body` type
+    /// The decoder instance to use when decoding the associated ``Endpoint/Body`` type
     static var bodyEncoder: BodyEncoder { get }
 
-    /// The decoder instance to use when decoding the associated `ErrorResponse` type
+    /// The decoder instance to use when decoding the associated ``Endpoint/ErrorResponse`` type
     static var errorDecoder: ErrorDecoder { get }
 
-    /// The decoder instance to use when decoding the associated `Response` type
+    /// The decoder instance to use when decoding the associated ``Endpoint/Response`` type
     static var responseDecoder: ResponseDecoder { get }
 }
 
@@ -140,18 +176,18 @@ public extension Endpoint where BodyEncoder == JSONEncoder {
 
 public struct Definition<T: Endpoint> {
 
-    /// The HTTP method of the Endpoint
+    /// The HTTP method of the ``Endpoint``
     public let method: Method
     /// A template including all elements that appear in the path
     public let path: PathTemplate<T.PathComponents>
-    /// The parameters (form and query) that are included in the Definition
+    /// The parameters (form and query) that are included in the ``Definition``
     public let parameters: [Parameter<T.ParameterComponents>]
-    /// The headers that are included in the Definition
+    /// The headers that are included in the ``Definition``
     public let headers: [Header: HeaderField<T.HeaderComponents>]
 
-    /// Initializes a Definition with the given properties, defining all dynamic pieces as type-safe parameters.
+    /// Initializes a ``Definition`` with the given properties, defining all dynamic pieces as type-safe parameters.
     /// - Parameters:
-    ///   - method: The HTTP method to use when fetching the owning Endpoint
+    ///   - method: The HTTP method to use when fetching the owning ``Endpoint``
     ///   - path: The path template representing the path and all path-related parameters
     ///   - parameters: The parameters passed to the endpoint. Either through query or form body.
     ///   - headerValues: The headers associated with this request

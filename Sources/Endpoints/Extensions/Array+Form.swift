@@ -12,7 +12,7 @@ extension Array where Element == URLQueryItem {
 
     /// Goes through each URLQueryItem element and joins them with a '&',
     /// suitable for putting into the httpBody of a request
-    public var formString: String {
+    var formString: String {
         return map { item in
             let name = item.name.pathSafe
             let value = item.value?.pathSafe ?? ""
