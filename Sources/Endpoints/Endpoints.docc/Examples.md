@@ -63,7 +63,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(pathCompon
     .store(in: &cancellables)
 ```
 
-### GET Request with ``Endpoint/HeaderValues``
+### GET Request with ``Endpoint/HeaderComponents``
 
 #### Endpoint and Definition
 ```swift
@@ -109,7 +109,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(headerValu
     .store(in: &cancellables)
 ```
 
-### POST Request with ``Enpdoint/Body``
+### POST Request with ``Endpoint/Body``
 
 #### Endpoint and Definition
 ```swift
