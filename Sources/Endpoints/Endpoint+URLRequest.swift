@@ -12,6 +12,14 @@ import Foundation
 import FoundationNetworking
 #endif
 
+extension CharacterSet {
+    static let urlQueryAllowedWithoutPlus: CharacterSet = {
+        var characterSet = CharacterSet.urlQueryAllowed
+        characterSet.remove(charactersIn: "+")
+        return characterSet
+    }()
+}
+
 extension Endpoint {
 
     /// Generates a `URLRequest` given the associated request value.
@@ -75,8 +83,19 @@ extension Endpoint {
             return nil
         }
 
+        // URLComponents does not encode "+" by default because it is included in `.urlQueryAllowed`. To ensure
+        // that it is encoded, we manually encode the query items using our custom character set, then assign the
+        // result to `percentEncodedQuery` to prevent URLComponents from re-encoding the values.
         if !urlQueryItems.isEmpty {
-            components.queryItems = urlQueryItems
+            let queryString = urlQueryItems.compactMap { item -> String? in
+                guard
+                    let value = item.value,
+                    let encodedName = item.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowedWithoutPlus),
+                    let encodedValue = value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowedWithoutPlus)
+                else { return nil }
+                return "\(encodedName)=\(encodedValue)"
+            }.joined(separator: "&")            
+            components.percentEncodedQuery = queryString
         }
 
         let baseUrl = environment.baseUrl
