@@ -185,7 +185,7 @@ public extension Endpoint {
 
 public enum QueryEncodingStrategy {
     case `default`
-    case custom((URLQueryItem) -> URLQueryItem?)
+    case custom((URLQueryItem) -> (String, String?)?)
 }
 
 public struct Definition<T: Endpoint> {

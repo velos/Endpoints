@@ -85,9 +85,9 @@ extension Endpoint {
         case .custom(let encode):
             components.percentEncodedQuery = urlQueryItems
                 .compactMap(encode)
-                .compactMap { item in
-                    guard let value = item.value else { return nil }
-                    return item.name + "=" + value
+                .compactMap { (name, value) in
+                    guard let value else { return nil }
+                    return name + "=" + value
                 }
                 .joined(separator: "&")
         }
