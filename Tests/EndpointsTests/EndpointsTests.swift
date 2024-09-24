@@ -66,7 +66,7 @@ class EndpointsTests: XCTestCase {
         let request = try UserEndpoint(
             pathComponents: .init(userId: "3"),
             parameterComponents: .init(
-                string: "test:of:thing%asdf",
+                string: "test:of:+thing%asdf",
                 date: Date(),
                 double: 2.3,
                 int: 42,
@@ -81,7 +81,7 @@ class EndpointsTests: XCTestCase {
 
         XCTAssertEqual(request.httpMethod, "GET")
         XCTAssertEqual(request.url?.path, "/hey/3")
-        XCTAssertEqual(request.url?.query, "string=test:of:thing%25asdf&hard_coded_query=true")
+        XCTAssertEqual(request.url?.query, "string=test:of:%2Bthing%25asdf&hard_coded_query=true")
 
         XCTAssertEqual(request.value(forHTTPHeaderField: "HEADER_TYPE"), "test")
         XCTAssertEqual(request.value(forHTTPHeaderField: "HARD_CODED_HEADER"), "test2")
@@ -90,7 +90,7 @@ class EndpointsTests: XCTestCase {
 
         XCTAssertNotNil(request.httpBody)
         XCTAssertTrue(
-            String(data: request.httpBody ?? Data(), encoding: .utf8)?.contains("string=test%3Aof%3Athing%25asdf") ?? false
+            String(data: request.httpBody ?? Data(), encoding: .utf8)?.contains("string=test%3Aof%3A+thing%25asdf") ?? false
         )
         XCTAssertFalse(
             String(data: request.httpBody ?? Data(), encoding: .utf8)?.contains("optional_string") ?? true

@@ -139,6 +139,9 @@ public protocol Endpoint {
 
     /// The decoder instance to use when decoding the associated ``Endpoint/Response`` type
     static var responseDecoder: ResponseDecoder { get }
+
+    /// A strategy for encoding query parameters. Defaults to `QueryEncodingStrategy.default`
+    static var queryEncodingStrategy: QueryEncodingStrategy { get }
 }
 
 public extension Endpoint where Body == EmptyCodable {
@@ -172,6 +175,17 @@ public extension Endpoint where BodyEncoder == JSONEncoder {
     static var bodyEncoder: BodyEncoder {
         return JSONEncoder()
     }
+}
+
+public extension Endpoint {
+    static var queryEncodingStrategy: QueryEncodingStrategy {
+        return .default
+    }
+}
+
+public enum QueryEncodingStrategy {
+    case `default`
+    case custom((URLQueryItem) -> URLQueryItem?)
 }
 
 public struct Definition<T: Endpoint> {
