@@ -61,6 +61,14 @@ class EndpointsTests: XCTestCase {
         XCTAssertEqual(request.httpMethod, "POST")
     }
 
+    func testCustomParameterEncoding() throws {
+        let request = try CustomEncodingEndpoint(
+            parameterComponents: .init(needsCustomEncoding: "++++")
+        ).urlRequest(in: Environment.test)
+
+        XCTAssertEqual(request.url?.query, "key=%2B%2B%2B%2B")
+    }
+
     func testParameterEndpoint() throws {
 
         let request = try UserEndpoint(
