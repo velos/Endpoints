@@ -36,6 +36,14 @@ struct UserEndpoint: Endpoint {
         ]
     )
 
+    static var queryEncodingStrategy: QueryEncodingStrategy {
+        .custom {
+            var characterSet = CharacterSet.urlQueryAllowed
+            characterSet.remove(charactersIn: "+")
+            return ($0.name, $0.value?.addingPercentEncoding(withAllowedCharacters: characterSet))
+        }
+    }
+
     typealias Response = Void
 
     struct PathComponents {

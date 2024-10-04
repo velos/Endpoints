@@ -79,6 +79,19 @@ extension Endpoint {
             components.queryItems = urlQueryItems
         }
 
+        switch Self.queryEncodingStrategy {
+        case .default:
+            break
+        case .custom(let encode):
+            components.percentEncodedQuery = urlQueryItems
+                .compactMap(encode)
+                .compactMap { (name, value) in
+                    guard let value else { return nil }
+                    return name + "=" + value
+                }
+                .joined(separator: "&")
+        }
+
         let baseUrl = environment.baseUrl
         guard let url = components.url(relativeTo: baseUrl) else {
             throw EndpointError.invalid(components: components, relativeTo: baseUrl)
