@@ -9,7 +9,7 @@
 import Foundation
 @testable import Endpoints
 
-struct MyServer: Server {
+struct MyServer: ServerDefinition {
     enum Environments: String, CaseIterable {
         case local
         case staging

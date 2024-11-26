@@ -16,7 +16,7 @@ enum Storage {
     static var environments: [ObjectIdentifier: Any] = [:]
 }
 
-extension Server {
+extension ServerDefinition {
     public static var environment: Self.Environments {
         get {
             let typeKey = ObjectIdentifier(Self.Environments.self)

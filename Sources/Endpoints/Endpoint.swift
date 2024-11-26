@@ -18,7 +18,7 @@ public enum EndpointError: Error {
     case invalidForm(named: String, type: Any.Type)
     case invalidHeader(named: String, type: Any.Type)
     case invalidBody(Error)
-    case misconfiguredServer(server: any Server)
+    case misconfiguredServer(server: any ServerDefinition)
 }
 
 public enum Parameter<T> {
@@ -59,7 +59,7 @@ extension JSONDecoder: DecoderType { }
 
 public protocol Endpoint {
 
-    associatedtype S: Server
+    associatedtype Server: ServerDefinition
 
     /// The response type received from the server.
     ///
@@ -128,7 +128,7 @@ public protocol Endpoint {
     associatedtype ResponseDecoder: DecoderType = JSONDecoder
 
     /// A ``Definition`` which pieces together all the components defined in the endpoint.
-    static var definition: Definition<Self, S> { get }
+    static var definition: Definition<Self, Server> { get }
 
     /// The instance of the associated `Body` type. Must be `Encodable`.
     var body: Body { get }
@@ -200,7 +200,7 @@ public enum QueryEncodingStrategy {
     case custom((URLQueryItem) -> (String, String?)?)
 }
 
-public struct Definition<T: Endpoint, S: Server> {
+public struct Definition<T: Endpoint, S: ServerDefinition> {
 
     public let server: S
     /// The HTTP method of the ``Endpoint``

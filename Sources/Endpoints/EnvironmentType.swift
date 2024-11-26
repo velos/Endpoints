@@ -12,7 +12,7 @@ import Foundation
 import FoundationNetworking
 #endif
 
-public protocol Server {
+public protocol ServerDefinition {
     associatedtype Environments: Hashable
 
     init()
@@ -22,15 +22,15 @@ public protocol Server {
     static var defaultEnvironment: Environments { get }
 }
 
-public extension Server {
+public extension ServerDefinition {
     var requestProcessor: (URLRequest) -> URLRequest { return { $0 } }
 }
 
-public extension Server {
+public extension ServerDefinition {
     static var server: Self { Self() }
 }
 
-struct ApiServer: Server {
+struct ApiServer: ServerDefinition {
     enum Environments: String, CaseIterable {
         case local
         case staging
