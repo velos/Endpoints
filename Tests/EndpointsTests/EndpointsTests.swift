@@ -14,7 +14,7 @@ class EndpointsTests: XCTestCase {
     func testBasicEndpoint() throws {
         let request = try SimpleEndpoint(
             pathComponents: .init(name: "zac", id: "42")
-        ).urlRequest(in: Environment.test)
+        ).urlRequest()
 
         XCTAssertEqual(request.url?.path, "/user/zac/42/profile")
 
@@ -28,7 +28,7 @@ class EndpointsTests: XCTestCase {
         let request = try JSONProviderEndpoint(
             body: .init(bodyValueOne: "value"),
             pathComponents: .init(name: "zac", id: "42")
-        ).urlRequest(in: Environment.test)
+        ).urlRequest()
 
         XCTAssertEqual(request.url?.path, "/user/zac/42/profile")
 
@@ -45,7 +45,7 @@ class EndpointsTests: XCTestCase {
         let date = Date()
         let request = try PostEndpoint1(
             body: .init(property1: date, property2: nil)
-        ).urlRequest(in: Environment.test)
+        ).urlRequest()
 
         let encodedDate = ISO8601DateFormatter().string(from: date)
         let bodyData = "{\"property1\":\"\(encodedDate)\"}".data(using: .utf8)!
@@ -55,7 +55,7 @@ class EndpointsTests: XCTestCase {
     func testPostEndpoint() throws {
         let request = try PostEndpoint2(
             body: .init(property1: "test", property2: nil)
-        ).urlRequest(in: Environment.test)
+        ).urlRequest()
 
         XCTAssertEqual(request.url?.path, "/path")
         XCTAssertEqual(request.httpMethod, "POST")
@@ -104,7 +104,7 @@ class EndpointsTests: XCTestCase {
     func testCustomParameterEncoding() throws {
         let request = try CustomEncodingEndpoint(
             parameterComponents: .init(needsCustomEncoding: "++++")
-        ).urlRequest(in: Environment.test)
+        ).urlRequest()
 
         XCTAssertEqual(request.url?.query, "key=%2B%2B%2B%2B")
     }
@@ -125,7 +125,7 @@ class EndpointsTests: XCTestCase {
                 optionalDate: nil
             ),
             headerComponents: .init(headerValue: "test")
-        ).urlRequest(in: Environment.test)
+        ).urlRequest()
 
         XCTAssertEqual(request.httpMethod, "GET")
         XCTAssertEqual(request.url?.path, "/hey/3")
@@ -152,7 +152,7 @@ class EndpointsTests: XCTestCase {
         XCTAssertThrowsError(
             try InvalidEndpoint(
                 parameterComponents: .init(nonEncodable: .value)
-            ).urlRequest(in: Environment.test)
+            ).urlRequest()
         ) { error in
             XCTAssertTrue(error is EndpointError, "error is \(type(of: error)) and not an EndpointError")
         }
@@ -229,5 +229,25 @@ class EndpointsTests: XCTestCase {
 
         XCTAssertEqual(response.statusCode, 404)
         XCTAssertEqual(decoded, errorResponse)
+    }
+
+    @available(iOS 16.0, *)
+    func testEnvironmentsChange() throws {
+        let existing = TestServer.environment
+
+        let endpoint = SimpleEndpoint(
+            pathComponents: .init(name: "zac", id: "42")
+        )
+
+        TestServer.environment = .local
+        XCTAssertEqual(try endpoint.urlRequest().url?.host(), "local-api.velosmobile.com")
+
+        TestServer.environment = .staging
+        XCTAssertEqual(try endpoint.urlRequest().url?.host(), "staging-api.velosmobile.com")
+
+        TestServer.environment = .production
+        XCTAssertEqual(try endpoint.urlRequest().url?.host(), "api.velosmobile.com")
+
+        TestServer.environment = existing
     }
 }

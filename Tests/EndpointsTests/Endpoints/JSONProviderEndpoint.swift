@@ -11,7 +11,8 @@ import Foundation
 
 struct JSONProviderEndpoint: Endpoint {
 
-    static var definition: Definition<JSONProviderEndpoint> = Definition(
+    static var definition: Definition<JSONProviderEndpoint, TestServer> = Definition(
+        server: .test,
         method: .get,
         path: "user/\(path: \.name)/\(path: \.id)/profile"
     )

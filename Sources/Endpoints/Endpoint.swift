@@ -18,6 +18,7 @@ public enum EndpointError: Error {
     case invalidForm(named: String, type: Any.Type)
     case invalidHeader(named: String, type: Any.Type)
     case invalidBody(Error)
+    case misconfiguredServer(server: any Server)
 }
 
 public enum Parameter<T> {
@@ -57,6 +58,8 @@ public protocol DecoderType {
 extension JSONDecoder: DecoderType { }
 
 public protocol Endpoint {
+
+    associatedtype S: Server
 
     /// The response type received from the server.
     ///
@@ -125,7 +128,7 @@ public protocol Endpoint {
     associatedtype ResponseDecoder: DecoderType = JSONDecoder
 
     /// A ``Definition`` which pieces together all the components defined in the endpoint.
-    static var definition: Definition<Self> { get }
+    static var definition: Definition<Self, S> { get }
 
     /// The instance of the associated `Body` type. Must be `Encodable`.
     var body: Body { get }
@@ -197,8 +200,9 @@ public enum QueryEncodingStrategy {
     case custom((URLQueryItem) -> (String, String?)?)
 }
 
-public struct Definition<T: Endpoint> {
+public struct Definition<T: Endpoint, S: Server> {
 
+    public let server: S
     /// The HTTP method of the ``Endpoint``
     public let method: Method
     /// A template including all elements that appear in the path
@@ -214,10 +218,12 @@ public struct Definition<T: Endpoint> {
     ///   - path: The path template representing the path and all path-related parameters
     ///   - parameters: The parameters passed to the endpoint. Either through query or form body.
     ///   - headerValues: The headers associated with this request
-    public init(method: Method,
+    public init(server: S,
+                method: Method,
                 path: PathTemplate<T.PathComponents>,
                 parameters: [Parameter<T.ParameterComponents>] = [],
                 headers: [Header: HeaderField<T.HeaderComponents>] = [:]) {
+        self.server = server
         self.method = method
         self.path = path
         self.parameters = parameters

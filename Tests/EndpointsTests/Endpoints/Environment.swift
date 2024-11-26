@@ -9,8 +9,26 @@
 import Foundation
 @testable import Endpoints
 
-struct Environment: EnvironmentType {
-    let baseUrl: URL
+struct MyServer: Server {
+    enum Environments: String, CaseIterable {
+        case local
+        case staging
+        case production
+    }
 
-    static let test = Environment(baseUrl: URL(string: "https://velosmobile.com")!)
+    var baseUrls: [Environments: URL] {
+        return [
+            .local: URL(string: "https://api.velos.com")!,
+            .staging: URL(string: "https://api.velos.com")!,
+            .production: URL(string: "https://api.velos.com")!
+        ]
+    }
+
+    static let server = Self()
 }
+
+//struct Environment: EnvironmentType {
+//    let baseUrl: URL
+//
+//    static let test = Environment(baseUrl: URL(string: "https://velosmobile.com")!)
+//}

@@ -17,8 +17,8 @@ public extension URLSession {
     /// - Parameters:
     ///   - environment: The environment in which to make the request
     ///   - endpoint: The endpoint instance to be used to make the request
-    func response<T: Endpoint>(in environment: EnvironmentType, with endpoint: T) async throws where T.Response == Void {
-        let urlRequest = try createUrlRequest(in: environment, for: endpoint)
+    func response<T: Endpoint>(with endpoint: T) async throws where T.Response == Void {
+        let urlRequest = try createUrlRequest(for: endpoint)
 
         let result: (data: Data, response: URLResponse)
         do {
@@ -34,8 +34,8 @@ public extension URLSession {
         _ = try T.definition.response(data: result.data, response: result.response, error: nil).get()
     }
 
-    func response<T: Endpoint>(in environment: EnvironmentType, with endpoint: T) async throws -> T.Response where T.Response == Data {
-        let urlRequest = try createUrlRequest(in: environment, for: endpoint)
+    func response<T: Endpoint>(with endpoint: T) async throws -> T.Response where T.Response == Data {
+        let urlRequest = try createUrlRequest(for: endpoint)
 
         let result: (data: Data, response: URLResponse)
         do {
@@ -51,8 +51,8 @@ public extension URLSession {
         return try T.definition.response(data: result.data, response: result.response, error: nil).get()
     }
 
-    func response<T: Endpoint>(in environment: EnvironmentType, with endpoint: T) async throws -> T.Response where T.Response: Decodable {
-        let urlRequest = try createUrlRequest(in: environment, for: endpoint)
+    func response<T: Endpoint>(with endpoint: T) async throws -> T.Response where T.Response: Decodable {
+        let urlRequest = try createUrlRequest(for: endpoint)
 
         let result: (data: Data, response: URLResponse)
         do {

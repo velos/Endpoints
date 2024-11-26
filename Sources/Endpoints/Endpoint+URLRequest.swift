@@ -12,13 +12,34 @@ import Foundation
 import FoundationNetworking
 #endif
 
+enum Storage {
+    static var environments: [ObjectIdentifier: Any] = [:]
+}
+
+extension Server {
+    public static var environment: Self.Environments {
+        get {
+            let typeKey = ObjectIdentifier(Self.Environments.self)
+            return Storage.environments[typeKey] as? Self.Environments ?? Self.defaultEnvironment
+        }
+        set {
+            let typeKey = ObjectIdentifier(Self.Environments.self)
+            Storage.environments[typeKey] = newValue
+        }
+    }
+
+    public var baseUrl: URL? {
+        baseUrls[Self.environment]
+    }
+}
+
 extension Endpoint {
 
     /// Generates a `URLRequest` given the associated request value.
     /// - Parameter environment: The environment in which to create the request
     /// - Throws: An ``EndpointError`` which describes the error filling in data to the associated ``Definition``.
     /// - Returns: A `URLRequest` ready for requesting with all values from `self` filled in according to the associated ``Endpoint``.
-    public func urlRequest(in environment: EnvironmentType) throws -> URLRequest {
+    public func urlRequest() throws -> URLRequest {
 
         var components = URLComponents()
         components.path = Self.definition.path.path(with: pathComponents)
@@ -92,7 +113,10 @@ extension Endpoint {
                 .joined(separator: "&")
         }
 
-        let baseUrl = environment.baseUrl
+        guard let baseUrl = Self.definition.server.baseUrl else {
+            throw EndpointError.misconfiguredServer(server: Self.definition.server)
+        }
+
         guard let url = components.url(relativeTo: baseUrl) else {
             throw EndpointError.invalid(components: components, relativeTo: baseUrl)
         }
@@ -148,7 +172,7 @@ extension Endpoint {
             urlRequest.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: Header.contentType.name)
         }
 
-        urlRequest = environment.requestProcessor(urlRequest)
+        urlRequest = Self.definition.server.requestProcessor(urlRequest)
 
         return urlRequest
     }

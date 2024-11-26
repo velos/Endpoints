@@ -17,7 +17,6 @@ class URLSessionExtensionTests: XCTestCase {
     func testTaskCreationFailure() {
         XCTAssertThrowsError(
             try URLSession.shared.endpointTask(
-                in: Environment.test,
                 with: InvalidEndpoint(parameterComponents: .init(nonEncodable: .value)),
                 completion: { _ in }
             )
@@ -29,7 +28,6 @@ class URLSessionExtensionTests: XCTestCase {
     func testPublisherCreationFailure() {
         let publisherExpectation = expectation(description: "publisher creation failure")
         URLSession.shared.endpointPublisher(
-            in: Environment.test,
             with: InvalidEndpoint(parameterComponents: .init(nonEncodable: .value))
         )
         .sink { completion in

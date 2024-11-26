@@ -19,10 +19,10 @@ public extension URLSession {
     ///   - environment: The environment with which to make the request
     ///   - endpoint: The request data to insert into the ``Definition``
     /// - Returns: A `Publisher` which fetches the ``Endpoint``'s contents. Any failures when creating the request are sent as errors in the `Publisher`
-    func endpointPublisher<T: Endpoint>(in environment: EnvironmentType, with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Void {
+    func endpointPublisher<T: Endpoint>(with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Void {
         let urlRequest: URLRequest
         do {
-            urlRequest = try createUrlRequest(in: environment, for: endpoint)
+            urlRequest = try createUrlRequest(for: endpoint)
         } catch {
             return Fail(outputType: T.Response.self, failure: error as! T.TaskError)
                 .eraseToAnyPublisher()
@@ -51,11 +51,11 @@ public extension URLSession {
     ///   - environment: The environment with which to make the request
     ///   - endpoint: The request data to insert into the ``Definition``
     /// - Returns: A `Publisher` which fetches the ``Endpoint``'s contents. Any failures when creating the request are sent as errors in the `Publisher`
-    func endpointPublisher<T: Endpoint>(in environment: EnvironmentType, with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Data {
+    func endpointPublisher<T: Endpoint>(with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Data {
 
         let urlRequest: URLRequest
         do {
-            urlRequest = try createUrlRequest(in: environment, for: endpoint)
+            urlRequest = try createUrlRequest(for: endpoint)
         } catch {
             return Fail(outputType: T.Response.self, failure: error as! T.TaskError)
                 .eraseToAnyPublisher()
@@ -84,11 +84,11 @@ public extension URLSession {
     ///   - environment: The environment with which to make the request
     ///   - endpoint: The request data to insert into the ``Definition``
     /// - Returns: A `Publisher` which fetches the ``Endpoint``'s contents. Any failures when creating the request are sent as errors in the `Publisher`
-    func endpointPublisher<T: Endpoint>(in environment: EnvironmentType, with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response: Decodable {
+    func endpointPublisher<T: Endpoint>(with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response: Decodable {
 
         let urlRequest: URLRequest
         do {
-            urlRequest = try createUrlRequest(in: environment, for: endpoint)
+            urlRequest = try createUrlRequest(for: endpoint)
         } catch {
             return Fail(outputType: T.Response.self, failure: error as! T.TaskError)
                 .eraseToAnyPublisher()

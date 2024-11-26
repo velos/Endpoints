@@ -10,7 +10,8 @@ import Endpoints
 import Foundation
 
 struct CustomEncodingEndpoint: Endpoint {
-    static let definition: Definition<CustomEncodingEndpoint> = Definition(
+    static let definition: Definition<CustomEncodingEndpoint, TestServer> = Definition(
+        server: .test,
         method: .get,
         path: "/",
         parameters: [
