@@ -11,7 +11,6 @@ import Foundation
 
 struct PostEndpoint1: Endpoint {
     static var definition: Definition<PostEndpoint1, TestServer> = Definition(
-        server: .test,
         method: .post,
         path: "path"
     )

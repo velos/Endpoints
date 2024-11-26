@@ -218,7 +218,7 @@ public struct Definition<T: Endpoint, S: Server> {
     ///   - path: The path template representing the path and all path-related parameters
     ///   - parameters: The parameters passed to the endpoint. Either through query or form body.
     ///   - headerValues: The headers associated with this request
-    public init(server: S,
+    public init(server: S = .server,
                 method: Method,
                 path: PathTemplate<T.PathComponents>,
                 parameters: [Parameter<T.ParameterComponents>] = [],

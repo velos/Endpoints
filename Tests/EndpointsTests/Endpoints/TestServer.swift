@@ -23,7 +23,5 @@ struct TestServer: Server {
         ]
     }
 
-    var defaultEnvironment: Environments { .staging }
-
-    static let test = Self()
+    static var defaultEnvironment: Environments { .production }
 }

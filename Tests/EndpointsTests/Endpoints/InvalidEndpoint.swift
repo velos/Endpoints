@@ -10,15 +10,12 @@ import Endpoints
 
 struct InvalidEndpoint: Endpoint {
     static let definition: Definition<InvalidEndpoint, TestServer> = Definition(
-        server: .test,
         method: .get,
         path: "/",
         parameters: [
-            .query("path", path: \ParameterComponents.nonEncodable)
+            .query("path", path: \.nonEncodable)
         ]
     )
-
-    static let server = TestServer.test
 
     struct ParameterComponents {
         enum MyEnum { case value }

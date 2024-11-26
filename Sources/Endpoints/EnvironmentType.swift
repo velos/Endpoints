@@ -13,7 +13,9 @@ import FoundationNetworking
 #endif
 
 public protocol Server {
-    associatedtype Environments: CaseIterable & Hashable
+    associatedtype Environments: Hashable
+
+    init()
     var baseUrls: [Environments: URL] { get }
     var requestProcessor: (URLRequest) -> URLRequest { get }
 
@@ -22,8 +24,10 @@ public protocol Server {
 
 public extension Server {
     var requestProcessor: (URLRequest) -> URLRequest { return { $0 } }
+}
 
-    static var defaultEnvironment: Environments { return Environments.allCases.first! }
+public extension Server {
+    static var server: Self { Self() }
 }
 
 struct ApiServer: Server {
@@ -41,6 +45,7 @@ struct ApiServer: Server {
         ]
     }
 
+    static var defaultEnvironment: Environments { .production }
     static let api = Self()
 }
 

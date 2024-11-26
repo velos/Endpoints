@@ -11,7 +11,6 @@ import Foundation
 
 struct SimpleEndpoint: Endpoint {
     static var definition: Definition<SimpleEndpoint, TestServer> = Definition(
-        server: .test,
         method: .get,
         path: "user/\(path: \.name)/\(path: \.id)/profile"
     )

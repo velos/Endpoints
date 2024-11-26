@@ -15,7 +15,7 @@ struct MyServer: Server {
         case staging
         case production
     }
-
+    
     var baseUrls: [Environments: URL] {
         return [
             .local: URL(string: "https://api.velos.com")!,
@@ -23,12 +23,6 @@ struct MyServer: Server {
             .production: URL(string: "https://api.velos.com")!
         ]
     }
-
-    static let server = Self()
+    
+    static var defaultEnvironment: Environments { .production }
 }
-
-//struct Environment: EnvironmentType {
-//    let baseUrl: URL
-//
-//    static let test = Environment(baseUrl: URL(string: "https://velosmobile.com")!)
-//}
