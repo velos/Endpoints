@@ -6,42 +6,34 @@
 //  Copyright © 2021 Velos Mobile LLC. All rights reserved.
 //
 
-import XCTest
+import Testing
+import Foundation
 import Combine
 @testable import Endpoints
 
-class URLSessionExtensionTests: XCTestCase {
-
-    var cancellables: Set<AnyCancellable> = Set()
-
-    func testTaskCreationFailure() {
-        XCTAssertThrowsError(
+@Suite
+struct URLSessionExtensionTests {
+    @Test
+    func taskCreationFailure() {
+        #expect(throws: InvalidEndpoint.TaskError.self) {
             try URLSession.shared.endpointTask(
                 with: InvalidEndpoint(parameterComponents: .init(nonEncodable: .value)),
                 completion: { _ in }
             )
-        ) { error in
-            XCTAssertTrue(error is InvalidEndpoint.TaskError, "error is \(type(of: error)) and not an EndpointTaskError")
         }
     }
 
-    @MainActor
-    func testPublisherCreationFailure() {
-        let publisherExpectation = expectation(description: "publisher creation failure")
-        URLSession.shared.endpointPublisher(
+    @Test
+    @available(iOS 15.0, *)
+    func publisherCreationFailure() async {
+        let values = URLSession.shared.endpointPublisher(
             with: InvalidEndpoint(parameterComponents: .init(nonEncodable: .value))
-        )
-        .sink { completion in
-            guard case .failure(let error) = completion, case .endpointError = error else {
-                return
+        ).values
+
+        await #expect(throws: EndpointTaskError<InvalidEndpoint.ErrorResponse>.self) {
+            for try await _ in values {
+
             }
-
-            publisherExpectation.fulfill()
-        } receiveValue: { _ in
-            XCTFail()
         }
-        .store(in: &cancellables)
-
-        waitForExpectations(timeout: 1)
     }
 }

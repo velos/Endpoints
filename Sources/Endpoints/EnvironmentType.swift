@@ -138,10 +138,6 @@ struct TestEndpoint: Endpoint {
     static let definition: Definition<TestEndpoint, ApiServer> = .init(server: ApiServer.api, method: .get, path: "/")
 }
 
-struct Testing {
-
-}
-
 //public protocol EnvironmentType {
 //    /// The baseUrl of the Environment
 //    var baseUrl: URL { get }
