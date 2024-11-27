@@ -12,27 +12,6 @@ import Foundation
 import FoundationNetworking
 #endif
 
-enum Storage {
-    static var environments: [ObjectIdentifier: Any] = [:]
-}
-
-extension ServerDefinition {
-    public static var environment: Self.Environments {
-        get {
-            let typeKey = ObjectIdentifier(Self.Environments.self)
-            return Storage.environments[typeKey] as? Self.Environments ?? Self.defaultEnvironment
-        }
-        set {
-            let typeKey = ObjectIdentifier(Self.Environments.self)
-            Storage.environments[typeKey] = newValue
-        }
-    }
-
-    public var baseUrl: URL? {
-        baseUrls[Self.environment]
-    }
-}
-
 extension Endpoint {
 
     /// Generates a `URLRequest` given the associated request value.
@@ -113,7 +92,10 @@ extension Endpoint {
                 .joined(separator: "&")
         }
 
-        guard let baseUrl = Self.definition.server.baseUrl else {
+        let server = Self.definition.server
+        let baseUrl = server.baseUrls[type(of: server).environment]
+
+        guard let baseUrl else {
             throw EndpointError.misconfiguredServer(server: Self.definition.server)
         }
 

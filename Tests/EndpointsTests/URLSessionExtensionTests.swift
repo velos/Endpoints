@@ -25,6 +25,7 @@ class URLSessionExtensionTests: XCTestCase {
         }
     }
 
+    @MainActor
     func testPublisherCreationFailure() {
         let publisherExpectation = expectation(description: "publisher creation failure")
         URLSession.shared.endpointPublisher(

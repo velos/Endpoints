@@ -12,8 +12,15 @@ import Foundation
 import FoundationNetworking
 #endif
 
-public protocol ServerDefinition {
-    associatedtype Environments: Hashable
+public enum TypicalEnvironments: String, CaseIterable {
+    case local
+    case development
+    case staging
+    case production
+}
+
+public protocol ServerDefinition: Sendable {
+    associatedtype Environments: Hashable = TypicalEnvironments
 
     init()
     var baseUrls: [Environments: URL] { get }
@@ -26,32 +33,40 @@ public extension ServerDefinition {
     var requestProcessor: (URLRequest) -> URLRequest { return { $0 } }
 }
 
-public extension ServerDefinition {
-    static var server: Self { Self() }
-}
-
 struct ApiServer: ServerDefinition {
-    enum Environments: String, CaseIterable {
-        case local
-        case staging
-        case production
-    }
-
     var baseUrls: [Environments: URL] {
         return [
-            .local: URL(string: "https://api.velos.com")!,
-            .staging: URL(string: "https://api.velos.com")!,
+            .local: URL(string: "https://local-api.velos.com")!,
+            .staging: URL(string: "https://staging-api.velos.com")!,
             .production: URL(string: "https://api.velos.com")!
         ]
     }
 
-    static var defaultEnvironment: Environments { .production }
+    static var defaultEnvironment: Environments {
+        #if DEBUG
+        .staging
+        #else
+        .production
+        #endif
+    }
+
     static let api = Self()
 }
 
 //@Server(MyEnvironments.self)
 //struct ApiServer {
 //    var baseUrls: [MyEnvironments: URL] {
+//        return [
+//            .blueSteel: URL(string: "https://bluesteel-api.velosmobile.com")!,
+//            .redStone: URL(string: "https://redstone-api.velosmobile.com")!,
+//            .production: URL(string: "https://api.velosmobile.com")!
+//        ]
+//    }
+//}
+
+//@Server
+//struct ApiServer {
+//    var baseUrls: [Environments: URL] {
 //        return [
 //            .local: URL(string: "https://local-api.velosmobile.com")!,
 //            .staging: URL(string: "https://staging-api.velosmobile.com")!,

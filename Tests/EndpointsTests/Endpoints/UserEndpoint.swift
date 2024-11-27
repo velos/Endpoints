@@ -10,7 +10,7 @@ import Foundation
 @testable import Endpoints
 
 struct UserEndpoint: Endpoint {
-    static var definition: Definition<UserEndpoint, TestServer> = Definition(
+    static let definition: Definition<UserEndpoint, TestServer> = Definition(
         method: .get,
         path: "hey" + \.userId,
         parameters: [

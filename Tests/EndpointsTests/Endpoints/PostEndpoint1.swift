@@ -10,7 +10,7 @@ import Foundation
 @testable import Endpoints
 
 struct PostEndpoint1: Endpoint {
-    static var definition: Definition<PostEndpoint1, TestServer> = Definition(
+    static let definition: Definition<PostEndpoint1, TestServer> = Definition(
         method: .post,
         path: "path"
     )

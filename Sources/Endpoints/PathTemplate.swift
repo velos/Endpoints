@@ -8,7 +8,7 @@
 
 import Foundation
 
-public protocol PathRepresentable {
+public protocol PathRepresentable: Sendable{
     /// A path-safe version of the value, suitable for a URL path
     var pathSafe: String { get }
 }
@@ -35,9 +35,9 @@ extension Int: PathRepresentable {
 }
 
 /// A template representing a URL path
-public struct PathTemplate<T> {
+public struct PathTemplate<T>: Sendable {
 
-    private struct RepresentableInfo: Equatable {
+    private struct RepresentableInfo: Equatable, Sendable {
         static func == (lhs: RepresentableInfo, rhs: RepresentableInfo) -> Bool {
             return lhs.index == rhs.index &&
                 lhs.includesSlash == rhs.includesSlash &&
@@ -50,7 +50,7 @@ public struct PathTemplate<T> {
     }
 
     private var pathComponents: [RepresentableInfo] = []
-    private var keyPathComponents: [(Int, PartialKeyPath<T>, Bool)] = []
+    private var keyPathComponents: [(Int, PartialKeyPath<T> & Sendable, Bool)] = []
 
     private var currentIndex: Int = 0
 
@@ -66,7 +66,7 @@ public struct PathTemplate<T> {
         }
     }
 
-    mutating func append(keyPath: PartialKeyPath<T>, indexOverride: Int? = nil, includesSlash: Bool = true) {
+    mutating func append(keyPath: PartialKeyPath<T> & Sendable, indexOverride: Int? = nil, includesSlash: Bool = true) {
         if let index = indexOverride {
             keyPathComponents.append((index, keyPath, includesSlash))
             currentIndex = index
@@ -160,14 +160,14 @@ extension PathTemplate: ExpressibleByStringInterpolation {
             path.append(path: literal)
         }
 
-        mutating public func appendInterpolation<U: PathRepresentable>(path value: KeyPath<T, U>, includesSlash: Bool = true) {
+        mutating public func appendInterpolation<U: PathRepresentable>(path value: KeyPath<T, U> & Sendable, includesSlash: Bool = true) {
             path.append(keyPath: value, includesSlash: includesSlash)
         }
     }
 }
 
 // PathRepresentable + KeyPath
-public func +<T, U: PathRepresentable, V: PathRepresentable>(lhs: U, rhs: KeyPath<T, V>) -> PathTemplate<T> {
+public func +<T, U: PathRepresentable, V: PathRepresentable>(lhs: U, rhs: KeyPath<T, V> & Sendable) -> PathTemplate<T> {
     var template = PathTemplate<T>()
     template.append(path: lhs)
     template.append(keyPath: rhs)
@@ -175,7 +175,7 @@ public func +<T, U: PathRepresentable, V: PathRepresentable>(lhs: U, rhs: KeyPat
 }
 
 // KeyPath + PathRepresentable
-public func +<T, U: PathRepresentable, V: PathRepresentable>(lhs: KeyPath<T, V>, rhs: U) -> PathTemplate<T> {
+public func +<T, U: PathRepresentable, V: PathRepresentable>(lhs: KeyPath<T, V> & Sendable, rhs: U) -> PathTemplate<T> {
     var template = PathTemplate<T>()
     template.append(keyPath: lhs)
     template.append(path: rhs)
@@ -183,7 +183,7 @@ public func +<T, U: PathRepresentable, V: PathRepresentable>(lhs: KeyPath<T, V>,
 }
 
 // Template + KeyPath
-public func +<T, U: PathRepresentable>(lhs: PathTemplate<T>, rhs: KeyPath<T, U>) -> PathTemplate<T> {
+public func +<T, U: PathRepresentable>(lhs: PathTemplate<T>, rhs: KeyPath<T, U> & Sendable) -> PathTemplate<T> {
     var template = lhs
     template.append(keyPath: rhs)
     return template
