@@ -255,4 +255,10 @@ struct EndpointsTests {
 
         TestServer.environment = existing
     }
+
+    @Test
+    @available(iOS 16.0, *)
+    func defaultEnvironment() throws {
+        #expect(TestServer.defaultEnvironment == .production)
+    }
 }
