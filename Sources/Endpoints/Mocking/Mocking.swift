@@ -1,5 +1,5 @@
 //
-//  MockingActor.swift
+//  Mocking.swift
 //  Endpoints
 //
 //  Created by Zac White on 11/30/24.
@@ -22,9 +22,9 @@ struct ToReturnWrapper: Sendable {
     }
 }
 
-actor MockingActor: Sendable {
+struct Mocking {
 
-    static let shared = MockingActor()
+    static let shared = Mocking()
 
     @TaskLocal
     static private var current: ToReturnWrapper?
@@ -49,5 +49,38 @@ actor MockingActor: Sendable {
         try await Self.$current.withValue(ToReturnWrapper(body)) {
             try await test()
         }
+    }
+}
+
+@preconcurrency import Combine
+extension Mocking {
+    func handleMock<T: Endpoint>(for endpointsOfType: T.Type) -> AnyPublisher<T.Response?, T.TaskError> {
+        guard let current = Self.current else {
+            return Just(nil)
+                .setFailureType(to: T.TaskError.self)
+                .eraseToAnyPublisher()
+        }
+
+        let passthrough = PassthroughSubject<T.Response?, T.TaskError>()
+
+        Task.detached { @Sendable () async -> Void in
+            let continuation = MockContinuation<T>()
+            await current.toReturn(for: T.self)(continuation)
+            switch continuation.action {
+            case .none:
+                passthrough.send(nil)
+                passthrough.send(completion: .finished)
+            case .return(let value):
+                passthrough.send(value)
+                passthrough.send(completion: .finished)
+            case .fail(let errorResponse):
+                passthrough.send(completion: .failure(T.TaskError.errorResponse(httpResponse: HTTPURLResponse(), response: errorResponse)))
+            case .throw(let error):
+                passthrough.send(completion: .failure(error))
+            }
+        }
+
+        return passthrough
+            .eraseToAnyPublisher()
     }
 }

@@ -28,7 +28,7 @@ public extension URLSession {
                 .eraseToAnyPublisher()
         }
 
-        return dataTaskPublisher(for: urlRequest)
+        let load = dataTaskPublisher(for: urlRequest)
             .subscribe(on: DispatchQueue.global())
             .receive(on: DispatchQueue.global())
             .mapError { error -> T.TaskError in
@@ -43,7 +43,24 @@ public extension URLSession {
             }
             // swiftlint:disable:next force_cast
             .mapError { $0 as! T.TaskError }
-            .eraseToAnyPublisher()
+
+            #if DEBUG
+            return Mocking.shared.handleMock(for: T.self)
+                .flatMap { mock in
+                    if let mock {
+                        return Just(mock)
+                            .setFailureType(to:  T.TaskError.self)
+                            .eraseToAnyPublisher()
+                    } else {
+                        return load
+                            .eraseToAnyPublisher()
+                    }
+                }
+                .eraseToAnyPublisher()
+            #else
+            return load
+                .eraseToAnyPublisher()
+            #endif
     }
 
     /// Creates a publisher and starts the request for the given ``Definition``. This function expects a result value of `Data`.
@@ -61,7 +78,7 @@ public extension URLSession {
                 .eraseToAnyPublisher()
         }
 
-        return dataTaskPublisher(for: urlRequest)
+        let load = dataTaskPublisher(for: urlRequest)
             .subscribe(on: DispatchQueue.global())
             .receive(on: DispatchQueue.global())
             .mapError { error -> T.TaskError in
@@ -76,7 +93,24 @@ public extension URLSession {
             }
             // swiftlint:disable:next force_cast
             .mapError { $0 as! T.TaskError }
-            .eraseToAnyPublisher()
+
+            #if DEBUG
+            return Mocking.shared.handleMock(for: T.self)
+                .flatMap { mock in
+                    if let mock {
+                        return Just(mock)
+                            .setFailureType(to:  T.TaskError.self)
+                            .eraseToAnyPublisher()
+                    } else {
+                        return load
+                            .eraseToAnyPublisher()
+                    }
+                }
+                .eraseToAnyPublisher()
+            #else
+            return load
+                .eraseToAnyPublisher()
+            #endif
     }
 
     /// Creates a publisher and starts the request for the given ``Definition``. This function expects a result value which is `Decodable`.
@@ -93,8 +127,9 @@ public extension URLSession {
             return Fail(outputType: T.Response.self, failure: error as! T.TaskError)
                 .eraseToAnyPublisher()
         }
+        
 
-        return dataTaskPublisher(for: urlRequest)
+        let load = dataTaskPublisher(for: urlRequest)
             .subscribe(on: DispatchQueue.global())
             .receive(on: DispatchQueue.global())
             .mapError { error -> T.TaskError in
@@ -114,7 +149,24 @@ public extension URLSession {
             }
             // swiftlint:disable:next force_cast
             .mapError { $0 as! T.TaskError }
+
+        #if DEBUG
+        return Mocking.shared.handleMock(for: T.self)
+            .flatMap { mock in
+                if let mock {
+                    return Just(mock)
+                        .setFailureType(to:  T.TaskError.self)
+                        .eraseToAnyPublisher()
+                } else {
+                    return load
+                        .eraseToAnyPublisher()
+                }
+            }
             .eraseToAnyPublisher()
+        #else
+        return load
+            .eraseToAnyPublisher()
+        #endif
     }
 }
 
