@@ -67,7 +67,7 @@ public protocol Endpoint {
     /// can use to know how to handle particular types. For instance, if this type conforms to `Decodable`, then a JSON decoder is used
     /// on the data coming from the server. If it's typealiased to `Void`, then the extension can know to ignore the response. If it's `Data`, then it can deliver the
     /// response data unmodified.
-    associatedtype Response
+    associatedtype Response: Sendable
 
     /// The type representing the `Decodable` error response from the server. Defaults to an empty `Decodable` struct, ``EmptyCodable``.
     ///

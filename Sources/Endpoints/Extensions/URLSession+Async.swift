@@ -52,6 +52,11 @@ public extension URLSession {
     }
 
     func response<T: Endpoint>(with endpoint: T) async throws -> T.Response where T.Response: Decodable {
+
+        if let mockResponse = try await MockingActor.shared.handlMock(for: T.self) {
+            return mockResponse
+        }
+
         let urlRequest = try createUrlRequest(for: endpoint)
 
         let result: (data: Data, response: URLResponse)

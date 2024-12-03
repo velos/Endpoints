@@ -15,13 +15,22 @@ let package = Package(
         .library(
             name: "Endpoints",
             targets: ["Endpoints"]),
+        .library(
+            name: "EndpointsMocking",
+            targets: ["EndpointsMocking"]),
     ],
     targets: [
         .target(
             name: "Endpoints",
             dependencies: []),
+        .target(
+            name: "EndpointsMocking",
+            dependencies: ["Endpoints"]),
         .testTarget(
             name: "EndpointsTests",
             dependencies: ["Endpoints"]),
+        .testTarget(
+            name: "EndpointsMockingTests",
+            dependencies: ["EndpointsMocking"]),
     ]
 )
