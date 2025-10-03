@@ -67,7 +67,10 @@ class EndpointsTests: XCTestCase {
             body: .init(
                 description: "Test description",
                 file: MultipartFormFile(data: fileData, fileName: "greeting.txt", contentType: "text/plain"),
-                tags: ["tag1", "tag2"]
+                tags: ["tag1", "tag2"],
+                metadata: MultipartFormJSON(
+                    MultipartUploadEndpoint.Body.Metadata(owner: "zac", priority: 1)
+                )
             )
         )
 
@@ -90,6 +93,11 @@ class EndpointsTests: XCTestCase {
         XCTAssertTrue(bodyString.contains("Content-Disposition: form-data; name=\"file\"; filename=\"greeting.txt\""))
         XCTAssertTrue(bodyString.contains("Content-Type: text/plain"))
         XCTAssertTrue(bodyString.contains("hello world"))
+        XCTAssertTrue(bodyString.contains("Content-Disposition: form-data; name=\"metadata\""))
+        XCTAssertFalse(bodyString.contains("name=\"metadata\"; filename="))
+        XCTAssertTrue(bodyString.contains("Content-Type: application/json"))
+        XCTAssertTrue(bodyString.contains("\"owner\":\"zac\""))
+        XCTAssertTrue(bodyString.contains("\"priority\":1"))
         XCTAssertTrue(bodyString.hasSuffix("--\(boundary)--\r\n"))
     }
 

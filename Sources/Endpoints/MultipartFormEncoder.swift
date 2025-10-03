@@ -118,6 +118,46 @@ public struct MultipartFormFile: Encodable {
     }
 }
 
+fileprivate protocol MultipartFormJSONProtocol {
+    func _encodeJSON(to encoder: _MultipartFormDataEncoder, path: [CodingKey]) throws
+}
+
+/// Wraps an ``Encodable`` value so it is embedded as a JSON part within a multipart payload.
+public struct MultipartFormJSON<Value: Encodable>: Encodable {
+    public let value: Value
+    fileprivate let jsonEncoder: JSONEncoder
+    public let fileName: String?
+    public let contentType: String
+
+    public init(_ value: Value, encoder: JSONEncoder = JSONEncoder(), fileName: String? = nil, contentType: String = "application/json") {
+        self.value = value
+        self.jsonEncoder = encoder
+        self.fileName = fileName
+        self.contentType = contentType
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        if let encoder = encoder as? _MultipartFormDataEncoder {
+            try encoder.append(json: self, at: encoder.codingPath)
+            return
+        }
+
+        if let superEncoder = encoder as? _MultipartSuperEncoder {
+            try superEncoder.parent.append(json: self, at: superEncoder.codingPath)
+            return
+        }
+
+        var container = encoder.singleValueContainer()
+        try container.encode(value)
+    }
+}
+
+extension MultipartFormJSON: MultipartFormJSONProtocol {
+    fileprivate func _encodeJSON(to encoder: _MultipartFormDataEncoder, path: [CodingKey]) throws {
+        try encoder.append(json: self, at: path)
+    }
+}
+
 // MARK: - Internal Encoder
 
 final class _MultipartFormDataEncoder: Encoder {
@@ -174,6 +214,11 @@ final class _MultipartFormDataEncoder: Encoder {
             return
         }
 
+        if let json = value as? MultipartFormJSONProtocol {
+            try json._encodeJSON(to: self, path: codingPath)
+            return
+        }
+
         try value.encode(to: self)
     }
 
@@ -226,6 +271,20 @@ final class _MultipartFormDataEncoder: Encoder {
             }
         }
         parts.append(mutablePart)
+    }
+
+    func append<Value>(json: MultipartFormJSON<Value>, at path: [CodingKey]) throws {
+        let name = try fieldName(for: path)
+        let data = try json.jsonEncoder.encode(json.value)
+
+        let part = MultipartFormEncoder.Part(
+            name: name,
+            data: data,
+            filename: (json.fileName?.isEmpty == false) ? json.fileName : nil,
+            contentType: json.contentType
+        )
+
+        parts.append(part)
     }
 
     func fieldName(for path: [CodingKey]) throws -> String {

@@ -13,6 +13,12 @@ struct MultipartUploadEndpoint: Endpoint {
         let description: String
         let file: MultipartFormFile
         let tags: [String]
+        let metadata: MultipartFormJSON<Metadata>
+
+        struct Metadata: Encodable {
+            let owner: String
+            let priority: Int
+        }
     }
 
     static var bodyEncoder: MultipartFormEncoder {

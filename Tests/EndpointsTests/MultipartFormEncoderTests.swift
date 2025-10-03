@@ -14,9 +14,19 @@ final class MultipartFormEncoderTests: XCTestCase {
             let nested: Nested
             let list: [String]
             let file: MultipartFormFile
+            let metadata: MultipartFormJSON<Metadata>
+            let config: MultipartFormJSON<[String: String]>
+
+            struct Metadata: Encodable {
+                let author: String
+                let version: Int
+            }
         }
 
         let encoder = MultipartFormEncoder(boundary: "Boundary-123")
+
+        let sortedEncoder = JSONEncoder()
+        sortedEncoder.outputFormatting = [.sortedKeys]
 
         let payload = Payload(
             title: "Example",
@@ -26,48 +36,63 @@ final class MultipartFormEncoderTests: XCTestCase {
                 data: Data([0x01, 0x02, 0x03]),
                 fileName: "binary.dat",
                 contentType: "application/octet-stream"
+            ),
+            metadata: MultipartFormJSON(
+                Payload.Metadata(author: "zac", version: 2)
+            ),
+            config: MultipartFormJSON(
+                ["mode": "debug"],
+                encoder: sortedEncoder,
+                fileName: "config.json"
             )
         )
 
         let data = try encoder.encode(payload)
+        let body = try XCTUnwrap(String(data: data, encoding: .utf8))
 
-        var expected = Data()
-        func append(_ string: String) {
-            expected.append(contentsOf: string.utf8)
+        func part(named name: String) -> String? {
+            let marker = "Content-Disposition: form-data; name=\"\(name)\""
+            guard let headerRange = body.range(of: marker) else { return nil }
+            let partStart = headerRange.lowerBound
+            let searchRange = body[headerRange.upperBound...]
+            if let nextBoundary = searchRange.range(of: "\r\n--Boundary-123") {
+                return String(body[partStart..<nextBoundary.lowerBound])
+            }
+            return String(body[partStart...])
         }
-        func append(_ bytes: [UInt8]) {
-            expected.append(contentsOf: bytes)
-        }
 
-        append("--Boundary-123\r\n")
-        append("Content-Disposition: form-data; name=\"title\"\r\n\r\n")
-        append("Example\r\n")
+        XCTAssertTrue(body.contains("--Boundary-123--"), "missing closing boundary")
 
-        append("--Boundary-123\r\n")
-        append("Content-Disposition: form-data; name=\"nested[flag]\"\r\n\r\n")
-        append("true\r\n")
+        let titlePart = try XCTUnwrap(part(named: "title"))
+        XCTAssertTrue(titlePart.contains("Example"), "missing title value")
 
-        append("--Boundary-123\r\n")
-        append("Content-Disposition: form-data; name=\"nested[count]\"\r\n\r\n")
-        append("7\r\n")
+        let nestedFlagPart = try XCTUnwrap(part(named: "nested[flag]"))
+        XCTAssertTrue(nestedFlagPart.contains("true"), "missing nested flag value")
 
-        append("--Boundary-123\r\n")
-        append("Content-Disposition: form-data; name=\"list[0]\"\r\n\r\n")
-        append("first\r\n")
+        let nestedCountPart = try XCTUnwrap(part(named: "nested[count]"))
+        XCTAssertTrue(nestedCountPart.contains("7"), "missing nested count value")
 
-        append("--Boundary-123\r\n")
-        append("Content-Disposition: form-data; name=\"list[1]\"\r\n\r\n")
-        append("second\r\n")
+        let list0Part = try XCTUnwrap(part(named: "list[0]"))
+        XCTAssertTrue(list0Part.contains("first"), "missing list[0] value")
 
-        append("--Boundary-123\r\n")
-        append("Content-Disposition: form-data; name=\"file\"; filename=\"binary.dat\"\r\n")
-        append("Content-Type: application/octet-stream\r\n\r\n")
-        append([0x01, 0x02, 0x03])
-        append("\r\n")
+        let list1Part = try XCTUnwrap(part(named: "list[1]"))
+        XCTAssertTrue(list1Part.contains("second"), "missing list[1] value")
 
-        append("--Boundary-123--\r\n")
+        let filePart = try XCTUnwrap(part(named: "file"))
+        XCTAssertTrue(filePart.contains("filename=\"binary.dat\""), "missing file filename")
+        XCTAssertTrue(filePart.contains("Content-Type: application/octet-stream"), "missing file content type")
+        XCTAssertNotNil(data.range(of: Data([0x01, 0x02, 0x03])), "missing file payload")
 
-        XCTAssertEqual(data, expected)
+        let metadataPart = try XCTUnwrap(part(named: "metadata"))
+        XCTAssertFalse(metadataPart.contains("filename="), "metadata unexpectedly has filename")
+        XCTAssertTrue(metadataPart.contains("Content-Type: application/json"), "metadata missing content type")
+        XCTAssertTrue(metadataPart.contains("\"author\":\"zac\""), "metadata missing author")
+        XCTAssertTrue(metadataPart.contains("\"version\":2"), "metadata missing version")
+
+        let configPart = try XCTUnwrap(part(named: "config"))
+        XCTAssertTrue(configPart.contains("filename=\"config.json\""), "config missing filename")
+        XCTAssertTrue(configPart.contains("Content-Type: application/json"), "config missing content type")
+        XCTAssertTrue(configPart.contains("\"mode\":\"debug\""), "config missing payload")
     }
 
     func testContentTypeProvidesBoundary() {
