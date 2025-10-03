@@ -46,9 +46,31 @@ public extension URLSession {
 
         let urlRequest = try createUrlRequest(for: endpoint)
 
-        return dataTask(with: urlRequest) { (data, response, error) in
+        let task = dataTask(with: urlRequest) { (data, response, error) in
             completion(T.definition.response(data: data, response: response, error: error).map { _ in })
         }
+
+        #if DEBUG
+        if Mocking.shared.shouldHandleMock(for: T.self) {
+            task.resumeOverride = {
+                Task {
+                    let action = await Mocking.shared.actionForMock(for: T.self)!
+                    switch action {
+                    case .none:
+                        break
+                    case .return(let value):
+                        completion(.success(value))
+                    case .fail(let errorResponse):
+                        completion(.failure(T.TaskError.errorResponse(httpResponse: HTTPURLResponse(), response: errorResponse)))
+                    case .throw(let error):
+                        completion(.failure(error))
+                    }
+                }
+            }
+        }
+        #endif
+
+        return task
     }
 
     /// Creates a session data task using the ``Definition`` associated with the passed in request on the passed in environment.
@@ -64,9 +86,29 @@ public extension URLSession {
 
         let urlRequest = try createUrlRequest(for: endpoint)
 
-        return dataTask(with: urlRequest) { (data, response, error) in
+        let task = dataTask(with: urlRequest) { (data, response, error) in
             completion(T.definition.response(data: data, response: response, error: error))
         }
+        #if DEBUG
+        if Mocking.shared.shouldHandleMock(for: T.self) {
+            task.resumeOverride = {
+                Task {
+                    let action = await Mocking.shared.actionForMock(for: T.self)!
+                    switch action {
+                    case .none:
+                        break
+                    case .return(let value):
+                        completion(.success(value))
+                    case .fail(let errorResponse):
+                        completion(.failure(T.TaskError.errorResponse(httpResponse: HTTPURLResponse(), response: errorResponse)))
+                    case .throw(let error):
+                        completion(.failure(error))
+                    }
+                }
+            }
+        }
+        #endif
+        return task
     }
 
     /// Creates a session data task using the ``Definition`` associated with the passed in request on the passed in environment.
@@ -82,7 +124,7 @@ public extension URLSession {
 
         let urlRequest = try createUrlRequest(for: endpoint)
 
-        return dataTask(with: urlRequest) { (data, response, error) in
+        let task = dataTask(with: urlRequest) { (data, response, error) in
             let response = T.definition.response(data: data, response: response, error: error)
             switch response {
             case .success(let data):
@@ -98,6 +140,26 @@ public extension URLSession {
                 completion(.failure(failure))
             }
         }
+        #if DEBUG
+        if Mocking.shared.shouldHandleMock(for: T.self) {
+            task.resumeOverride = {
+                Task {
+                    let action = await Mocking.shared.actionForMock(for: T.self)!
+                    switch action {
+                    case .none:
+                        break
+                    case .return(let value):
+                        completion(.success(value))
+                    case .fail(let errorResponse):
+                        completion(.failure(T.TaskError.errorResponse(httpResponse: HTTPURLResponse(), response: errorResponse)))
+                    case .throw(let error):
+                        completion(.failure(error))
+                    }
+                }
+            }
+        }
+        #endif
+        return task
     }
 
     func createUrlRequest<T: Endpoint>(for endpoint: T) throws -> URLRequest {

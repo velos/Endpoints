@@ -17,6 +17,10 @@ public enum MockAction<Value: Sendable, ErrorResponse: Sendable>: Sendable {
 public class MockContinuation<T: Endpoint> where T.Response: Sendable {
     var action: MockAction<T.Response, T.ErrorResponse>
 
+    init(_ type: T.Type) {
+        self.action = .none
+    }
+
     init(action: MockAction<T.Response, T.ErrorResponse> = .none) {
         self.action = action
     }

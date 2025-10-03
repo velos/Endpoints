@@ -5,7 +5,7 @@
 #### Endpoint and Definition
 ```swift
 struct MyEndpoint: Endpoint {
-    static let definition: Definition<MyEndpoint> = Definition(
+    static let definition: Definition<MyEndpoint, ApiServer> = Definition(
         method: .get,
         path: "path/to/resource"
     )
@@ -34,7 +34,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
 #### Endpoint and Definition
 ```swift
 struct MyEndpoint: Endpoint {
-    static let definition: Definition<MyEndpoint> = Definition(
+    static let definition: Definition<MyEndpoint, ApiServer> = Definition(
         method: .get,
         path: "user/\(path: \.userId)/resource"
     )
@@ -74,7 +74,7 @@ extension Header {
 }
 
 struct MyEndpoint: Endpoint {
-    static let definition: Definition<MyEndpoint> = Definition(
+    static let definition: Definition<MyEndpoint, ApiServer> = Definition(
         method: .get,
         path: "path/to/resource",
         headers: [
@@ -114,7 +114,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(headerValu
 #### Endpoint and Definition
 ```swift
 struct MyEndpoint: Endpoint {
-    static let definition: Definition<MyEndpoint> = Definition(
+    static let definition: Definition<MyEndpoint, ApiServer> = Definition(
         method: .post,
         path: "path/to/resource"
     )
@@ -148,7 +148,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(body: .ini
 #### Endpoint and Definition
 ```swift
 struct MyEndpoint: Endpoint {
-    static let definition: Definition<MyEndpoint> = Definition(
+    static let definition: Definition<MyEndpoint, ApiServer> = Definition(
         method: .post,
         path: "path/to/resource",
         parameters: [
@@ -189,7 +189,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(parameters
 #### Endpoint and Definition
 ```swift
 struct MyEndpoint: Endpoint {
-    static let definition: Definition<MyEndpoint> = Definition(
+    static let definition: Definition<MyEndpoint, ApiServer> = Definition(
         method: .post,
         path: "path/to/resource",
         parameters: [
@@ -236,7 +236,7 @@ https://production.mydomain.com/path/to/resource?keyString=value&keyInt=42&key=h
 #### Endpoint and Definition
 ```swift
 struct MyEndpoint: Endpoint {
-    static let definition: Definition<MyEndpoint> = Definition(
+    static let definition: Definition<MyEndpoint, ApiServer> = Definition(
         method: .delete,
         path: "path/to/resource"
     )
@@ -262,7 +262,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
 #### Endpoint and Definition
 ```swift
 struct MyEndpoint: Endpoint {
-    static let definition: Definition<MyEndpoint> = Definition(
+    static let definition: Definition<MyEndpoint, ApiServer> = Definition(
         method: .get,
         path: "path/to/resource"
     )
@@ -298,7 +298,7 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
 #### Endpoint and Definition
 ```swift
 struct MyEndpoint: Endpoint {
-    static let definition: Definition<MyEndpoint> = Definition(
+    static let definition: Definition<MyEndpoint, ApiServer> = Definition(
         method: .post,
         path: "path/to/resource"
     )
@@ -337,14 +337,13 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(body: .ini
 
 #### Endpoint and Definition
 ```swift
-
 struct ServerError: Decodable {
     let code: Int
     let message: String
 }
 
 struct MyEndpoint: Endpoint {
-    static let definition: Definition<MyEndpoint> = Definition(
+    static let definition: Definition<MyEndpoint, ApiServer> = Definition(
         method: .get,
         path: "path/to/resource"
     )
@@ -384,7 +383,7 @@ struct ServerError: Decodable {
 }
 
 struct MyEndpoint: Endpoint {
-    static let definition: Definition<MyEndpoint> = Definition(
+    static let definition: Definition<MyEndpoint, ApiServer> = Definition(
         method: .get,
         path: "path/to/resource"
     )

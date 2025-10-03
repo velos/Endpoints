@@ -18,9 +18,9 @@ struct MyServer: ServerDefinition {
     
     var baseUrls: [Environments: URL] {
         return [
-            .local: URL(string: "https://api.velos.com")!,
-            .staging: URL(string: "https://api.velos.com")!,
-            .production: URL(string: "https://api.velos.com")!
+            .local: URL(string: "https://api.velos.me")!,
+            .staging: URL(string: "https://api.velos.me")!,
+            .production: URL(string: "https://api.velos.me")!
         ]
     }
     

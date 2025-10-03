@@ -1,5 +1,5 @@
 //
-//  BasicMocking.swift
+//  AsyncURLSessionMocking.swift
 //  Endpoints
 //
 //  Created by Zac White on 11/30/24.
@@ -42,15 +42,58 @@ struct SimpleEndpoint: Endpoint {
     let pathComponents: PathComponents
 }
 
-@Suite("Basic Mocking")
-struct BasicMocking {
-    @Test func basic() async throws {
+@Suite("Async URLSession Mocking")
+struct AsyncURLSessionMocking {
+    @Test func basicThrow() async throws {
         await #expect(throws: SimpleEndpoint.TaskError.self) {
             try await withMock(SimpleEndpoint.self) { continuation in
                 continuation.resume(throwing: .internetConnectionOffline)
             } test: {
                 let simple = SimpleEndpoint(pathComponents: .init(name: "a", id: "b"))
                 _ = try await URLSession.shared.response(with: simple)
+            }
+        }
+    }
+
+    @Test func basicThrowInline() async throws {
+        await #expect(throws: SimpleEndpoint.TaskError.self) {
+            try await withMock(SimpleEndpoint.self, action: .throw(.internetConnectionOffline)) {
+                let simple = SimpleEndpoint(pathComponents: .init(name: "a", id: "b"))
+                _ = try await URLSession.shared.response(with: simple)
+            }
+        }
+    }
+
+    @Test func basicFail() async throws {
+        try await withMock(SimpleEndpoint.self) { continuation in
+            continuation.resume(failingWith: .init(errorDescription: "error"))
+        } test: {
+            let simple = SimpleEndpoint(pathComponents: .init(name: "a", id: "b"))
+            do {
+                _ = try await URLSession.shared.response(with: simple)
+            } catch {
+                let error = try #require(error as? SimpleEndpoint.TaskError)
+                if case .errorResponse(_, let response) = error {
+                    #expect(response.errorDescription == "error")
+                } else {
+                    #expect(Bool(false), "unexpected error \(error)")
+                }
+            }
+        }
+    }
+
+    @Test func basicFailInline() async throws {
+        try await withMock(SimpleEndpoint.self, action: .fail(.init(errorDescription: "error"))) {
+            let simple = SimpleEndpoint(pathComponents: .init(name: "a", id: "b"))
+            do {
+                _ = try await URLSession.shared.response(with: simple)
+            } catch {
+                let error = try #require(error as? SimpleEndpoint.TaskError)
+                if case .errorResponse(_, let response) = error {
+                    #expect(response.errorDescription == "error")
+                } else {
+                    #expect(Bool(false), "unexpected error \(error)")
+                }
             }
         }
     }

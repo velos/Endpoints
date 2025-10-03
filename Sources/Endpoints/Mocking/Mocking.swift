@@ -29,6 +29,10 @@ struct Mocking {
     @TaskLocal
     static private var current: ToReturnWrapper?
 
+    init() {
+        URLSessionTask.classInit
+    }
+
     func handlMock<T: Endpoint>(for endpointsOfType: T.Type) async throws -> T.Response? {
         guard let current = Self.current else { return .none }
         let continuation = MockContinuation<T>()
@@ -52,6 +56,22 @@ struct Mocking {
     }
 }
 
+extension Mocking {
+    func shouldHandleMock<T: Endpoint>(for endpointsOfType: T.Type) -> Bool {
+        Self.current != nil
+    }
+
+    func actionForMock<T: Endpoint>(for endpointsOfType: T.Type) async -> MockAction<T.Response, T.ErrorResponse>? {
+        guard let current = Self.current else {
+            return nil
+        }
+
+        let continuation = MockContinuation<T>()
+        await current.toReturn(for: T.self)(continuation)
+        return continuation.action
+    }
+}
+
 @preconcurrency import Combine
 extension Mocking {
     func handleMock<T: Endpoint>(for endpointsOfType: T.Type) -> AnyPublisher<T.Response?, T.TaskError> {
@@ -63,7 +83,7 @@ extension Mocking {
 
         let passthrough = PassthroughSubject<T.Response?, T.TaskError>()
 
-        Task.detached { @Sendable () async -> Void in
+        Task { @Sendable () async -> Void in
             let continuation = MockContinuation<T>()
             await current.toReturn(for: T.self)(continuation)
             switch continuation.action {
