@@ -61,6 +61,38 @@ class EndpointsTests: XCTestCase {
         XCTAssertEqual(request.httpMethod, "POST")
     }
 
+    func testMultipartBodyEncoding() throws {
+        let fileData = Data("hello world".utf8)
+        let endpoint = MultipartUploadEndpoint(
+            body: .init(
+                description: "Test description",
+                file: MultipartFormFile(data: fileData, fileName: "greeting.txt", contentType: "text/plain"),
+                tags: ["tag1", "tag2"]
+            )
+        )
+
+        let request = try endpoint.urlRequest(in: Environment.test)
+
+        let contentType = try XCTUnwrap(request.value(forHTTPHeaderField: Header.contentType.name))
+        XCTAssertTrue(contentType.hasPrefix("multipart/form-data; boundary="))
+
+        let boundaryComponents = contentType.components(separatedBy: "boundary=")
+        XCTAssertEqual(boundaryComponents.count, 2)
+        let boundary = boundaryComponents[1]
+
+        let bodyData = try XCTUnwrap(request.httpBody)
+        let bodyString = try XCTUnwrap(String(data: bodyData, encoding: .utf8))
+
+        XCTAssertTrue(bodyString.contains("Content-Disposition: form-data; name=\"description\""))
+        XCTAssertTrue(bodyString.contains("Test description"))
+        XCTAssertTrue(bodyString.contains("Content-Disposition: form-data; name=\"tags[0]\""))
+        XCTAssertTrue(bodyString.contains("Content-Disposition: form-data; name=\"tags[1]\""))
+        XCTAssertTrue(bodyString.contains("Content-Disposition: form-data; name=\"file\"; filename=\"greeting.txt\""))
+        XCTAssertTrue(bodyString.contains("Content-Type: text/plain"))
+        XCTAssertTrue(bodyString.contains("hello world"))
+        XCTAssertTrue(bodyString.hasSuffix("--\(boundary)--\r\n"))
+    }
+
     func testCustomParameterEncoding() throws {
         let request = try CustomEncodingEndpoint(
             parameterComponents: .init(needsCustomEncoding: "++++")
