@@ -57,7 +57,7 @@ public protocol DecoderType {
 
 extension JSONDecoder: DecoderType { }
 
-public protocol Endpoint {
+public protocol Endpoint: Sendable {
 
     associatedtype Server: ServerDefinition
 

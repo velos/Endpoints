@@ -10,7 +10,7 @@ import Foundation
 struct ToReturnWrapper: Sendable {
     private let toReturn: @Sendable (Any) async -> Void
     init<T: Endpoint>(_ toReturn: @Sendable @escaping (MockContinuation<T>) async -> Void) {
-        self.toReturn = { @Sendable (value) in
+        self.toReturn = { value in
             await toReturn(value as! MockContinuation<T>)
         }
     }
