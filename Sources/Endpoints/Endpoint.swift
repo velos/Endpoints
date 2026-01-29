@@ -36,10 +36,19 @@ public enum HeaderField<T> {
 public struct EmptyCodable: Codable { }
 
 public protocol EncoderType {
+    static var contentType: String? { get }
     func encode<T: Encodable>(_ value: T) throws -> Data
 }
 
+public extension EncoderType {
+    static var contentType: String? { nil }
+}
+
 extension JSONEncoder: EncoderType { }
+
+extension JSONEncoder {
+    public static var contentType: String? { "application/json" }
+}
 
 public protocol DecoderType {
     func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T

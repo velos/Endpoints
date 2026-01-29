@@ -125,14 +125,23 @@ extension Endpoint {
         urlRequest.url = url
 
         if !(body is EmptyCodable) {
+            let encoder = Self.bodyEncoder
             do {
-                urlRequest.httpBody = try Self.bodyEncoder.encode(body)
+                urlRequest.httpBody = try encoder.encode(body)
             } catch {
                 throw EndpointError.invalidBody(error)
             }
 
             if headerItems[Header.contentType.name] == nil {
-                urlRequest.addValue("application/json", forHTTPHeaderField: Header.contentType.name)
+                let encoderType = type(of: encoder)
+                if let contentType = encoderType.contentType {
+                    if contentType.lowercased().hasPrefix("multipart/form-data"),
+                       let multipartEncoder = encoder as? MultipartFormEncoder {
+                        urlRequest.addValue(multipartEncoder.contentType, forHTTPHeaderField: Header.contentType.name)
+                    } else {
+                        urlRequest.addValue(contentType, forHTTPHeaderField: Header.contentType.name)
+                    }
+                }
             }
         } else if !bodyFormItems.isEmpty {
             urlRequest.httpBody = bodyFormItems.formString.data(using: .utf8)
