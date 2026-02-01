@@ -1,9 +1,12 @@
-import XCTest
+import Foundation
+import Testing
 @testable import Endpoints
 
-final class MultipartFormEncoderTests: XCTestCase {
+@Suite
+struct MultipartFormEncoderTests {
 
-    func testEncodesMixedValues() throws {
+    @Test
+    func multipartEncodesMixedValues() throws {
         struct Nested: Encodable {
             let flag: Bool
             let count: Int
@@ -48,7 +51,7 @@ final class MultipartFormEncoderTests: XCTestCase {
         )
 
         let data = try encoder.encode(payload)
-        let body = try XCTUnwrap(String(data: data, encoding: .utf8))
+        let body = try #require(String(data: data, encoding: .utf8))
 
         func part(named name: String) -> String? {
             let marker = "Content-Disposition: form-data; name=\"\(name)\""
@@ -61,43 +64,44 @@ final class MultipartFormEncoderTests: XCTestCase {
             return String(body[partStart...])
         }
 
-        XCTAssertTrue(body.contains("--Boundary-123--"), "missing closing boundary")
+        #expect(body.contains("--Boundary-123--"), "missing closing boundary")
 
-        let titlePart = try XCTUnwrap(part(named: "title"))
-        XCTAssertTrue(titlePart.contains("Example"), "missing title value")
+        let titlePart = try #require(part(named: "title"))
+        #expect(titlePart.contains("Example"), "missing title value")
 
-        let nestedFlagPart = try XCTUnwrap(part(named: "nested[flag]"))
-        XCTAssertTrue(nestedFlagPart.contains("true"), "missing nested flag value")
+        let nestedFlagPart = try #require(part(named: "nested[flag]"))
+        #expect(nestedFlagPart.contains("true"), "missing nested flag value")
 
-        let nestedCountPart = try XCTUnwrap(part(named: "nested[count]"))
-        XCTAssertTrue(nestedCountPart.contains("7"), "missing nested count value")
+        let nestedCountPart = try #require(part(named: "nested[count]"))
+        #expect(nestedCountPart.contains("7"), "missing nested count value")
 
-        let list0Part = try XCTUnwrap(part(named: "list[0]"))
-        XCTAssertTrue(list0Part.contains("first"), "missing list[0] value")
+        let list0Part = try #require(part(named: "list[0]"))
+        #expect(list0Part.contains("first"), "missing list[0] value")
 
-        let list1Part = try XCTUnwrap(part(named: "list[1]"))
-        XCTAssertTrue(list1Part.contains("second"), "missing list[1] value")
+        let list1Part = try #require(part(named: "list[1]"))
+        #expect(list1Part.contains("second"), "missing list[1] value")
 
-        let filePart = try XCTUnwrap(part(named: "file"))
-        XCTAssertTrue(filePart.contains("filename=\"binary.dat\""), "missing file filename")
-        XCTAssertTrue(filePart.contains("Content-Type: application/octet-stream"), "missing file content type")
-        XCTAssertNotNil(data.range(of: Data([0x01, 0x02, 0x03])), "missing file payload")
+        let filePart = try #require(part(named: "file"))
+        #expect(filePart.contains("filename=\"binary.dat\""), "missing file filename")
+        #expect(filePart.contains("Content-Type: application/octet-stream"), "missing file content type")
+        #expect(data.range(of: Data([0x01, 0x02, 0x03])) != nil, "missing file payload")
 
-        let metadataPart = try XCTUnwrap(part(named: "metadata"))
-        XCTAssertFalse(metadataPart.contains("filename="), "metadata unexpectedly has filename")
-        XCTAssertTrue(metadataPart.contains("Content-Type: application/json"), "metadata missing content type")
-        XCTAssertTrue(metadataPart.contains("\"author\":\"zac\""), "metadata missing author")
-        XCTAssertTrue(metadataPart.contains("\"version\":2"), "metadata missing version")
+        let metadataPart = try #require(part(named: "metadata"))
+        #expect(!metadataPart.contains("filename="), "metadata unexpectedly has filename")
+        #expect(metadataPart.contains("Content-Type: application/json"), "metadata missing content type")
+        #expect(metadataPart.contains("\"author\":\"zac\""), "metadata missing author")
+        #expect(metadataPart.contains("\"version\":2"), "metadata missing version")
 
-        let configPart = try XCTUnwrap(part(named: "config"))
-        XCTAssertTrue(configPart.contains("filename=\"config.json\""), "config missing filename")
-        XCTAssertTrue(configPart.contains("Content-Type: application/json"), "config missing content type")
-        XCTAssertTrue(configPart.contains("\"mode\":\"debug\""), "config missing payload")
+        let configPart = try #require(part(named: "config"))
+        #expect(configPart.contains("filename=\"config.json\""), "config missing filename")
+        #expect(configPart.contains("Content-Type: application/json"), "config missing content type")
+        #expect(configPart.contains("\"mode\":\"debug\""), "config missing payload")
     }
 
-    func testContentTypeProvidesBoundary() {
+    @Test
+    func multipartContentTypeProvidesBoundary() {
         let encoder = MultipartFormEncoder(boundary: "Boundary-XYZ")
-        XCTAssertEqual(type(of: encoder).contentType, "multipart/form-data")
-        XCTAssertEqual(encoder.contentType, "multipart/form-data; boundary=Boundary-XYZ")
+        #expect(type(of: encoder).contentType == "multipart/form-data")
+        #expect(encoder.contentType == "multipart/form-data; boundary=Boundary-XYZ")
     }
 }

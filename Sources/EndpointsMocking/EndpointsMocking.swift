@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import XCTest
 @testable import Endpoints
 
 public func withMock<T: Endpoint, R: Sendable>(_ ofType: T.Type, _ body: @Sendable @escaping (MockContinuation<T>) async -> Void, test: @Sendable @escaping () async throws -> R) async rethrows -> R {

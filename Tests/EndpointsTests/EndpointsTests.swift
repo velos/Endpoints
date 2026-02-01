@@ -67,7 +67,8 @@ struct EndpointsTests {
         #expect(request.httpMethod == "POST")
     }
 
-    func testMultipartBodyEncoding() throws {
+    @Test
+    func multipartBodyEncoding() throws {
         let fileData = Data("hello world".utf8)
         let endpoint = MultipartUploadEndpoint(
             body: .init(
@@ -80,31 +81,31 @@ struct EndpointsTests {
             )
         )
 
-        let request = try endpoint.urlRequest(in: Environment.test)
+        let request = try endpoint.urlRequest()
 
-        let contentType = try XCTUnwrap(request.value(forHTTPHeaderField: Header.contentType.name))
-        XCTAssertTrue(contentType.hasPrefix("multipart/form-data; boundary="))
+        let contentType = try #require(request.value(forHTTPHeaderField: Header.contentType.name))
+        #expect(contentType.hasPrefix("multipart/form-data; boundary="))
 
         let boundaryComponents = contentType.components(separatedBy: "boundary=")
-        XCTAssertEqual(boundaryComponents.count, 2)
+        #expect(boundaryComponents.count == 2)
         let boundary = boundaryComponents[1]
 
-        let bodyData = try XCTUnwrap(request.httpBody)
-        let bodyString = try XCTUnwrap(String(data: bodyData, encoding: .utf8))
+        let bodyData = try #require(request.httpBody)
+        let bodyString = try #require(String(data: bodyData, encoding: .utf8))
 
-        XCTAssertTrue(bodyString.contains("Content-Disposition: form-data; name=\"description\""))
-        XCTAssertTrue(bodyString.contains("Test description"))
-        XCTAssertTrue(bodyString.contains("Content-Disposition: form-data; name=\"tags[0]\""))
-        XCTAssertTrue(bodyString.contains("Content-Disposition: form-data; name=\"tags[1]\""))
-        XCTAssertTrue(bodyString.contains("Content-Disposition: form-data; name=\"file\"; filename=\"greeting.txt\""))
-        XCTAssertTrue(bodyString.contains("Content-Type: text/plain"))
-        XCTAssertTrue(bodyString.contains("hello world"))
-        XCTAssertTrue(bodyString.contains("Content-Disposition: form-data; name=\"metadata\""))
-        XCTAssertFalse(bodyString.contains("name=\"metadata\"; filename="))
-        XCTAssertTrue(bodyString.contains("Content-Type: application/json"))
-        XCTAssertTrue(bodyString.contains("\"owner\":\"zac\""))
-        XCTAssertTrue(bodyString.contains("\"priority\":1"))
-        XCTAssertTrue(bodyString.hasSuffix("--\(boundary)--\r\n"))
+        #expect(bodyString.contains("Content-Disposition: form-data; name=\"description\""))
+        #expect(bodyString.contains("Test description"))
+        #expect(bodyString.contains("Content-Disposition: form-data; name=\"tags[0]\""))
+        #expect(bodyString.contains("Content-Disposition: form-data; name=\"tags[1]\""))
+        #expect(bodyString.contains("Content-Disposition: form-data; name=\"file\"; filename=\"greeting.txt\""))
+        #expect(bodyString.contains("Content-Type: text/plain"))
+        #expect(bodyString.contains("hello world"))
+        #expect(bodyString.contains("Content-Disposition: form-data; name=\"metadata\""))
+        #expect(!bodyString.contains("name=\"metadata\"; filename="))
+        #expect(bodyString.contains("Content-Type: application/json"))
+        #expect(bodyString.contains("\"owner\":\"zac\""))
+        #expect(bodyString.contains("\"priority\":1"))
+        #expect(bodyString.hasSuffix("--\(boundary)--\r\n"))
     }
 
     @Test
