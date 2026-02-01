@@ -73,6 +73,7 @@ extension Mocking {
 }
 
 @preconcurrency import Combine
+
 extension Mocking {
     func handleMock<T: Endpoint>(for endpointsOfType: T.Type) -> AnyPublisher<T.Response?, T.TaskError> {
         guard let current = Self.current else {
@@ -81,26 +82,24 @@ extension Mocking {
                 .eraseToAnyPublisher()
         }
 
-        let passthrough = PassthroughSubject<T.Response?, T.TaskError>()
+        let subject = CurrentValueSubject<T.Response?, T.TaskError>(nil)
 
-        Task { @Sendable () async -> Void in
+        Task {
             let continuation = MockContinuation<T>()
             await current.toReturn(for: T.self)(continuation)
             switch continuation.action {
             case .none:
-                passthrough.send(nil)
-                passthrough.send(completion: .finished)
+                subject.send(nil)
             case .return(let value):
-                passthrough.send(value)
-                passthrough.send(completion: .finished)
+                subject.send(value)
             case .fail(let errorResponse):
-                passthrough.send(completion: .failure(T.TaskError.errorResponse(httpResponse: HTTPURLResponse(), response: errorResponse)))
+                subject.send(completion: .failure(T.TaskError.errorResponse(httpResponse: HTTPURLResponse(), response: errorResponse)))
             case .throw(let error):
-                passthrough.send(completion: .failure(error))
+                subject.send(completion: .failure(error))
             }
         }
 
-        return passthrough
+        return subject
             .eraseToAnyPublisher()
     }
 }
