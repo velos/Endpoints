@@ -8,6 +8,10 @@
 
 import Testing
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+
 @testable import Endpoints
 
 @Suite

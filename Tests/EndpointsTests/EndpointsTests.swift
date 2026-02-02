@@ -6,11 +6,12 @@
 //  Copyright © 2019 Velos Mobile LLC. All rights reserved.
 //
 
+import Testing
 import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Testing
+
 @testable import Endpoints
 
 @Suite
