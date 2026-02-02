@@ -15,9 +15,9 @@ import Combine
 struct ClosureURLSessionMocking {
 
     @Test func inline() async throws {
-        try await withMock(SimpleEndpoint.self, action: .return(.init(response1: "test"))) {
+        try await withMock(MockSimpleEndpoint.self, action: .return(.init(response1: "test"))) {
             try await wait { continuation in
-                let simple = SimpleEndpoint(pathComponents: .init(name: "a", id: "b"))
+                let simple = MockSimpleEndpoint(pathComponents: .init(name: "a", id: "b"))
                 let task = try URLSession.shared.endpointTask(with: simple) { result in
                     #expect(throws: Never.self) {
                         let response = try result.get()
@@ -31,9 +31,9 @@ struct ClosureURLSessionMocking {
     }
 
     @Test func inline2() async throws {
-        try await withMock(SimpleEndpoint.self, action: .return(.init(response1: "test2"))) {
+        try await withMock(MockSimpleEndpoint.self, action: .return(.init(response1: "test2"))) {
             try await wait { continuation in
-                let simple = SimpleEndpoint(pathComponents: .init(name: "a", id: "b"))
+                let simple = MockSimpleEndpoint(pathComponents: .init(name: "a", id: "b"))
                 let task = try URLSession.shared.endpointTask(with: simple) { result in
                     #expect(throws: Never.self) {
                         let response = try result.get()

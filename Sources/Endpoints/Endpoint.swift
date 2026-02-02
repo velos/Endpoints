@@ -59,7 +59,7 @@ extension JSONDecoder: DecoderType { }
 
 public protocol Endpoint: Sendable {
 
-    associatedtype Server: ServerDefinition
+    associatedtype Server: ServerDefinition = GenericServer
 
     /// The response type received from the server.
     ///
@@ -128,7 +128,7 @@ public protocol Endpoint: Sendable {
     associatedtype ResponseDecoder: DecoderType = JSONDecoder
 
     /// A ``Definition`` which pieces together all the components defined in the endpoint.
-    static var definition: Definition<Self, Server> { get }
+    static var definition: Definition<Self> { get }
 
     /// The instance of the associated `Body` type. Must be `Encodable`.
     var body: Body { get }
@@ -200,10 +200,10 @@ public enum QueryEncodingStrategy {
     case custom((URLQueryItem) -> (String, String?)?)
 }
 
-public struct Definition<T: Endpoint, Server: ServerDefinition>: Sendable {
+public struct Definition<T: Endpoint>: Sendable {
 
     /// The server this endpoints will use
-    public let server: Server
+    public let server: T.Server
     /// The HTTP method of the ``Endpoint``
     public let method: Method
     /// A template including all elements that appear in the path
@@ -215,11 +215,12 @@ public struct Definition<T: Endpoint, Server: ServerDefinition>: Sendable {
 
     /// Initializes a ``Definition`` with the given properties, defining all dynamic pieces as type-safe parameters.
     /// - Parameters:
+    ///   - server: The server to use for this endpoint. Defaults to a new instance of T.Server.
     ///   - method: The HTTP method to use when fetching the owning ``Endpoint``
     ///   - path: The path template representing the path and all path-related parameters
     ///   - parameters: The parameters passed to the endpoint. Either through query or form body.
-    ///   - headerValues: The headers associated with this request
-    public init(server: Server = Server(),
+    ///   - headers: The headers associated with this request
+    public init(server: T.Server = T.Server(),
                 method: Method,
                 path: PathTemplate<T.PathComponents>,
                 parameters: [Parameter<T.ParameterComponents>] = [],

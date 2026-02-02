@@ -55,8 +55,8 @@ struct CombineURLSessionMocking {
     @available(iOS 15.0, *)
     @Test(arguments: ["test", "test2"])
     func combineInline(response: String) async throws {
-        try await withMock(SimpleEndpoint.self, action: .return(.init(response1: response))) {
-            let simple = SimpleEndpoint(pathComponents: .init(name: "a", id: "b"))
+        try await withMock(MockSimpleEndpoint.self, action: .return(.init(response1: response))) {
+            let simple = MockSimpleEndpoint(pathComponents: .init(name: "a", id: "b"))
             let endpointResponse = try await URLSession.shared.endpointPublisher(with: simple).awaitFirst
             #expect(endpointResponse.response1 == response)
         }

@@ -10,7 +10,7 @@ import Endpoints
 import Foundation
 @testable import EndpointsMocking
 
-struct TestServer: ServerDefinition {
+struct MockTestServer: ServerDefinition {
     var baseUrls: [Environments: URL] {
         return [
             .production: URL(string: "https://api.velosmobile.com")!
@@ -20,8 +20,10 @@ struct TestServer: ServerDefinition {
     static var defaultEnvironment: Environments { .production }
 }
 
-struct SimpleEndpoint: Endpoint {
-    static let definition: Definition<SimpleEndpoint, TestServer> = Definition(
+struct MockSimpleEndpoint: Endpoint {
+    typealias Server = MockTestServer
+
+    static let definition: Definition<MockSimpleEndpoint> = Definition(
         method: .get,
         path: "user/\(path: \.name)/\(path: \.id)/profile"
     )
@@ -45,34 +47,34 @@ struct SimpleEndpoint: Endpoint {
 @Suite("Async URLSession Mocking")
 struct AsyncURLSessionMocking {
     @Test func basicThrow() async throws {
-        await #expect(throws: SimpleEndpoint.TaskError.self) {
-            try await withMock(SimpleEndpoint.self) { continuation in
+        await #expect(throws: MockSimpleEndpoint.TaskError.self) {
+            try await withMock(MockSimpleEndpoint.self) { continuation in
                 continuation.resume(throwing: .internetConnectionOffline)
             } test: {
-                let simple = SimpleEndpoint(pathComponents: .init(name: "a", id: "b"))
+                let simple = MockSimpleEndpoint(pathComponents: .init(name: "a", id: "b"))
                 _ = try await URLSession.shared.response(with: simple)
             }
         }
     }
 
     @Test func basicThrowInline() async throws {
-        await #expect(throws: SimpleEndpoint.TaskError.self) {
-            try await withMock(SimpleEndpoint.self, action: .throw(.internetConnectionOffline)) {
-                let simple = SimpleEndpoint(pathComponents: .init(name: "a", id: "b"))
+        await #expect(throws: MockSimpleEndpoint.TaskError.self) {
+            try await withMock(MockSimpleEndpoint.self, action: .throw(.internetConnectionOffline)) {
+                let simple = MockSimpleEndpoint(pathComponents: .init(name: "a", id: "b"))
                 _ = try await URLSession.shared.response(with: simple)
             }
         }
     }
 
     @Test func basicFail() async throws {
-        try await withMock(SimpleEndpoint.self) { continuation in
+        try await withMock(MockSimpleEndpoint.self) { continuation in
             continuation.resume(failingWith: .init(errorDescription: "error"))
         } test: {
-            let simple = SimpleEndpoint(pathComponents: .init(name: "a", id: "b"))
+            let simple = MockSimpleEndpoint(pathComponents: .init(name: "a", id: "b"))
             do {
                 _ = try await URLSession.shared.response(with: simple)
             } catch {
-                let error = try #require(error as? SimpleEndpoint.TaskError)
+                let error = try #require(error as? MockSimpleEndpoint.TaskError)
                 if case .errorResponse(_, let response) = error {
                     #expect(response.errorDescription == "error")
                 } else {
@@ -83,12 +85,12 @@ struct AsyncURLSessionMocking {
     }
 
     @Test func basicFailInline() async throws {
-        try await withMock(SimpleEndpoint.self, action: .fail(.init(errorDescription: "error"))) {
-            let simple = SimpleEndpoint(pathComponents: .init(name: "a", id: "b"))
+        try await withMock(MockSimpleEndpoint.self, action: .fail(.init(errorDescription: "error"))) {
+            let simple = MockSimpleEndpoint(pathComponents: .init(name: "a", id: "b"))
             do {
                 _ = try await URLSession.shared.response(with: simple)
             } catch {
-                let error = try #require(error as? SimpleEndpoint.TaskError)
+                let error = try #require(error as? MockSimpleEndpoint.TaskError)
                 if case .errorResponse(_, let response) = error {
                     #expect(response.errorDescription == "error")
                 } else {
@@ -99,19 +101,19 @@ struct AsyncURLSessionMocking {
     }
 
     @Test func basicResponse() async throws {
-        try await withMock(SimpleEndpoint.self) { continuation in
+        try await withMock(MockSimpleEndpoint.self) { continuation in
             // possibly load mocks async from json
             continuation.resume(returning: .init(response1: "test"))
         } test: {
-            let simple = SimpleEndpoint(pathComponents: .init(name: "a", id: "b"))
+            let simple = MockSimpleEndpoint(pathComponents: .init(name: "a", id: "b"))
             let response = try await URLSession.shared.response(with: simple)
             #expect(response.response1 == "test")
         }
     }
 
     @Test func basicResponseInline() async throws {
-        try await withMock(SimpleEndpoint.self, action: .return(.init(response1: "test"))) {
-            let simple = SimpleEndpoint(pathComponents: .init(name: "a", id: "b"))
+        try await withMock(MockSimpleEndpoint.self, action: .return(.init(response1: "test"))) {
+            let simple = MockSimpleEndpoint(pathComponents: .init(name: "a", id: "b"))
             let response = try await URLSession.shared.response(with: simple)
             #expect(response.response1 == "test")
         }

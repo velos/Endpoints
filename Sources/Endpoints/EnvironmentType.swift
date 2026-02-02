@@ -134,8 +134,65 @@ Endpoints.respondTo(PostEndpoint.self, with: { path, body in
 //}
 
 struct TestEndpoint: Endpoint {
+    typealias Server = ApiServer
     typealias Response = Void
-    static let definition: Definition<TestEndpoint, ApiServer> = .init(server: ApiServer.api, method: .get, path: "/")
+    static let definition: Definition<TestEndpoint> = Definition(server: ApiServer.api, method: .get, path: "/")
+}
+
+/// A generic server implementation that can be used as a default for simple endpoints.
+/// Supports multiple environments (development, staging, production) with configurable base URLs.
+public struct GenericServer: ServerDefinition {
+    public enum Environments: String, CaseIterable, Hashable, Sendable {
+        case development
+        case staging
+        case production
+    }
+    
+    public let baseUrls: [Environments: URL]
+    public let requestProcessor: @Sendable (URLRequest) -> URLRequest
+    
+    /// Creates a GenericServer with the given base URLs for different environments.
+    /// - Parameters:
+    ///   - development: URL for development environment (optional)
+    ///   - staging: URL for staging environment (optional)
+    ///   - production: URL for production environment (optional)
+    ///   - requestProcessor: Optional request processor for modifying requests (default: passthrough)
+    public init(
+        development: URL? = nil,
+        staging: URL? = nil,
+        production: URL? = nil,
+        requestProcessor: @Sendable @escaping (URLRequest) -> URLRequest = { $0 }
+    ) {
+        var urls: [Environments: URL] = [:]
+        if let dev = development { urls[.development] = dev }
+        if let stg = staging { urls[.staging] = stg }
+        if let prod = production { urls[.production] = prod }
+        self.baseUrls = urls
+        self.requestProcessor = requestProcessor
+    }
+    
+    /// Creates a GenericServer with a single base URL used for all environments.
+    /// - Parameters:
+    ///   - baseUrl: The base URL to use for all environments
+    ///   - requestProcessor: Optional request processor for modifying requests (default: passthrough)
+    public init(baseUrl: URL, requestProcessor: @Sendable @escaping (URLRequest) -> URLRequest = { $0 }) {
+        self.baseUrls = [
+            .development: baseUrl,
+            .staging: baseUrl,
+            .production: baseUrl
+        ]
+        self.requestProcessor = requestProcessor
+    }
+    
+    /// Required parameterless initializer for ServerDefinition conformance.
+    /// Creates a GenericServer with no base URLs configured.
+    /// Note: You must set base URLs using the `baseUrls` property or use a different initializer.
+    public init() {
+        self.baseUrls = [:]
+        self.requestProcessor = { $0 }
+    }
+    
+    public static var defaultEnvironment: Environments { .production }
 }
 
 //public protocol EnvironmentType {

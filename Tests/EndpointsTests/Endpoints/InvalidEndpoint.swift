@@ -9,7 +9,9 @@
 import Endpoints
 
 struct InvalidEndpoint: Endpoint {
-    static let definition: Definition<InvalidEndpoint, TestServer> = Definition(
+    typealias Server = TestServer
+
+    static let definition: Definition<InvalidEndpoint> = Definition(
         method: .get,
         path: "/",
         parameters: [
