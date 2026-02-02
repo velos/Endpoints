@@ -10,27 +10,29 @@ import Foundation
 @testable import Endpoints
 
 struct UserEndpoint: Endpoint {
-    static var definition: Definition<UserEndpoint> = Definition(
+    typealias Server = TestServer
+
+    static let definition: Definition<UserEndpoint> = Definition(
         method: .get,
-        path: "hey" + \UserEndpoint.PathComponents.userId,
+        path: "hey" + \.userId,
         parameters: [
-            .form("string", path: \UserEndpoint.ParameterComponents.string),
-            .form("date", path: \UserEndpoint.ParameterComponents.date),
-            .form("double", path: \UserEndpoint.ParameterComponents.double),
-            .form("int", path: \UserEndpoint.ParameterComponents.int),
-            .form("bool_true", path: \UserEndpoint.ParameterComponents.boolTrue),
-            .form("bool_false", path: \UserEndpoint.ParameterComponents.boolFalse),
-            .form("time_zone", path: \UserEndpoint.ParameterComponents.timeZone),
-            .form("optional_string", path: \UserEndpoint.ParameterComponents.optionalString),
-            .form("optional_date", path: \UserEndpoint.ParameterComponents.optionalDate),
+            .form("string", path: \.string),
+            .form("date", path: \.date),
+            .form("double", path: \.double),
+            .form("int", path: \.int),
+            .form("bool_true", path: \.boolTrue),
+            .form("bool_false", path: \.boolFalse),
+            .form("time_zone", path: \.timeZone),
+            .form("optional_string", path: \.optionalString),
+            .form("optional_date", path: \.optionalDate),
             .formValue("hard_coded_form", value: "true"),
-            .query("string", path: \UserEndpoint.ParameterComponents.string),
-            .query("optional_string", path: \UserEndpoint.ParameterComponents.optionalString),
-            .query("optional_date", path: \UserEndpoint.ParameterComponents.optionalDate),
+            .query("string", path: \.string),
+            .query("optional_string", path: \.optionalString),
+            .query("optional_date", path: \.optionalDate),
             .queryValue("hard_coded_query", value: "true")
         ],
         headers: [
-            "HEADER_TYPE": .field(path: \UserEndpoint.HeaderComponents.headerValue),
+            "HEADER_TYPE": .field(path: \.headerValue),
             "HARD_CODED_HEADER": .fieldValue(value: "test2"),
             .keepAlive: .fieldValue(value: "timeout=5, max=1000")
         ]

@@ -13,7 +13,7 @@ import FoundationNetworking
 #endif
 
 /// A error when creating or requesting an Endpoint
-public enum EndpointTaskError<ErrorResponseType>: Error {
+public enum EndpointTaskError<ErrorResponseType: Sendable>: Error, Sendable {
     case endpointError(EndpointError)
     case responseParseError(data: Data, error: Error)
 
@@ -42,13 +42,35 @@ public extension URLSession {
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
     /// - Throws: Throws an ``EndpointTaskError`` of ``EndpointTaskError/endpointError(_:)`` if there is an issue constructing the request.
     /// - Returns: The new session data task.
-    func endpointTask<T: Endpoint>(in environment: EnvironmentType, with endpoint: T, completion: @escaping (Result<T.Response, T.TaskError>) -> Void) throws -> URLSessionDataTask where T.Response == Void {
+    func endpointTask<T: Endpoint>(with endpoint: T, completion: @escaping @Sendable (Result<T.Response, T.TaskError>) -> Void) throws -> URLSessionDataTask where T.Response == Void {
 
-        let urlRequest = try createUrlRequest(in: environment, for: endpoint)
+        let urlRequest = try createUrlRequest(for: endpoint)
 
-        return dataTask(with: urlRequest) { (data, response, error) in
+        let task = dataTask(with: urlRequest) { (data, response, error) in
             completion(T.definition.response(data: data, response: response, error: error).map { _ in })
         }
+
+        #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
+        if Mocking.shared.shouldHandleMock(for: T.self) {
+            task.resumeOverride = {
+                Task {
+                    let action = await Mocking.shared.actionForMock(for: T.self)!
+                    switch action {
+                    case .none:
+                        break
+                    case .return(let value):
+                        completion(.success(value))
+                    case .fail(let errorResponse):
+                        completion(.failure(T.TaskError.errorResponse(httpResponse: HTTPURLResponse(), response: errorResponse)))
+                    case .throw(let error):
+                        completion(.failure(error))
+                    }
+                }
+            }
+        }
+        #endif
+
+        return task
     }
 
     /// Creates a session data task using the ``Definition`` associated with the passed in request on the passed in environment.
@@ -60,13 +82,33 @@ public extension URLSession {
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
     /// - Throws: Throws an ``EndpointTaskError`` of ``EndpointTaskError/endpointError(_:)`` if there is an issue constructing the request.
     /// - Returns: The new session data task.
-    func endpointTask<T: Endpoint>(in environment: EnvironmentType, with endpoint: T, completion: @escaping (Result<T.Response, T.TaskError>) -> Void) throws -> URLSessionDataTask where T.Response == Data {
+    func endpointTask<T: Endpoint>(with endpoint: T, completion: @escaping @Sendable (Result<T.Response, T.TaskError>) -> Void) throws -> URLSessionDataTask where T.Response == Data {
 
-        let urlRequest = try createUrlRequest(in: environment, for: endpoint)
+        let urlRequest = try createUrlRequest(for: endpoint)
 
-        return dataTask(with: urlRequest) { (data, response, error) in
+        let task = dataTask(with: urlRequest) { (data, response, error) in
             completion(T.definition.response(data: data, response: response, error: error))
         }
+        #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
+        if Mocking.shared.shouldHandleMock(for: T.self) {
+            task.resumeOverride = {
+                Task {
+                    let action = await Mocking.shared.actionForMock(for: T.self)!
+                    switch action {
+                    case .none:
+                        break
+                    case .return(let value):
+                        completion(.success(value))
+                    case .fail(let errorResponse):
+                        completion(.failure(T.TaskError.errorResponse(httpResponse: HTTPURLResponse(), response: errorResponse)))
+                    case .throw(let error):
+                        completion(.failure(error))
+                    }
+                }
+            }
+        }
+        #endif
+        return task
     }
 
     /// Creates a session data task using the ``Definition`` associated with the passed in request on the passed in environment.
@@ -78,11 +120,11 @@ public extension URLSession {
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
     /// - Throws: Throws an ``EndpointTaskError`` of ``EndpointTaskError/endpointError(_:)`` if there is an issue constructing the request.
     /// - Returns: The new session data task.
-    func endpointTask<T: Endpoint>(in environment: EnvironmentType, with endpoint: T, completion: @escaping (Result<T.Response, T.TaskError>) -> Void) throws -> URLSessionDataTask where T.Response: Decodable {
+    func endpointTask<T: Endpoint>(with endpoint: T, completion: @escaping @Sendable (Result<T.Response, T.TaskError>) -> Void) throws -> URLSessionDataTask where T.Response: Decodable {
 
-        let urlRequest = try createUrlRequest(in: environment, for: endpoint)
+        let urlRequest = try createUrlRequest(for: endpoint)
 
-        return dataTask(with: urlRequest) { (data, response, error) in
+        let task = dataTask(with: urlRequest) { (data, response, error) in
             let response = T.definition.response(data: data, response: response, error: error)
             switch response {
             case .success(let data):
@@ -98,13 +140,33 @@ public extension URLSession {
                 completion(.failure(failure))
             }
         }
+        #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
+        if Mocking.shared.shouldHandleMock(for: T.self) {
+            task.resumeOverride = {
+                Task {
+                    let action = await Mocking.shared.actionForMock(for: T.self)!
+                    switch action {
+                    case .none:
+                        break
+                    case .return(let value):
+                        completion(.success(value))
+                    case .fail(let errorResponse):
+                        completion(.failure(T.TaskError.errorResponse(httpResponse: HTTPURLResponse(), response: errorResponse)))
+                    case .throw(let error):
+                        completion(.failure(error))
+                    }
+                }
+            }
+        }
+        #endif
+        return task
     }
 
-    func createUrlRequest<T: Endpoint>(in environment: EnvironmentType, for endpoint: T) throws -> URLRequest {
+    func createUrlRequest<T: Endpoint>(for endpoint: T) throws -> URLRequest {
         let urlRequest: URLRequest
 
         do {
-            urlRequest = try endpoint.urlRequest(in: environment)
+            urlRequest = try endpoint.urlRequest()
         } catch {
             guard let endpointError = error as? EndpointError else {
                 fatalError("Unhandled endpoint error: \(error)")

@@ -6,62 +6,73 @@
 //  Copyright © 2019 Velos Mobile LLC. All rights reserved.
 //
 
-import XCTest
+import Testing
+import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+
 @testable import Endpoints
 
-class EndpointsTests: XCTestCase {
+@Suite
+struct EndpointsTests {
 
-    func testBasicEndpoint() throws {
+    @Test
+    func basicEndpoint() throws {
         let request = try SimpleEndpoint(
             pathComponents: .init(name: "zac", id: "42")
-        ).urlRequest(in: Environment.test)
+        ).urlRequest()
 
-        XCTAssertEqual(request.url?.path, "/user/zac/42/profile")
+        #expect(request.url?.path == "/user/zac/42/profile")
 
         let responseData = #"{"response1": "testing"}"#.data(using: .utf8)!
         let response = try SimpleEndpoint.responseDecoder.decode(SimpleEndpoint.Response.self, from: responseData)
 
-        XCTAssertEqual(response.response1, "testing")
+        #expect(response.response1 == "testing")
     }
 
-    func testBasicEndpointWithCustomDecoder() throws {
+    @Test
+    func basicEndpointWithCustomDecoder() throws {
         let request = try JSONProviderEndpoint(
             body: .init(bodyValueOne: "value"),
             pathComponents: .init(name: "zac", id: "42")
-        ).urlRequest(in: Environment.test)
+        ).urlRequest()
 
-        XCTAssertEqual(request.url?.path, "/user/zac/42/profile")
+        #expect(request.url?.path == "/user/zac/42/profile")
 
         let bodyData = #"{"body_value_one":"value"}"#.data(using: .utf8)!
-        XCTAssertEqual(request.httpBody, bodyData)
+        #expect(request.httpBody == bodyData)
 
         let responseData = #"{"response_one": "testing"}"#.data(using: .utf8)!
         let response = try JSONProviderEndpoint.responseDecoder.decode(JSONProviderEndpoint.Response.self, from: responseData)
 
-        XCTAssertEqual(response.responseOne, "testing")
+        #expect(response.responseOne == "testing")
     }
 
-    func testPostEndpointWithEncoder() throws {
+    @Test
+    func postEndpointWithEncoder() throws {
         let date = Date()
         let request = try PostEndpoint1(
             body: .init(property1: date, property2: nil)
-        ).urlRequest(in: Environment.test)
+        ).urlRequest()
 
         let encodedDate = ISO8601DateFormatter().string(from: date)
         let bodyData = "{\"property1\":\"\(encodedDate)\"}".data(using: .utf8)!
-        XCTAssertEqual(request.httpBody, bodyData)
+        #expect(request.httpBody == bodyData)
     }
 
-    func testPostEndpoint() throws {
+    @Test
+    func postEndpoint() throws {
         let request = try PostEndpoint2(
             body: .init(property1: "test", property2: nil)
-        ).urlRequest(in: Environment.test)
+        ).urlRequest()
 
-        XCTAssertEqual(request.url?.path, "/path")
-        XCTAssertEqual(request.httpMethod, "POST")
+        #expect(request.url?.path == "/path")
+        #expect(request.httpMethod == "POST")
     }
 
-    func testMultipartBodyEncoding() throws {
+    @Test
+    func multipartBodyEncoding() throws {
         let fileData = Data("hello world".utf8)
         let endpoint = MultipartUploadEndpoint(
             body: .init(
@@ -74,43 +85,44 @@ class EndpointsTests: XCTestCase {
             )
         )
 
-        let request = try endpoint.urlRequest(in: Environment.test)
+        let request = try endpoint.urlRequest()
 
-        let contentType = try XCTUnwrap(request.value(forHTTPHeaderField: Header.contentType.name))
-        XCTAssertTrue(contentType.hasPrefix("multipart/form-data; boundary="))
+        let contentType = try #require(request.value(forHTTPHeaderField: Header.contentType.name))
+        #expect(contentType.hasPrefix("multipart/form-data; boundary="))
 
         let boundaryComponents = contentType.components(separatedBy: "boundary=")
-        XCTAssertEqual(boundaryComponents.count, 2)
+        #expect(boundaryComponents.count == 2)
         let boundary = boundaryComponents[1]
 
-        let bodyData = try XCTUnwrap(request.httpBody)
-        let bodyString = try XCTUnwrap(String(data: bodyData, encoding: .utf8))
+        let bodyData = try #require(request.httpBody)
+        let bodyString = try #require(String(data: bodyData, encoding: .utf8))
 
-        XCTAssertTrue(bodyString.contains("Content-Disposition: form-data; name=\"description\""))
-        XCTAssertTrue(bodyString.contains("Test description"))
-        XCTAssertTrue(bodyString.contains("Content-Disposition: form-data; name=\"tags[0]\""))
-        XCTAssertTrue(bodyString.contains("Content-Disposition: form-data; name=\"tags[1]\""))
-        XCTAssertTrue(bodyString.contains("Content-Disposition: form-data; name=\"file\"; filename=\"greeting.txt\""))
-        XCTAssertTrue(bodyString.contains("Content-Type: text/plain"))
-        XCTAssertTrue(bodyString.contains("hello world"))
-        XCTAssertTrue(bodyString.contains("Content-Disposition: form-data; name=\"metadata\""))
-        XCTAssertFalse(bodyString.contains("name=\"metadata\"; filename="))
-        XCTAssertTrue(bodyString.contains("Content-Type: application/json"))
-        XCTAssertTrue(bodyString.contains("\"owner\":\"zac\""))
-        XCTAssertTrue(bodyString.contains("\"priority\":1"))
-        XCTAssertTrue(bodyString.hasSuffix("--\(boundary)--\r\n"))
+        #expect(bodyString.contains("Content-Disposition: form-data; name=\"description\""))
+        #expect(bodyString.contains("Test description"))
+        #expect(bodyString.contains("Content-Disposition: form-data; name=\"tags[0]\""))
+        #expect(bodyString.contains("Content-Disposition: form-data; name=\"tags[1]\""))
+        #expect(bodyString.contains("Content-Disposition: form-data; name=\"file\"; filename=\"greeting.txt\""))
+        #expect(bodyString.contains("Content-Type: text/plain"))
+        #expect(bodyString.contains("hello world"))
+        #expect(bodyString.contains("Content-Disposition: form-data; name=\"metadata\""))
+        #expect(!bodyString.contains("name=\"metadata\"; filename="))
+        #expect(bodyString.contains("Content-Type: application/json"))
+        #expect(bodyString.contains("\"owner\":\"zac\""))
+        #expect(bodyString.contains("\"priority\":1"))
+        #expect(bodyString.hasSuffix("--\(boundary)--\r\n"))
     }
 
-    func testCustomParameterEncoding() throws {
+    @Test
+    func customParameterEncoding() throws {
         let request = try CustomEncodingEndpoint(
             parameterComponents: .init(needsCustomEncoding: "++++")
-        ).urlRequest(in: Environment.test)
+        ).urlRequest()
 
-        XCTAssertEqual(request.url?.query, "key=%2B%2B%2B%2B")
+        #expect(request.url?.query == "key=%2B%2B%2B%2B")
     }
 
-    func testParameterEndpoint() throws {
-
+    @Test
+    func parameterEndpoint() throws {
         let request = try UserEndpoint(
             pathComponents: .init(userId: "3"),
             parameterComponents: .init(
@@ -125,41 +137,38 @@ class EndpointsTests: XCTestCase {
                 optionalDate: nil
             ),
             headerComponents: .init(headerValue: "test")
-        ).urlRequest(in: Environment.test)
+        ).urlRequest()
 
-        XCTAssertEqual(request.httpMethod, "GET")
-        XCTAssertEqual(request.url?.path, "/hey/3")
-        XCTAssertEqual(request.url?.query, "string=test:of:%2Bthing%25asdf&hard_coded_query=true")
+        #expect(request.httpMethod == "GET")
+        #expect(request.url?.path == "/hey/3")
+        #expect(request.url?.query == "string=test:of:%2Bthing%25asdf&hard_coded_query=true")
 
-        XCTAssertEqual(request.value(forHTTPHeaderField: "HEADER_TYPE"), "test")
-        XCTAssertEqual(request.value(forHTTPHeaderField: "HARD_CODED_HEADER"), "test2")
-        XCTAssertEqual(request.value(forHTTPHeaderField: "Keep-Alive"), "timeout=5, max=1000")
-        XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/x-www-form-urlencoded")
+        #expect(request.value(forHTTPHeaderField: "HEADER_TYPE") == "test")
+        #expect(request.value(forHTTPHeaderField: "HARD_CODED_HEADER") == "test2")
+        #expect(request.value(forHTTPHeaderField: "Keep-Alive") == "timeout=5, max=1000")
+        #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/x-www-form-urlencoded")
 
-        XCTAssertNotNil(request.httpBody)
-        XCTAssertTrue(
-            String(data: request.httpBody ?? Data(), encoding: .utf8)?.contains("string=test%3Aof%3A+thing%25asdf") ?? false
-        )
-        XCTAssertFalse(
-            String(data: request.httpBody ?? Data(), encoding: .utf8)?.contains("optional_string") ?? true
-        )
-        XCTAssertTrue(
-            String(data: request.httpBody ?? Data(), encoding: .utf8)?.contains("double=2.3&int=42&bool_true=true&bool_false=false&time_zone=America/Los_Angeles&hard_coded_form=true") ?? false
+        #expect(request.httpBody != nil)
+        let body = String(data: request.httpBody ?? Data(), encoding: .utf8) ?? ""
+
+        #expect(body.contains("string=test%3Aof%3A+thing%25asdf"))
+        #expect(!body.contains("optional_string"))
+        #expect(
+            body.contains("double=2.3&int=42&bool_true=true&bool_false=false&time_zone=America/Los_Angeles&hard_coded_form=true")
         )
     }
 
-    func testInvalidParameter() {
-        XCTAssertThrowsError(
+    @Test
+    func invalidParameter() {
+        #expect(throws: EndpointError.self) {
             try InvalidEndpoint(
                 parameterComponents: .init(nonEncodable: .value)
-            ).urlRequest(in: Environment.test)
-        ) { error in
-            XCTAssertTrue(error is EndpointError, "error is \(type(of: error)) and not an EndpointError")
+            ).urlRequest()
         }
     }
 
-    func testResponseSuccess() throws {
-
+    @Test
+    func responseSuccess() throws {
         let successResponse = HTTPURLResponse(url: URL(fileURLWithPath: ""), statusCode: 200, httpVersion: nil, headerFields: nil)
         let jsonData = try JSONEncoder().encode(SimpleEndpoint.Response(response1: "testing"))
         let result = SimpleEndpoint.definition.response(
@@ -169,15 +178,15 @@ class EndpointsTests: XCTestCase {
         )
 
         guard case .success(let data) = result else {
-            XCTFail("Unexpected failure")
+            Issue.record("Unexpected failure")
             return
         }
 
-        XCTAssertEqual(data, jsonData)
+        #expect(data == jsonData)
     }
 
-    func testResponseNetworkError() throws {
-
+    @Test
+    func responseNetworkError() throws {
         let jsonData = try JSONEncoder().encode(SimpleEndpoint.Response(response1: "testing"))
         let result = SimpleEndpoint.definition.response(
             data: jsonData,
@@ -186,13 +195,13 @@ class EndpointsTests: XCTestCase {
         )
 
         guard case .failure(let taskError) = result, case .internetConnectionOffline = taskError else {
-            XCTFail("Unexpected failure")
+            Issue.record("Unexpected failure")
             return
         }
     }
 
-    func testResponseURLLoadError() throws {
-
+    @Test
+    func responseURLLoadError() throws {
         let jsonData = try JSONEncoder().encode(SimpleEndpoint.Response(response1: "testing"))
         let result = SimpleEndpoint.definition.response(
             data: jsonData,
@@ -201,13 +210,13 @@ class EndpointsTests: XCTestCase {
         )
 
         guard case .failure(let taskError) = result, case .urlLoadError = taskError else {
-            XCTFail("Unexpected failure")
+            Issue.record("Unexpected failure")
             return
         }
     }
 
-    func testResponseErrorParsing() throws {
-
+    @Test
+    func responseErrorParsing() throws {
         let failureResponse = HTTPURLResponse(url: URL(fileURLWithPath: ""), statusCode: 404, httpVersion: nil, headerFields: nil)
         let errorResponse = SimpleEndpoint.ErrorResponse(errorDescription: "testing")
         let jsonData = try JSONEncoder().encode(errorResponse)
@@ -218,16 +227,43 @@ class EndpointsTests: XCTestCase {
         )
 
         guard case .failure(let error) = result else {
-            XCTFail("Unexpected failure")
+            Issue.record("Unexpected failure")
             return
         }
 
         guard case .errorResponse(let response, let decoded) = error else {
-            XCTFail("Unexpected error case")
+            Issue.record("Unexpected error case")
             return
         }
 
-        XCTAssertEqual(response.statusCode, 404)
-        XCTAssertEqual(decoded, errorResponse)
+        #expect(response.statusCode == 404)
+        #expect(decoded == errorResponse)
+    }
+
+    @Test
+    @available(iOS 16.0, *)
+    func environmentsChange() throws {
+        let existing = TestServer.environment
+
+        let endpoint = SimpleEndpoint(
+            pathComponents: .init(name: "zac", id: "42")
+        )
+
+        TestServer.environment = .local
+        #expect(try endpoint.urlRequest().url?.host() == "local-api.velosmobile.com")
+
+        TestServer.environment = .staging
+        #expect(try endpoint.urlRequest().url?.host() == "staging-api.velosmobile.com")
+
+        TestServer.environment = .production
+        #expect(try endpoint.urlRequest().url?.host() == "api.velosmobile.com")
+
+        TestServer.environment = existing
+    }
+
+    @Test
+    @available(iOS 16.0, *)
+    func defaultEnvironment() throws {
+        #expect(TestServer.defaultEnvironment == .production)
     }
 }

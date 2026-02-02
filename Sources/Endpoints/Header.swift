@@ -25,7 +25,7 @@ import Foundation
 /// ```
 ///
 /// Custom keys in the headers dictionary can be defined ad-hoc using a String, or by extending the encapsulating type `Header`. Basic named headers, such as `.keepAlive`, `.accept`, etc., are already defined as part of the library.
-public struct Header: Hashable, ExpressibleByStringLiteral {
+public struct Header: Hashable, ExpressibleByStringLiteral, Sendable {
 
     /// The name of the header. Example: "Accept-Language"
     public let name: String
@@ -53,7 +53,7 @@ public struct Header: Hashable, ExpressibleByStringLiteral {
 
 /// The Header category.
 /// See: https://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.2
-public enum HeaderCategory {
+public enum HeaderCategory: Sendable {
     case general
     case request
     case response

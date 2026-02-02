@@ -91,7 +91,7 @@ public final class MultipartFormEncoder: EncoderType {
 }
 
 /// Represents a binary field in a multipart payload.
-public struct MultipartFormFile: Encodable {
+public struct MultipartFormFile: Encodable, Sendable {
     public let data: Data
     public let fileName: String
     public let contentType: String
@@ -123,7 +123,7 @@ fileprivate protocol MultipartFormJSONProtocol {
 }
 
 /// Wraps an ``Encodable`` value so it is embedded as a JSON part within a multipart payload.
-public struct MultipartFormJSON<Value: Encodable>: Encodable {
+public struct MultipartFormJSON<Value: Encodable & Sendable>: Encodable, Sendable {
     public let value: Value
     fileprivate let jsonEncoder: JSONEncoder
     public let fileName: String?
@@ -326,7 +326,9 @@ final class _MultipartFormDataEncoder: Encoder {
         case .millisecondsSince1970:
             return String(Int(date.timeIntervalSince1970 * 1000))
         case .iso8601:
-            return iso8601Formatter.string(from: date)
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            return formatter.string(from: date)
         case .formatted(let formatter):
             return formatter.string(from: date)
         case .custom(let block):
@@ -584,11 +586,3 @@ final class _MultipartSuperEncoder: Encoder {
         parent.singleValueContainer(at: codingPath)
     }
 }
-
-// MARK: - Date helpers
-
-private let iso8601Formatter: ISO8601DateFormatter = {
-    let formatter = ISO8601DateFormatter()
-    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    return formatter
-}()

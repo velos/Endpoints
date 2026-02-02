@@ -10,8 +10,9 @@ import Foundation
 @testable import Endpoints
 
 struct JSONProviderEndpoint: Endpoint {
+    typealias Server = TestServer
 
-    static var definition: Definition<JSONProviderEndpoint> = Definition(
+    static let definition: Definition<JSONProviderEndpoint> = Definition(
         method: .get,
         path: "user/\(path: \.name)/\(path: \.id)/profile"
     )

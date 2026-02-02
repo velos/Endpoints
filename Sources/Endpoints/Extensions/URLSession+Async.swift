@@ -8,6 +8,10 @@
 
 import Foundation
 
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+
 @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
 public extension URLSession {
 
@@ -17,8 +21,14 @@ public extension URLSession {
     /// - Parameters:
     ///   - environment: The environment in which to make the request
     ///   - endpoint: The endpoint instance to be used to make the request
-    func response<T: Endpoint>(in environment: EnvironmentType, with endpoint: T) async throws where T.Response == Void {
-        let urlRequest = try createUrlRequest(in: environment, for: endpoint)
+    func response<T: Endpoint>(with endpoint: T) async throws where T.Response == Void {
+        let urlRequest = try createUrlRequest(for: endpoint)
+
+        #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
+        if let mockResponse = try await Mocking.shared.handlMock(for: T.self) {
+            return mockResponse
+        }
+        #endif
 
         let result: (data: Data, response: URLResponse)
         do {
@@ -34,8 +44,14 @@ public extension URLSession {
         _ = try T.definition.response(data: result.data, response: result.response, error: nil).get()
     }
 
-    func response<T: Endpoint>(in environment: EnvironmentType, with endpoint: T) async throws -> T.Response where T.Response == Data {
-        let urlRequest = try createUrlRequest(in: environment, for: endpoint)
+    func response<T: Endpoint>(with endpoint: T) async throws -> T.Response where T.Response == Data {
+        let urlRequest = try createUrlRequest(for: endpoint)
+
+        #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
+        if let mockResponse = try await Mocking.shared.handlMock(for: T.self) {
+            return mockResponse
+        }
+        #endif
 
         let result: (data: Data, response: URLResponse)
         do {
@@ -51,8 +67,14 @@ public extension URLSession {
         return try T.definition.response(data: result.data, response: result.response, error: nil).get()
     }
 
-    func response<T: Endpoint>(in environment: EnvironmentType, with endpoint: T) async throws -> T.Response where T.Response: Decodable {
-        let urlRequest = try createUrlRequest(in: environment, for: endpoint)
+    func response<T: Endpoint>(with endpoint: T) async throws -> T.Response where T.Response: Decodable {
+        let urlRequest = try createUrlRequest(for: endpoint)
+
+        #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
+        if let mockResponse = try await Mocking.shared.handlMock(for: T.self) {
+            return mockResponse
+        }
+        #endif
 
         let result: (data: Data, response: URLResponse)
         do {

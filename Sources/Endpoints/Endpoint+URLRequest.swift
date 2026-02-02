@@ -18,7 +18,7 @@ extension Endpoint {
     /// - Parameter environment: The environment in which to create the request
     /// - Throws: An ``EndpointError`` which describes the error filling in data to the associated ``Definition``.
     /// - Returns: A `URLRequest` ready for requesting with all values from `self` filled in according to the associated ``Endpoint``.
-    public func urlRequest(in environment: EnvironmentType) throws -> URLRequest {
+    public func urlRequest() throws -> URLRequest {
 
         var components = URLComponents()
         components.path = Self.definition.path.path(with: pathComponents)
@@ -92,7 +92,13 @@ extension Endpoint {
                 .joined(separator: "&")
         }
 
-        let baseUrl = environment.baseUrl
+        let server = Self.definition.server
+        let baseUrl = server.baseUrls[type(of: server).environment]
+
+        guard let baseUrl else {
+            throw EndpointError.misconfiguredServer(server: Self.definition.server)
+        }
+
         guard let url = components.url(relativeTo: baseUrl) else {
             throw EndpointError.invalid(components: components, relativeTo: baseUrl)
         }
@@ -148,7 +154,7 @@ extension Endpoint {
             urlRequest.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: Header.contentType.name)
         }
 
-        urlRequest = environment.requestProcessor(urlRequest)
+        urlRequest = Self.definition.server.requestProcessor(urlRequest)
 
         return urlRequest
     }

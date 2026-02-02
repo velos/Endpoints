@@ -10,7 +10,9 @@ import Foundation
 @testable import Endpoints
 
 struct SimpleEndpoint: Endpoint {
-    static var definition: Definition<SimpleEndpoint> = Definition(
+    typealias Server = TestServer
+
+    static let definition: Definition<SimpleEndpoint> = Definition(
         method: .get,
         path: "user/\(path: \.name)/\(path: \.id)/profile"
     )

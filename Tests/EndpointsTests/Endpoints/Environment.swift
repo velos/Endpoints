@@ -9,8 +9,14 @@
 import Foundation
 @testable import Endpoints
 
-struct Environment: EnvironmentType {
-    let baseUrl: URL
+struct MyServer: ServerDefinition {
+    var baseUrls: [Environments: URL] {
+        return [
+            .local: URL(string: "https://api.velos.me")!,
+            .staging: URL(string: "https://api.velos.me")!,
+            .production: URL(string: "https://api.velos.me")!
+        ]
+    }
 
-    static let test = Environment(baseUrl: URL(string: "https://velosmobile.com")!)
+    static var defaultEnvironment: Environments { .production }
 }

@@ -12,28 +12,29 @@ import Foundation
 import FoundationNetworking
 #endif
 
-public enum EndpointError: Error {
+public enum EndpointError: Error, Sendable {
     case invalid(components: URLComponents, relativeTo: URL)
     case invalidQuery(named: String, type: Any.Type)
     case invalidForm(named: String, type: Any.Type)
     case invalidHeader(named: String, type: Any.Type)
     case invalidBody(Error)
+    case misconfiguredServer(server: any (ServerDefinition & Sendable))
 }
 
-public enum Parameter<T> {
-    case form(String, path: PartialKeyPath<T>)
+public enum Parameter<T>: Sendable {
+    case form(String, path: PartialKeyPath<T> & Sendable)
     case formValue(String, value: PathRepresentable)
-    case query(String, path: PartialKeyPath<T>)
+    case query(String, path: PartialKeyPath<T> & Sendable)
     case queryValue(String, value: PathRepresentable)
 }
 
-public enum HeaderField<T> {
-    case field(path: PartialKeyPath<T>)
-    case fieldValue(value: CustomStringConvertible)
+public enum HeaderField<T>: Sendable {
+    case field(path: PartialKeyPath<T> & Sendable)
+    case fieldValue(value: CustomStringConvertible & Sendable)
 }
 
 /// A placeholder type for representing empty encodable or decodable Body values and ErrorResponse values.
-public struct EmptyCodable: Codable { }
+public struct EmptyCodable: Codable, Sendable { }
 
 public protocol EncoderType {
     static var contentType: String? { get }
@@ -56,7 +57,9 @@ public protocol DecoderType {
 
 extension JSONDecoder: DecoderType { }
 
-public protocol Endpoint {
+public protocol Endpoint: Sendable {
+
+    associatedtype Server: ServerDefinition = GenericServer
 
     /// The response type received from the server.
     ///
@@ -64,13 +67,13 @@ public protocol Endpoint {
     /// can use to know how to handle particular types. For instance, if this type conforms to `Decodable`, then a JSON decoder is used
     /// on the data coming from the server. If it's typealiased to `Void`, then the extension can know to ignore the response. If it's `Data`, then it can deliver the
     /// response data unmodified.
-    associatedtype Response
+    associatedtype Response: Sendable
 
     /// The type representing the `Decodable` error response from the server. Defaults to an empty `Decodable` struct, ``EmptyCodable``.
     ///
     /// This can be useful if your server returns a different JSON structure when there's an error versus a success. Often in a project, this can be defined globally
     /// and `typealias` can be used to associate this global type on all ``Endpoint``s.
-    associatedtype ErrorResponse: Decodable = EmptyCodable
+    associatedtype ErrorResponse: Decodable & Sendable = EmptyCodable
 
     /// The body type conforming to `Encodable`. Defaults to ``EmptyCodable``.
     associatedtype Body: Encodable = EmptyCodable
@@ -96,7 +99,7 @@ public protocol Endpoint {
     ///     let pathComponents: PathComponents
     /// }
     /// ```
-    associatedtype PathComponents = Void
+    associatedtype PathComponents: Sendable = Void
 
     /// The values needed to fill the ``Definition``'s parameters.
     ///
@@ -112,10 +115,10 @@ public protocol Endpoint {
     /// ```
     ///
     /// With this enum, either hard-coded values can be injected into the ``Endpoint`` (with ``Parameter/formValue(_:value:)`` or ``Parameter/queryValue(_:value:)``) or key paths can define which reference properties in the ``Endpoint/ParameterComponents`` associated type to define a form or query parameter that is needed at the time of the request.
-    associatedtype ParameterComponents = Void
+    associatedtype ParameterComponents: Sendable = Void
 
     /// The values needed to fill the ``Definition``'s headers.
-    associatedtype HeaderComponents = Void
+    associatedtype HeaderComponents: Sendable = Void
 
     /// The ``EncoderType`` to use when encoding the body of the request. Defaults to `JSONEncoder`.
     associatedtype BodyEncoder: EncoderType = JSONEncoder
@@ -197,8 +200,10 @@ public enum QueryEncodingStrategy {
     case custom((URLQueryItem) -> (String, String?)?)
 }
 
-public struct Definition<T: Endpoint> {
+public struct Definition<T: Endpoint>: Sendable {
 
+    /// The server this endpoints will use
+    public let server: T.Server
     /// The HTTP method of the ``Endpoint``
     public let method: Method
     /// A template including all elements that appear in the path
@@ -210,14 +215,17 @@ public struct Definition<T: Endpoint> {
 
     /// Initializes a ``Definition`` with the given properties, defining all dynamic pieces as type-safe parameters.
     /// - Parameters:
+    ///   - server: The server to use for this endpoint. Defaults to a new instance of T.Server.
     ///   - method: The HTTP method to use when fetching the owning ``Endpoint``
     ///   - path: The path template representing the path and all path-related parameters
     ///   - parameters: The parameters passed to the endpoint. Either through query or form body.
-    ///   - headerValues: The headers associated with this request
-    public init(method: Method,
+    ///   - headers: The headers associated with this request
+    public init(server: T.Server = T.Server(),
+                method: Method,
                 path: PathTemplate<T.PathComponents>,
                 parameters: [Parameter<T.ParameterComponents>] = [],
                 headers: [Header: HeaderField<T.HeaderComponents>] = [:]) {
+        self.server = server
         self.method = method
         self.path = path
         self.parameters = parameters

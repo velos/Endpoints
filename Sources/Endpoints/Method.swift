@@ -9,7 +9,7 @@
 import Foundation
 
 /// The HTTP Method
-public enum Method {
+public enum Method: Sendable {
     case options
     case get
     case head

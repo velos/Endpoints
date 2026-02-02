@@ -19,16 +19,16 @@ public extension URLSession {
     ///   - environment: The environment with which to make the request
     ///   - endpoint: The request data to insert into the ``Definition``
     /// - Returns: A `Publisher` which fetches the ``Endpoint``'s contents. Any failures when creating the request are sent as errors in the `Publisher`
-    func endpointPublisher<T: Endpoint>(in environment: EnvironmentType, with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Void {
+    func endpointPublisher<T: Endpoint>(with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Void {
         let urlRequest: URLRequest
         do {
-            urlRequest = try createUrlRequest(in: environment, for: endpoint)
+            urlRequest = try createUrlRequest(for: endpoint)
         } catch {
             return Fail(outputType: T.Response.self, failure: error as! T.TaskError)
                 .eraseToAnyPublisher()
         }
 
-        return dataTaskPublisher(for: urlRequest)
+        let load = dataTaskPublisher(for: urlRequest)
             .subscribe(on: DispatchQueue.global())
             .receive(on: DispatchQueue.global())
             .mapError { error -> T.TaskError in
@@ -43,7 +43,24 @@ public extension URLSession {
             }
             // swiftlint:disable:next force_cast
             .mapError { $0 as! T.TaskError }
-            .eraseToAnyPublisher()
+
+            #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
+            return Mocking.shared.handleMock(for: T.self)
+                .flatMap { mock in
+                    if let mock {
+                        return Just(mock)
+                            .setFailureType(to:  T.TaskError.self)
+                            .eraseToAnyPublisher()
+                    } else {
+                        return load
+                            .eraseToAnyPublisher()
+                    }
+                }
+                .eraseToAnyPublisher()
+            #else
+            return load
+                .eraseToAnyPublisher()
+            #endif
     }
 
     /// Creates a publisher and starts the request for the given ``Definition``. This function expects a result value of `Data`.
@@ -51,17 +68,17 @@ public extension URLSession {
     ///   - environment: The environment with which to make the request
     ///   - endpoint: The request data to insert into the ``Definition``
     /// - Returns: A `Publisher` which fetches the ``Endpoint``'s contents. Any failures when creating the request are sent as errors in the `Publisher`
-    func endpointPublisher<T: Endpoint>(in environment: EnvironmentType, with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Data {
+    func endpointPublisher<T: Endpoint>(with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Data {
 
         let urlRequest: URLRequest
         do {
-            urlRequest = try createUrlRequest(in: environment, for: endpoint)
+            urlRequest = try createUrlRequest(for: endpoint)
         } catch {
             return Fail(outputType: T.Response.self, failure: error as! T.TaskError)
                 .eraseToAnyPublisher()
         }
 
-        return dataTaskPublisher(for: urlRequest)
+        let load = dataTaskPublisher(for: urlRequest)
             .subscribe(on: DispatchQueue.global())
             .receive(on: DispatchQueue.global())
             .mapError { error -> T.TaskError in
@@ -76,7 +93,24 @@ public extension URLSession {
             }
             // swiftlint:disable:next force_cast
             .mapError { $0 as! T.TaskError }
-            .eraseToAnyPublisher()
+
+            #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
+            return Mocking.shared.handleMock(for: T.self)
+                .flatMap { mock in
+                    if let mock {
+                        return Just(mock)
+                            .setFailureType(to:  T.TaskError.self)
+                            .eraseToAnyPublisher()
+                    } else {
+                        return load
+                            .eraseToAnyPublisher()
+                    }
+                }
+                .eraseToAnyPublisher()
+            #else
+            return load
+                .eraseToAnyPublisher()
+            #endif
     }
 
     /// Creates a publisher and starts the request for the given ``Definition``. This function expects a result value which is `Decodable`.
@@ -84,17 +118,18 @@ public extension URLSession {
     ///   - environment: The environment with which to make the request
     ///   - endpoint: The request data to insert into the ``Definition``
     /// - Returns: A `Publisher` which fetches the ``Endpoint``'s contents. Any failures when creating the request are sent as errors in the `Publisher`
-    func endpointPublisher<T: Endpoint>(in environment: EnvironmentType, with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response: Decodable {
+    func endpointPublisher<T: Endpoint>(with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response: Decodable {
 
         let urlRequest: URLRequest
         do {
-            urlRequest = try createUrlRequest(in: environment, for: endpoint)
+            urlRequest = try createUrlRequest(for: endpoint)
         } catch {
             return Fail(outputType: T.Response.self, failure: error as! T.TaskError)
                 .eraseToAnyPublisher()
         }
+        
 
-        return dataTaskPublisher(for: urlRequest)
+        let load = dataTaskPublisher(for: urlRequest)
             .subscribe(on: DispatchQueue.global())
             .receive(on: DispatchQueue.global())
             .mapError { error -> T.TaskError in
@@ -114,7 +149,24 @@ public extension URLSession {
             }
             // swiftlint:disable:next force_cast
             .mapError { $0 as! T.TaskError }
+
+        #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
+        return Mocking.shared.handleMock(for: T.self)
+            .flatMap { mock in
+                if let mock {
+                    return Just(mock)
+                        .setFailureType(to:  T.TaskError.self)
+                        .eraseToAnyPublisher()
+                } else {
+                    return load
+                        .eraseToAnyPublisher()
+                }
+            }
             .eraseToAnyPublisher()
+        #else
+        return load
+            .eraseToAnyPublisher()
+        #endif
     }
 }
 

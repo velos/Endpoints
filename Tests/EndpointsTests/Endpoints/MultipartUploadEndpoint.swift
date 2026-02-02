@@ -2,6 +2,8 @@ import Foundation
 @testable import Endpoints
 
 struct MultipartUploadEndpoint: Endpoint {
+    typealias Server = TestServer
+
     static let definition: Definition<MultipartUploadEndpoint> = Definition(
         method: .post,
         path: "upload"

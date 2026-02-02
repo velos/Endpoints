@@ -9,11 +9,13 @@
 import Endpoints
 
 struct InvalidEndpoint: Endpoint {
+    typealias Server = TestServer
+
     static let definition: Definition<InvalidEndpoint> = Definition(
         method: .get,
         path: "/",
         parameters: [
-            .query("path", path: \ParameterComponents.nonEncodable)
+            .query("path", path: \.nonEncodable)
         ]
     )
 

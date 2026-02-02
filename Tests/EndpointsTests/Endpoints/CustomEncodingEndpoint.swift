@@ -10,11 +10,13 @@ import Endpoints
 import Foundation
 
 struct CustomEncodingEndpoint: Endpoint {
+    typealias Server = TestServer
+
     static let definition: Definition<CustomEncodingEndpoint> = Definition(
         method: .get,
         path: "/",
         parameters: [
-            .query("key", path: \ParameterComponents.needsCustomEncoding)
+            .query("key", path: \.needsCustomEncoding)
         ]
     )
 

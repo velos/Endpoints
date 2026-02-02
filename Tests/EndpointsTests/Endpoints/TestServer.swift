@@ -1,0 +1,21 @@
+//
+//  TestServer.swift
+//  Endpoints
+//
+//  Created by Zac White on 11/1/24.
+//
+
+import Endpoints
+import Foundation
+
+struct TestServer: ServerDefinition {
+    var baseUrls: [Environments: URL] {
+        return [
+            .local: URL(string: "https://local-api.velosmobile.com")!,
+            .staging: URL(string: "https://staging-api.velosmobile.com")!,
+            .production: URL(string: "https://api.velosmobile.com")!
+        ]
+    }
+
+    static var defaultEnvironment: Environments { .production }
+}
