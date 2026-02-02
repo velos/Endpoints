@@ -9,12 +9,6 @@ import Endpoints
 import Foundation
 
 struct TestServer: ServerDefinition {
-    enum Environments: String, CaseIterable {
-        case local
-        case staging
-        case production
-    }
-
     var baseUrls: [Environments: URL] {
         return [
             .local: URL(string: "https://local-api.velosmobile.com")!,

@@ -10,12 +10,6 @@ import Foundation
 @testable import Endpoints
 
 struct MyServer: ServerDefinition {
-    enum Environments: String, CaseIterable {
-        case local
-        case staging
-        case production
-    }
-    
     var baseUrls: [Environments: URL] {
         return [
             .local: URL(string: "https://api.velos.me")!,

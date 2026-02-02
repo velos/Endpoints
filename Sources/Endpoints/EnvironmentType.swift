@@ -12,7 +12,7 @@ import Foundation
 import FoundationNetworking
 #endif
 
-public enum TypicalEnvironments: String, CaseIterable {
+public enum TypicalEnvironments: String, CaseIterable, Sendable {
     case local
     case development
     case staging
@@ -53,86 +53,6 @@ struct ApiServer: ServerDefinition {
     static let api = Self()
 }
 
-//@Server(MyEnvironments.self)
-//struct ApiServer {
-//    var baseUrls: [MyEnvironments: URL] {
-//        return [
-//            .blueSteel: URL(string: "https://bluesteel-api.velosmobile.com")!,
-//            .redStone: URL(string: "https://redstone-api.velosmobile.com")!,
-//            .production: URL(string: "https://api.velosmobile.com")!
-//        ]
-//    }
-//}
-
-//@Server
-//struct ApiServer {
-//    var baseUrls: [Environments: URL] {
-//        return [
-//            .local: URL(string: "https://local-api.velosmobile.com")!,
-//            .staging: URL(string: "https://staging-api.velosmobile.com")!,
-//            .production: URL(string: "https://api.velosmobile.com")!
-//        ]
-//    }
-//}
-
-/*
-extension ServerEnvironments {
-    static var localApi = ServerEnvironment(URL(string: "https://local-api.velosmobile.com")!)
-    static var stagingApi = ServerEnvironment(URL(string: "https://staging-api.velosmobile.com")!)
-    static var prodApi = ServerEnvironment(URL(string: "https://api.velosmobile.com")!)
-}
-
-extension ServerEnvironments {
-    static var localAnalytics = ServerEnvironment(URL(string: "https://local-analytics.velosmobile.com")!)
-    static var stagingAnalytics = ServerEnvironment(URL(string: "https://staging-analytics.velosmobile.com")!)
-    static var prodAnalytics = ServerEnvironment(URL(string: "https://analytics.velosmobile.com")!)
-}
-
-extension Servers {
-    static var api = Server(localApi, stagingApi, prodApi)
-    static var analytics = Server(localAnalytics, stagingAnalytics, prodAnalytics)
-}
-
-Servers.setDefault(.api)
-Servers.setEnvironment(.local)
-
-@Endpoint(.get, path: "user/\(path: \.name)/\(path: \.id)/profile", server: .analytics)
-struct TestEndpoint {
-    struct PathComponents: Codable {
-        let name: String
-        let id: String
-    }
-    struct Response {
-        let id: String
-    }
-}
-
-import EndpointsTesting
-
-Endpoints.respondTo(TestEndpoint.self, after: .seconds(1), with: { path in
-   if path.contains("123") {
-       return TestEndpoint.Response(id: "123")
-   }
-   throw TestErrors.unknownPath
-})
-
-Endpoints.respondTo(PostEndpoint.self, with: { path, body in
-   if body.id == "123" {
-       return .init(id: "123")
-   }
-   throw TestErrors.unknownBody
-})
-
- */
-
-//@Endpoint(.get, path: "user/\(path: \.name)/\(path: \.id)/profile")
-//struct TestEndpoint {
-//    struct PathComponents: Codable {
-//        let name: String
-//        let id: String
-//    }
-//}
-
 struct TestEndpoint: Endpoint {
     typealias Server = ApiServer
     typealias Response = Void
@@ -142,31 +62,28 @@ struct TestEndpoint: Endpoint {
 /// A generic server implementation that can be used as a default for simple endpoints.
 /// Supports multiple environments (development, staging, production) with configurable base URLs.
 public struct GenericServer: ServerDefinition {
-    public enum Environments: String, CaseIterable, Hashable, Sendable {
-        case development
-        case staging
-        case production
-    }
-    
     public let baseUrls: [Environments: URL]
     public let requestProcessor: @Sendable (URLRequest) -> URLRequest
     
     /// Creates a GenericServer with the given base URLs for different environments.
     /// - Parameters:
+    ///   - local: URL for local development (optional)
     ///   - development: URL for development environment (optional)
     ///   - staging: URL for staging environment (optional)
     ///   - production: URL for production environment (optional)
     ///   - requestProcessor: Optional request processor for modifying requests (default: passthrough)
     public init(
+        local: URL? = nil,
         development: URL? = nil,
         staging: URL? = nil,
         production: URL? = nil,
         requestProcessor: @Sendable @escaping (URLRequest) -> URLRequest = { $0 }
     ) {
         var urls: [Environments: URL] = [:]
-        if let dev = development { urls[.development] = dev }
-        if let stg = staging { urls[.staging] = stg }
-        if let prod = production { urls[.production] = prod }
+        if let local { urls[.local] = local }
+        if let development { urls[.development] = development }
+        if let staging { urls[.staging] = staging }
+        if let production { urls[.production] = production }
         self.baseUrls = urls
         self.requestProcessor = requestProcessor
     }
@@ -177,6 +94,7 @@ public struct GenericServer: ServerDefinition {
     ///   - requestProcessor: Optional request processor for modifying requests (default: passthrough)
     public init(baseUrl: URL, requestProcessor: @Sendable @escaping (URLRequest) -> URLRequest = { $0 }) {
         self.baseUrls = [
+            .local: baseUrl,
             .development: baseUrl,
             .staging: baseUrl,
             .production: baseUrl
@@ -194,14 +112,3 @@ public struct GenericServer: ServerDefinition {
     
     public static var defaultEnvironment: Environments { .production }
 }
-
-//public protocol EnvironmentType {
-//    /// The baseUrl of the Environment
-//    var baseUrl: URL { get }
-//    /// Processes the built URLRequest right before sending in order to attach any Environment related authentication or data to the outbound request
-//    var requestProcessor: (URLRequest) -> URLRequest { get }
-//}
-//
-//public extension EnvironmentType {
-//    var requestProcessor: (URLRequest) -> URLRequest { return { $0 } }
-//}
