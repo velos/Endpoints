@@ -3,6 +3,48 @@
 
 import PackageDescription
 
+// Conditional targets based on platform
+#if os(Linux)
+let products: [Product] = [
+    .library(
+        name: "Endpoints",
+        targets: ["Endpoints"]),
+]
+
+let targets: [Target] = [
+    .target(
+        name: "Endpoints",
+        dependencies: []),
+    .testTarget(
+        name: "EndpointsTests",
+        dependencies: ["Endpoints"]),
+]
+#else
+let products: [Product] = [
+    .library(
+        name: "Endpoints",
+        targets: ["Endpoints"]),
+    .library(
+        name: "EndpointsMocking",
+        targets: ["EndpointsMocking"]),
+]
+
+let targets: [Target] = [
+    .target(
+        name: "Endpoints",
+        dependencies: []),
+    .target(
+        name: "EndpointsMocking",
+        dependencies: ["Endpoints"]),
+    .testTarget(
+        name: "EndpointsTests",
+        dependencies: ["Endpoints"]),
+    .testTarget(
+        name: "EndpointsMockingTests",
+        dependencies: ["EndpointsMocking"]),
+]
+#endif
+
 let package = Package(
     name: "Endpoints",
     platforms: [
@@ -11,26 +53,6 @@ let package = Package(
         .macOS(.v10_15),
         .watchOS(.v6)
     ],
-    products: [
-        .library(
-            name: "Endpoints",
-            targets: ["Endpoints"]),
-        .library(
-            name: "EndpointsMocking",
-            targets: ["EndpointsMocking"]),
-    ],
-    targets: [
-        .target(
-            name: "Endpoints",
-            dependencies: []),
-        .target(
-            name: "EndpointsMocking",
-            dependencies: ["Endpoints"]),
-        .testTarget(
-            name: "EndpointsTests",
-            dependencies: ["Endpoints"]),
-        .testTarget(
-            name: "EndpointsMockingTests",
-            dependencies: ["EndpointsMocking"]),
-    ]
+    products: products,
+    targets: targets
 )
