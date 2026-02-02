@@ -1,19 +1,70 @@
-name: Build
+name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
-  build:
-
+  build-macos:
     runs-on: macos-latest
-
+    timeout-minutes: 15
+    
     steps:
-    - uses: actions/checkout@v2
-    - name: Build
-      run: swift build -v
-    - name: Run tests
-      run: swift test -v
+      - uses: actions/checkout@v4
+      
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-spm-${{ hashFiles('Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+      
+      - name: Build
+        run: swift build -v
+      
+      - name: Run tests
+        run: swift test -v
+      
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-macos
+          path: .build/debug/*Tests*
+          retention-days: 5
+
+  build-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container: swift:6.0
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-spm-${{ hashFiles('Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+      
+      - name: Build
+        run: swift build -v
+      
+      - name: Run tests
+        run: swift test -v
+      
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-linux
+          path: .build/debug/*Tests*
+          retention-days: 5
