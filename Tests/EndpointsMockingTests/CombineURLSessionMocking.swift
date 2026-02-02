@@ -5,6 +5,8 @@
 //  Created by Zac White on 11/30/24.
 //
 
+#if canImport(Combine)
+
 import Testing
 import Endpoints
 import Foundation
@@ -62,3 +64,5 @@ struct CombineURLSessionMocking {
         }
     }
 }
+
+#endif

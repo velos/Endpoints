@@ -9,7 +9,6 @@ import Testing
 import Endpoints
 import Foundation
 @testable import EndpointsMocking
-import Combine
 
 @Suite("Closure URLSession Mocking")
 struct ClosureURLSessionMocking {

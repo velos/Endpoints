@@ -91,6 +91,7 @@ extension Mocking {
     }
 }
 
+#if canImport(Combine)
 @preconcurrency import Combine
 
 extension Mocking {
@@ -128,3 +129,4 @@ extension Mocking {
             .eraseToAnyPublisher()
     }
 }
+#endif

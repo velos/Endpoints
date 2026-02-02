@@ -8,7 +8,6 @@
 
 import Testing
 import Foundation
-import Combine
 @testable import Endpoints
 
 @Suite
@@ -23,6 +22,7 @@ struct URLSessionExtensionTests {
         }
     }
 
+    #if canImport(Combine)
     @Test
     @available(iOS 15.0, *)
     func publisherCreationFailure() async {
@@ -36,4 +36,5 @@ struct URLSessionExtensionTests {
             }
         }
     }
+    #endif
 }
