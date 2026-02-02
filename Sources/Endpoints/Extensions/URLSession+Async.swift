@@ -8,6 +8,10 @@
 
 import Foundation
 
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+
 @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
 public extension URLSession {
 

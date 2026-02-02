@@ -8,6 +8,10 @@
 
 import Foundation
 
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+
 public extension Definition {
 
     /// Converts data, response and error into a Result type by processing data and throwing errors based on response codes and response data.

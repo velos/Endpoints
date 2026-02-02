@@ -7,6 +7,10 @@
 
 import Foundation
 
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+
 #if DEBUG
 /// Storage key for the resume override closure.
 nonisolated(unsafe) private var resumeOverrideKey: UInt8 = 0

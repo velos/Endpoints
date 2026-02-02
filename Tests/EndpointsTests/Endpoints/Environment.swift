@@ -17,6 +17,6 @@ struct MyServer: ServerDefinition {
             .production: URL(string: "https://api.velos.me")!
         ]
     }
-    
+
     static var defaultEnvironment: Environments { .production }
 }

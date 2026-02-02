@@ -51,7 +51,7 @@ public protocol ServerDefinition: Sendable {
 
     /// Optional request processor to modify requests before sending.
     /// Use this to add authentication headers or signatures.
-    var requestProcessor: (URLRequest) -> URLRequest { get }
+    var requestProcessor: @Sendable (URLRequest) -> URLRequest { get }
 
     /// The default environment to use when none is explicitly set.
     static var defaultEnvironment: Environments { get }
@@ -59,7 +59,7 @@ public protocol ServerDefinition: Sendable {
 
 public extension ServerDefinition {
     /// Default passthrough request processor that returns the request unchanged.
-    var requestProcessor: (URLRequest) -> URLRequest { return { $0 } }
+    var requestProcessor: @Sendable (URLRequest) -> URLRequest { return { $0 } }
 }
 
 struct ApiServer: ServerDefinition {
