@@ -136,7 +136,7 @@ public struct GenericServer: ServerDefinition {
     /// Note: You must set base URLs using the `baseUrls` property or use a different initializer.
     public init() {
         self.baseUrls = [:]
-        self.requestProcessor = { $0 }
+        self.requestProcessor = { @Sendable in $0 }
     }
     
     public static var defaultEnvironment: Environments { .production }
