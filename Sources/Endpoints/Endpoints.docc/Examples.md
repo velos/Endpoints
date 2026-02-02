@@ -1,11 +1,97 @@
 # Examples
 
+## Defining a Server
+
+Before creating endpoints, you first need to define a server that conforms to ``ServerDefinition``. This replaces the old `EnvironmentType` approach and provides a more integrated way to manage environments.
+
+### Basic Server Definition
+
+```swift
+import Endpoints
+import Foundation
+
+struct ApiServer: ServerDefinition {
+    var baseUrls: [Environments: URL] {
+        return [
+            .local: URL(string: "https://local-api.example.com")!,
+            .staging: URL(string: "https://staging-api.example.com")!,
+            .production: URL(string: "https://api.example.com")!
+        ]
+    }
+
+    static var defaultEnvironment: Environments { .production }
+}
+```
+
+### Using GenericServer
+
+For simple use cases, you can use the built-in ``GenericServer``:
+
+```swift
+let server = GenericServer(
+    local: URL(string: "https://localhost:8080"),
+    staging: URL(string: "https://staging-api.example.com"),
+    production: URL(string: "https://api.example.com")
+)
+```
+
+### Custom Environments
+
+You can define custom environment types beyond the standard ``TypicalEnvironments``:
+
+```swift
+enum CustomEnvironments: String, CaseIterable, Sendable {
+    case debug
+    case testing
+    case production
+}
+
+struct CustomServer: ServerDefinition {
+    typealias Environments = CustomEnvironments
+    
+    var baseUrls: [Environments: URL] {
+        return [
+            .debug: URL(string: "https://debug-api.example.com")!,
+            .testing: URL(string: "https://test-api.example.com")!,
+            .production: URL(string: "https://api.example.com")!
+        ]
+    }
+
+    static var defaultEnvironment: Environments { .debug }
+    
+    var requestProcessor: (URLRequest) -> URLRequest {
+        return { request in
+            var mutableRequest = request
+            mutableRequest.setValue("Bearer token", forHTTPHeaderField: "Authorization")
+            return mutableRequest
+        }
+    }
+}
+```
+
+### Changing Environments
+
+To switch environments at runtime, set the environment on the server type:
+
+```swift
+// Switch to staging environment
+ApiServer.environment = .staging
+
+// All subsequent requests will use the staging URL
+```
+
+---
+
+## Endpoint Examples
+
 ### GET Request
 
 #### Endpoint and Definition
 ```swift
 struct MyEndpoint: Endpoint {
-    static let definition: Definition<MyEndpoint, ApiServer> = Definition(
+    typealias Server = ApiServer
+    
+    static let definition: Definition<MyEndpoint> = Definition(
         method: .get,
         path: "path/to/resource"
     )
@@ -19,7 +105,7 @@ struct MyEndpoint: Endpoint {
 
 #### Usage
 ```swift
-URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
+URLSession.shared.endpointPublisher(with: MyEndpoint())
     .sink { completion in
         guard case .failure(let error) = completion else { return }
         // handle error
@@ -34,7 +120,9 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
 #### Endpoint and Definition
 ```swift
 struct MyEndpoint: Endpoint {
-    static let definition: Definition<MyEndpoint, ApiServer> = Definition(
+    typealias Server = ApiServer
+    
+    static let definition: Definition<MyEndpoint> = Definition(
         method: .get,
         path: "user/\(path: \.userId)/resource"
     )
@@ -53,7 +141,7 @@ struct MyEndpoint: Endpoint {
 
 #### Usage
 ```swift
-URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(pathComponents: .init(userId: "42")))
+URLSession.shared.endpointPublisher(with: MyEndpoint(pathComponents: .init(userId: "42")))
     .sink { completion in
         guard case .failure(let error) = completion else { return }
         // handle error
@@ -74,7 +162,9 @@ extension Header {
 }
 
 struct MyEndpoint: Endpoint {
-    static let definition: Definition<MyEndpoint, ApiServer> = Definition(
+    typealias Server = ApiServer
+    
+    static let definition: Definition<MyEndpoint> = Definition(
         method: .get,
         path: "path/to/resource",
         headers: [
@@ -99,7 +189,7 @@ struct MyEndpoint: Endpoint {
 
 #### Usage
 ```swift
-URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(headerValues: .init(headerString: "headerValue", headerInt: 42)))
+URLSession.shared.endpointPublisher(with: MyEndpoint(headerValues: .init(headerString: "headerValue", headerInt: 42)))
     .sink { completion in
         guard case .failure(let error) = completion else { return }
         // handle error
@@ -114,7 +204,9 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(headerValu
 #### Endpoint and Definition
 ```swift
 struct MyEndpoint: Endpoint {
-    static let definition: Definition<MyEndpoint, ApiServer> = Definition(
+    typealias Server = ApiServer
+    
+    static let definition: Definition<MyEndpoint> = Definition(
         method: .post,
         path: "path/to/resource"
     )
@@ -133,7 +225,7 @@ struct MyEndpoint: Endpoint {
 
 #### Usage
 ```swift
-URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(body: .init(bodyName: "value")))
+URLSession.shared.endpointPublisher(with: MyEndpoint(body: .init(bodyName: "value")))
     .sink { completion in
         guard case .failure(let error) = completion else { return }
         // handle error
@@ -148,7 +240,9 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(body: .ini
 #### Endpoint and Definition
 ```swift
 struct MyEndpoint: Endpoint {
-    static let definition: Definition<MyEndpoint, ApiServer> = Definition(
+    typealias Server = ApiServer
+    
+    static let definition: Definition<MyEndpoint> = Definition(
         method: .post,
         path: "path/to/resource",
         parameters: [
@@ -174,7 +268,7 @@ struct MyEndpoint: Endpoint {
 
 #### Usage
 ```swift
-URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(parameters: .init(keyString: "value", keyInt: 42)))
+URLSession.shared.endpointPublisher(with: MyEndpoint(parameters: .init(keyString: "value", keyInt: 42)))
     .sink { completion in
         guard case .failure(let error) = completion else { return }
         // handle error
@@ -189,7 +283,9 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(parameters
 #### Endpoint and Definition
 ```swift
 struct MyEndpoint: Endpoint {
-    static let definition: Definition<MyEndpoint, ApiServer> = Definition(
+    typealias Server = ApiServer
+    
+    static let definition: Definition<MyEndpoint> = Definition(
         method: .post,
         path: "path/to/resource",
         parameters: [
@@ -215,7 +311,7 @@ struct MyEndpoint: Endpoint {
 
 #### Usage
 ```swift
-URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(parameters: .init(keyString: "value", keyInt: 42)))
+URLSession.shared.endpointPublisher(with: MyEndpoint(parameters: .init(keyString: "value", keyInt: 42)))
     .sink { completion in
         guard case .failure(let error) = completion else { return }
         // handle error
@@ -236,7 +332,9 @@ https://production.mydomain.com/path/to/resource?keyString=value&keyInt=42&key=h
 #### Endpoint and Definition
 ```swift
 struct MyEndpoint: Endpoint {
-    static let definition: Definition<MyEndpoint, ApiServer> = Definition(
+    typealias Server = ApiServer
+    
+    static let definition: Definition<MyEndpoint> = Definition(
         method: .delete,
         path: "path/to/resource"
     )
@@ -247,7 +345,7 @@ struct MyEndpoint: Endpoint {
 
 #### Usage
 ```swift
-URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
+URLSession.shared.endpointPublisher(with: MyEndpoint())
     .sink { completion in
         guard case .failure(let error) = completion else { return }
         // handle error
@@ -262,7 +360,9 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
 #### Endpoint and Definition
 ```swift
 struct MyEndpoint: Endpoint {
-    static let definition: Definition<MyEndpoint, ApiServer> = Definition(
+    typealias Server = ApiServer
+    
+    static let definition: Definition<MyEndpoint> = Definition(
         method: .get,
         path: "path/to/resource"
     )
@@ -282,7 +382,7 @@ struct MyEndpoint: Endpoint {
 
 #### Usage
 ```swift
-URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
+URLSession.shared.endpointPublisher(with: MyEndpoint())
     .sink { completion in
         guard case .failure(let error) = completion else { return }
         // handle error
@@ -298,7 +398,9 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
 #### Endpoint and Definition
 ```swift
 struct MyEndpoint: Endpoint {
-    static let definition: Definition<MyEndpoint, ApiServer> = Definition(
+    typealias Server = ApiServer
+    
+    static let definition: Definition<MyEndpoint> = Definition(
         method: .post,
         path: "path/to/resource"
     )
@@ -323,7 +425,7 @@ struct MyEndpoint: Endpoint {
 
 #### Usage
 ```swift
-URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint(body: .init(bodyValue: "value")))
+URLSession.shared.endpointPublisher(with: MyEndpoint(body: .init(bodyValue: "value")))
     .sink { completion in
         guard case .failure(let error) = completion else { return }
         // handle error
@@ -343,7 +445,9 @@ struct ServerError: Decodable {
 }
 
 struct MyEndpoint: Endpoint {
-    static let definition: Definition<MyEndpoint, ApiServer> = Definition(
+    typealias Server = ApiServer
+    
+    static let definition: Definition<MyEndpoint> = Definition(
         method: .get,
         path: "path/to/resource"
     )
@@ -358,7 +462,7 @@ struct MyEndpoint: Endpoint {
 
 #### Usage
 ```swift
-URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
+URLSession.shared.endpointPublisher(with: MyEndpoint())
     .sink { completion in
         guard case .failure(let error) = completion else { return }
         switch error {
@@ -383,7 +487,9 @@ struct ServerError: Decodable {
 }
 
 struct MyEndpoint: Endpoint {
-    static let definition: Definition<MyEndpoint, ApiServer> = Definition(
+    typealias Server = ApiServer
+    
+    static let definition: Definition<MyEndpoint> = Definition(
         method: .get,
         path: "path/to/resource"
     )
@@ -404,7 +510,7 @@ struct MyEndpoint: Endpoint {
 
 #### Usage
 ```swift
-URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
+URLSession.shared.endpointPublisher(with: MyEndpoint())
     .sink { completion in
         guard case .failure(let error) = completion else { return }
         switch error {
@@ -418,4 +524,57 @@ URLSession.shared.endpointPublisher(in: .production, with: MyEndpoint())
         // handle MyEndpoint.Response
     }
     .store(in: &cancellables)
+```
+
+### Async/Await Usage
+
+All endpoints can also be used with Swift's async/await:
+
+```swift
+do {
+    let response = try await URLSession.shared.response(with: MyEndpoint())
+    // handle response
+} catch {
+    // handle error
+}
+```
+
+### Multipart Form Upload
+
+For file uploads using multipart/form-data:
+
+```swift
+struct UploadEndpoint: Endpoint {
+    typealias Server = ApiServer
+    
+    static let definition: Definition<UploadEndpoint> = Definition(
+        method: .post,
+        path: "upload"
+    )
+
+    struct Response: Decodable {
+        let fileId: String
+    }
+
+    struct Body: MultipartFormEncodable {
+        let file: MultipartFile
+        let description: String
+    }
+
+    let body: Body
+}
+
+// Usage
+let file = MultipartFile(
+    filename: "photo.jpg",
+    contentType: "image/jpeg",
+    data: imageData
+)
+
+let endpoint = UploadEndpoint(body: .init(
+    file: file,
+    description: "Profile photo"
+))
+
+let response = try await URLSession.shared.response(with: endpoint)
 ```

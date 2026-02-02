@@ -11,8 +11,23 @@ The purpose of Endpoints is to, in a type-safe way, define how to create a `URLR
 ### Essentials
 
 - ``Endpoint``
-- ``EnvironmentType``
+- ``ServerDefinition``
+- ``Definition``
 - <doc:Examples>
+
+### Server Configuration
+
+- ``ServerDefinition``
+- ``GenericServer``
+- ``TypicalEnvironments``
+
+### Testing and Mocking
+
+- <doc:Mocking>
+- ``EndpointsMocking``
+- ``withMock(_:_:test:)``
+- ``MockContinuation``
+- ``MockAction``
 
 ### Making Requests
 

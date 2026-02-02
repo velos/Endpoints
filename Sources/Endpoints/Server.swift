@@ -7,6 +7,8 @@
 
 import Foundation
 
+/// Thread-safe storage for server environments.
+/// Maps environment types to their current values, allowing runtime switching.
 enum EnvironmentStorage {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var environments: [ObjectIdentifier: Any] = [:]
@@ -27,6 +29,15 @@ enum EnvironmentStorage {
 }
 
 extension ServerDefinition {
+    /// The current environment for this server type.
+    /// 
+    /// Use this property to switch environments at runtime. The value persists across
+    /// all endpoints using this server type.
+    ///
+    /// ```swift
+    /// // Switch to staging for all subsequent requests
+    /// ApiServer.environment = .staging
+    /// ```
     public static var environment: Self.Environments {
         get {
             EnvironmentStorage.getEnvironment(for: Self.Environments.self) ?? Self.defaultEnvironment
