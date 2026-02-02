@@ -11,7 +11,7 @@ import Foundation
 import FoundationNetworking
 #endif
 
-#if DEBUG
+#if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
 /// Storage key for the resume override closure.
 nonisolated(unsafe) private var resumeOverrideKey: UInt8 = 0
 

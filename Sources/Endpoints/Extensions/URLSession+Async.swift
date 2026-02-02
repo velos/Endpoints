@@ -24,7 +24,7 @@ public extension URLSession {
     func response<T: Endpoint>(with endpoint: T) async throws where T.Response == Void {
         let urlRequest = try createUrlRequest(for: endpoint)
 
-        #if DEBUG
+        #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
         if let mockResponse = try await Mocking.shared.handlMock(for: T.self) {
             return mockResponse
         }
@@ -47,7 +47,7 @@ public extension URLSession {
     func response<T: Endpoint>(with endpoint: T) async throws -> T.Response where T.Response == Data {
         let urlRequest = try createUrlRequest(for: endpoint)
 
-        #if DEBUG
+        #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
         if let mockResponse = try await Mocking.shared.handlMock(for: T.self) {
             return mockResponse
         }
@@ -70,7 +70,7 @@ public extension URLSession {
     func response<T: Endpoint>(with endpoint: T) async throws -> T.Response where T.Response: Decodable {
         let urlRequest = try createUrlRequest(for: endpoint)
 
-        #if DEBUG
+        #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
         if let mockResponse = try await Mocking.shared.handlMock(for: T.self) {
             return mockResponse
         }

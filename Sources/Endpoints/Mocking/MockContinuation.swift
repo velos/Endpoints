@@ -5,6 +5,8 @@
 //  Created by Zac White on 11/30/24.
 //
 
+#if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
+
 import Foundation
 
 /// Actions that can be performed by a mock response.
@@ -64,3 +66,5 @@ public class MockContinuation<T: Endpoint> where T.Response: Sendable {
         action = .throw(error)
     }
 }
+
+#endif

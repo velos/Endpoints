@@ -44,7 +44,7 @@ public extension URLSession {
             // swiftlint:disable:next force_cast
             .mapError { $0 as! T.TaskError }
 
-            #if DEBUG
+            #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
             return Mocking.shared.handleMock(for: T.self)
                 .flatMap { mock in
                     if let mock {
@@ -94,7 +94,7 @@ public extension URLSession {
             // swiftlint:disable:next force_cast
             .mapError { $0 as! T.TaskError }
 
-            #if DEBUG
+            #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
             return Mocking.shared.handleMock(for: T.self)
                 .flatMap { mock in
                     if let mock {
@@ -150,7 +150,7 @@ public extension URLSession {
             // swiftlint:disable:next force_cast
             .mapError { $0 as! T.TaskError }
 
-        #if DEBUG
+        #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
         return Mocking.shared.handleMock(for: T.self)
             .flatMap { mock in
                 if let mock {

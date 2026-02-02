@@ -5,6 +5,8 @@
 //  Created by Zac White on 11/30/24.
 //
 
+#if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
+
 import Foundation
 
 struct ToReturnWrapper: Sendable {
@@ -129,4 +131,6 @@ extension Mocking {
             .eraseToAnyPublisher()
     }
 }
+#endif
+
 #endif

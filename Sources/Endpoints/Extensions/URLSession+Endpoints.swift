@@ -50,7 +50,7 @@ public extension URLSession {
             completion(T.definition.response(data: data, response: response, error: error).map { _ in })
         }
 
-        #if DEBUG
+        #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
         if Mocking.shared.shouldHandleMock(for: T.self) {
             task.resumeOverride = {
                 Task {
@@ -89,7 +89,7 @@ public extension URLSession {
         let task = dataTask(with: urlRequest) { (data, response, error) in
             completion(T.definition.response(data: data, response: response, error: error))
         }
-        #if DEBUG
+        #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
         if Mocking.shared.shouldHandleMock(for: T.self) {
             task.resumeOverride = {
                 Task {
@@ -140,7 +140,7 @@ public extension URLSession {
                 completion(.failure(failure))
             }
         }
-        #if DEBUG
+        #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
         if Mocking.shared.shouldHandleMock(for: T.self) {
             task.resumeOverride = {
                 Task {
