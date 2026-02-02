@@ -34,10 +34,11 @@ struct Mocking {
     }
 
     func handlMock<T: Endpoint>(for endpointsOfType: T.Type) async throws -> T.Response? {
-        guard let current = Self.current else { return .none }
-        let continuation = MockContinuation<T>()
-        await current.toReturn(for: T.self)(continuation)
-        switch continuation.action {
+        guard let action = await actionForMock(for: T.self) else {
+            return nil
+        }
+
+        switch action {
         case .none:
             return nil
         case .return(let value):
@@ -76,7 +77,7 @@ extension Mocking {
 
 extension Mocking {
     func handleMock<T: Endpoint>(for endpointsOfType: T.Type) -> AnyPublisher<T.Response?, T.TaskError> {
-        guard let current = Self.current else {
+        guard shouldHandleMock(for: T.self) else {
             return Just(nil)
                 .setFailureType(to: T.TaskError.self)
                 .eraseToAnyPublisher()
@@ -85,9 +86,12 @@ extension Mocking {
         let subject = CurrentValueSubject<T.Response?, T.TaskError>(nil)
 
         Task {
-            let continuation = MockContinuation<T>()
-            await current.toReturn(for: T.self)(continuation)
-            switch continuation.action {
+            guard let action = await actionForMock(for: T.self) else {
+                subject.send(nil)
+                return
+            }
+
+            switch action {
             case .none:
                 subject.send(nil)
             case .return(let value):
