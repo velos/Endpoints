@@ -11,7 +11,7 @@ import FoundationNetworking
 struct AuthenticationTests {
     @Test
     func apiKeyAuthAddsAuthorizationHeader() async throws {
-        let auth = APIKeyAuth(key: "test-key")
+        let auth = HeaderKeyAuth(key: "test-key")
         let request = URLRequest(url: URL(string: "https://example.com")!)
 
         let authenticated = try await auth.authenticate(request: request)
@@ -21,7 +21,7 @@ struct AuthenticationTests {
 
     @Test
     func apiKeyAuthSupportsCustomHeaderAndNoPrefix() async throws {
-        let auth = APIKeyAuth(key: "secret", header: Header(name: "X-API-Key"), prefix: nil)
+        let auth = HeaderKeyAuth(key: "secret", header: Header(name: "X-API-Key"), prefix: nil)
         let request = URLRequest(url: URL(string: "https://example.com")!)
 
         let authenticated = try await auth.authenticate(request: request)

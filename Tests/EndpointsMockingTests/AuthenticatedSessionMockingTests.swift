@@ -8,7 +8,7 @@ struct AuthenticatedSessionMockingTests {
     @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
     @Test
     func mockedResponseWorks() async throws {
-        let auth = APIKeyAuth(key: "test")
+        let auth = HeaderKeyAuth(key: "test")
         let session = AuthenticatedSession(auth: auth)
 
         try await withMock(MockSimpleEndpoint.self, action: .return(.init(response1: "mocked"))) {

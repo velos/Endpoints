@@ -4,9 +4,9 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// Authentication using a static API key.
-public struct APIKeyAuth: AuthenticationMethod {
-    /// The API key value.
+/// Authentication using a static header key.
+public struct HeaderKeyAuth: AuthenticationMethod {
+    /// The key value.
     public let key: String
 
     /// The HTTP header to use. Defaults to `.authorization`.
@@ -16,10 +16,10 @@ public struct APIKeyAuth: AuthenticationMethod {
     /// Set to nil for no prefix.
     public let prefix: String?
 
-    /// Creates an API key authentication method.
+    /// Creates a header key authentication method.
     ///
     /// - Parameters:
-    ///   - key: The API key value.
+    ///   - key: The key value.
     ///   - header: The HTTP header to use. Defaults to `.authorization`.
     ///   - prefix: Optional prefix (e.g., "Bearer"). Defaults to "Bearer".
     public init(
