@@ -12,8 +12,9 @@ The purpose of Endpoints is to, in a type-safe way, define how to create a `URLR
 
 - **Type-safe endpoint definitions** - Define endpoints with compile-time checking of paths, parameters, and headers
 - **Server definition with multiple environments** - Support for local, development, staging, and production environments with easy switching
+- **Authentication with automatic token refresh** - Attach credentials to requests and transparently refresh and retry on expiry via `AuthenticatedSession`
 - **Built-in mocking support** - Comprehensive testing utilities through the `EndpointsMocking` module
-- **Swift 6.0 compatible** - Built with modern Swift concurrency and Sendable support
+- **Swift 6.0 compatible** - Built with modern Swift concurrency, Sendable support and typed throws
 - **Combine and async/await support** - Use either reactive or async patterns
 
 ## Getting Started
@@ -43,7 +44,7 @@ struct ApiServer: ServerDefinition {
 
 To get started, first create a type (struct or class) conforming to `Endpoint`. There are only two required elements to conform: defining the `Response` and creating the `Definition`.
 
-`Endpoints` and `Definitions` now include server information, eliminating the need to pass environments at call time. Servers implement a `requestProcessor` which has a final hook before `URLRequest` creation to modify the `URLRequest` to attach authentication or signatures.
+`Endpoints` and `Definitions` now include server information, eliminating the need to pass environments at call time. Servers can implement a `requestProcessor`, a final synchronous hook after `URLRequest` creation for static request modification such as signing. For credentials that can expire and be refreshed, use [Authentication](#authentication) instead.
 
 ### Basic Endpoint Example
 
@@ -92,6 +93,83 @@ do {
 }
 ```
 
+## Authentication
+
+`AuthenticatedSession` wraps a `URLSession` and applies an `AuthenticationMethod` to every request. It mirrors the async `URLSession.response(with:)` API (authentication is async/await-only; the Combine and closure-based APIs do not support it):
+
+```swift
+let session = AuthenticatedSession(auth: HeaderKeyAuth(key: "my-api-key"))
+let response = try await session.response(with: MyEndpoint())
+```
+
+Built-in authentication methods:
+
+- `HeaderKeyAuth` - A static key in a header, with an optional prefix. Defaults to `Authorization: Bearer <key>`; use `HeaderKeyAuth(key: "secret", header: "X-API-Key", prefix: nil)` for custom API-key headers.
+- `CookieAuth` - A static cookie, merged with any cookies already on the request.
+- `JWTAuth` - Access/refresh token pairs with automatic refresh (see below).
+- `NoAuth` - Passes requests through unchanged. Useful as a generic placeholder.
+
+### Token refresh with JWTAuth
+
+`JWTAuth` holds an access/refresh token pair. When a request fails with a status code in `refreshTriggerStatusCodes` (401 by default), the session calls your `refreshHandler` and retries the request with the new tokens. Concurrent refreshes are coalesced into a single operation, and a request that fails with already-replaced tokens will not trigger a redundant refresh — important when your backend rotates single-use refresh tokens.
+
+```swift
+let auth = JWTAuth(
+    initialTokens: loadTokensFromKeychain(),
+    refreshHandler: { refreshToken in
+        // Exchange the refresh token for new tokens against your backend.
+        let response = try await URLSession.shared.response(with: RefreshEndpoint(token: refreshToken))
+        return JWTAuth.TokenPair(accessToken: response.access, refreshToken: response.refresh)
+    },
+    onTokensUpdated: { tokens in
+        saveTokensToKeychain(tokens)
+    },
+    onRefreshFailed: { error in
+        await logOut()
+    }
+)
+
+let session = AuthenticatedSession(auth: auth)
+```
+
+After a login or logout, update the tokens with `await auth.setTokens(_:)` or `await auth.clearTokens()`.
+
+### Custom authentication methods
+
+Conform to `AuthenticationMethod` to implement your own scheme. Only `authenticate(request:)` is required; refreshable credentials also implement `shouldReauthenticate(for:response:)` and `reauthenticate(after:)`:
+
+```swift
+struct SignatureAuth: AuthenticationMethod {
+    let secret: String
+
+    func authenticate(request: URLRequest) async throws(AuthenticationError) -> URLRequest {
+        var request = request
+        request.setValue(sign(request, with: secret), forHTTPHeaderField: "X-Signature")
+        return request
+    }
+}
+```
+
+### Error handling
+
+All failures from `AuthenticatedSession` — including authentication failures — surface as the endpoint's typed `EndpointTaskError`, so a single `catch` covers everything:
+
+```swift
+do {
+    let response = try await session.response(with: MyEndpoint())
+} catch {
+    // error is MyEndpoint.TaskError — no casting needed
+    switch error {
+    case .authenticationError(.refreshFailed(let underlying)):
+        // token refresh failed; underlying holds the refresh error
+    case .errorResponse(_, let errorResponse):
+        // typed server error response
+    default:
+        break
+    }
+}
+```
+
 ## Testing with EndpointsMocking
 
 Endpoints includes a comprehensive mocking system through the `EndpointsMocking` module:
@@ -115,6 +193,7 @@ The mocking system supports:
 - Throwing network errors
 - Dynamic response generation
 - Combine publisher mocking
+- Both `URLSession` extensions and `AuthenticatedSession`
 
 To find out more about the pieces of the `Endpoint`, check out [Defining a ResponseType](https://github.com/velos/Endpoints/wiki/DefiningResponseType) on the wiki.
 
@@ -135,7 +214,7 @@ Add the following to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/velos/Endpoints.git", from: "2.0.0")
+    .package(url: "https://github.com/velos/Endpoints.git", from: "0.5.0")
 ]
 ```
 
