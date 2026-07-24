@@ -114,6 +114,10 @@ Built-in authentication methods:
 
 `JWTAuth` holds an access/refresh token pair. When a request fails with a status code in `refreshTriggerStatusCodes` (401 by default), the session calls your `refreshHandler` and retries the request with the new tokens. Concurrent refreshes are coalesced into a single operation, and a request that fails with already-replaced tokens will not trigger a redundant refresh — important when your backend rotates single-use refresh tokens.
 
+If you know when the access token expires, set `TokenPair.expiresAt`: tokens within `expiryLeeway` (30 seconds by default) of expiring are then refreshed *before* the request is sent, skipping the round trip that would have been rejected. Without `expiresAt`, refresh is purely reactive.
+
+> **Important:** the `refreshHandler` must not perform its request through the same `AuthenticatedSession` (or any session authenticated by the same `JWTAuth`) — the session would wait on the very refresh that is waiting on the handler. Use a plain `URLSession` for the refresh call; it authenticates with the refresh token, not the access token.
+
 ```swift
 let auth = JWTAuth(
     initialTokens: loadTokensFromKeychain(),

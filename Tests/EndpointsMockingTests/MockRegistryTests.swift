@@ -130,8 +130,8 @@ struct MockRegistryTests {
 
     @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
     @Test
-    func unmockedEndpointPassesThrough() async throws {
-        try await withMock(MockSimpleEndpoint.self, action: .return(.init(response1: "mocked"))) {
+    func unmockedEndpointPassesThrough() async {
+        await withMock(MockSimpleEndpoint.self, action: .return(.init(response1: "mocked"))) {
             // An endpoint type with no registered mock goes to the real transport,
             // which for UnroutableServer fails with a connection error.
             do throws(PassthroughEndpoint.TaskError) {

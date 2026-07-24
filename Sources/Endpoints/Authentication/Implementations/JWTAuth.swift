@@ -5,6 +5,18 @@ import FoundationNetworking
 #endif
 
 /// JWT-based authentication with automatic token refresh.
+///
+/// Tokens are refreshed reactively when a response's status code is in
+/// ``Configuration/refreshTriggerStatusCodes``, and proactively when
+/// ``TokenPair/expiresAt`` is set and the token is within
+/// ``Configuration/expiryLeeway`` of expiring — the refresh then happens
+/// *before* the request is sent, avoiding a round trip that would be rejected.
+///
+/// > Important: The ``RefreshHandler`` must not perform its request through the same
+/// > ``AuthenticatedSession`` (or any session authenticated by this `JWTAuth`): the
+/// > session would wait for the in-flight refresh that is itself waiting on the
+/// > handler, deadlocking the task. Use a plain `URLSession` for the refresh call —
+/// > it authenticates with the refresh token, not the access token.
 public actor JWTAuth: AuthenticationMethod {
 
     // MARK: - Types
@@ -14,9 +26,24 @@ public actor JWTAuth: AuthenticationMethod {
         public let accessToken: String
         public let refreshToken: String
 
-        public init(accessToken: String, refreshToken: String) {
+        /// When the access token expires, if known.
+        ///
+        /// When set, requests authenticated within ``Configuration/expiryLeeway`` of
+        /// this date proactively refresh before being sent. When nil, tokens are only
+        /// refreshed reactively after a rejected response.
+        public let expiresAt: Date?
+
+        public init(accessToken: String, refreshToken: String, expiresAt: Date? = nil) {
             self.accessToken = accessToken
             self.refreshToken = refreshToken
+            self.expiresAt = expiresAt
+        }
+
+        /// Whether the access token is expired or will expire within the given leeway.
+        /// Always false when ``expiresAt`` is nil.
+        public func isExpiring(within leeway: TimeInterval) -> Bool {
+            guard let expiresAt else { return false }
+            return expiresAt.timeIntervalSinceNow <= leeway
         }
     }
 
@@ -31,14 +58,20 @@ public actor JWTAuth: AuthenticationMethod {
         /// HTTP status codes that should trigger a token refresh. Defaults to [401].
         public let refreshTriggerStatusCodes: Set<Int>
 
+        /// How long before ``TokenPair/expiresAt`` a token is treated as expiring and
+        /// proactively refreshed. Defaults to 30 seconds.
+        public let expiryLeeway: TimeInterval
+
         public init(
             header: Header = .authorization,
             tokenPrefix: String = "Bearer",
-            refreshTriggerStatusCodes: Set<Int> = [401]
+            refreshTriggerStatusCodes: Set<Int> = [401],
+            expiryLeeway: TimeInterval = 30
         ) {
             self.header = header
             self.tokenPrefix = tokenPrefix
             self.refreshTriggerStatusCodes = refreshTriggerStatusCodes
+            self.expiryLeeway = expiryLeeway
         }
 
         public static let `default` = Configuration()
@@ -47,6 +80,9 @@ public actor JWTAuth: AuthenticationMethod {
     /// Closure type for performing token refresh.
     ///
     /// The closure receives the current refresh token and should return new tokens.
+    ///
+    /// > Important: Perform the refresh request with a plain `URLSession`, never
+    /// > through a session authenticated by this `JWTAuth` — see ``JWTAuth``.
     public typealias RefreshHandler = @Sendable (String) async throws -> TokenPair
 
     /// Closure type for handling token updates (e.g., persisting to Keychain).
@@ -86,13 +122,16 @@ public actor JWTAuth: AuthenticationMethod {
     // MARK: - AuthenticationMethod
 
     public func authenticate(request: URLRequest) async throws(AuthenticationError) -> URLRequest {
-        if let pendingRefresh {
+        if let tokens = currentTokens,
+           pendingRefresh != nil || tokens.isExpiring(within: configuration.expiryLeeway) {
             do {
-                currentTokens = try await pendingRefresh.value
+                // Join an in-flight refresh, or proactively refresh an expiring token
+                // rather than sending a request that is likely to be rejected.
+                currentTokens = try await refresh(with: tokens.refreshToken)
             } catch {
-                // The in-flight refresh failed. Keep the existing (possibly expired)
-                // tokens and send the request anyway; if it is rejected, the failure
-                // surfaces through shouldReauthenticate/reauthenticate.
+                // The refresh failed. Keep the existing (possibly expired) tokens and
+                // send the request anyway; if it is rejected, the failure surfaces
+                // through shouldReauthenticate/reauthenticate.
             }
         }
 
@@ -121,15 +160,37 @@ public actor JWTAuth: AuthenticationMethod {
             return
         }
 
-        if let existingRefresh = pendingRefresh {
-            currentTokens = try await awaitRefresh(existingRefresh)
-            return
-        }
-
         guard let refreshToken = currentTokens?.refreshToken else {
             throw AuthenticationError.noRefreshToken
         }
 
+        currentTokens = try await refresh(with: refreshToken)
+    }
+
+    // MARK: - Refresh
+
+    /// Joins the in-flight refresh if one exists, otherwise starts a new one.
+    ///
+    /// The existence check and task creation happen in one synchronous stretch of
+    /// actor isolation, so concurrent callers cannot start duplicate refreshes.
+    private func refresh(with refreshToken: String) async throws(AuthenticationError) -> TokenPair {
+        let refreshTask: Task<TokenPair, Error>
+        if let pendingRefresh {
+            refreshTask = pendingRefresh
+        } else {
+            refreshTask = startRefresh(refreshToken: refreshToken)
+        }
+
+        defer {
+            if pendingRefresh == refreshTask {
+                pendingRefresh = nil
+            }
+        }
+
+        return try await awaitRefresh(refreshTask)
+    }
+
+    private func startRefresh(refreshToken: String) -> Task<TokenPair, Error> {
         let refreshHandler = self.refreshHandler
         let onTokensUpdated = self.onTokensUpdated
         let onRefreshFailed = self.onRefreshFailed
@@ -146,14 +207,7 @@ public actor JWTAuth: AuthenticationMethod {
         }
 
         pendingRefresh = refreshTask
-
-        do {
-            currentTokens = try await awaitRefresh(refreshTask)
-            pendingRefresh = nil
-        } catch {
-            pendingRefresh = nil
-            throw error
-        }
+        return refreshTask
     }
 
     private nonisolated func headerValue(for accessToken: String) -> String {

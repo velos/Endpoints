@@ -242,6 +242,81 @@ struct AuthenticationTests {
     }
 
     @Test
+    func jwtProactivelyRefreshesExpiringToken() async throws {
+        let counter = RefreshCounter()
+        let auth = JWTAuth(
+            initialTokens: .init(accessToken: "old", refreshToken: "refresh", expiresAt: Date(timeIntervalSinceNow: -60)),
+            refreshHandler: { refreshToken in
+                await counter.increment()
+                return JWTAuth.TokenPair(accessToken: "new", refreshToken: refreshToken, expiresAt: Date(timeIntervalSinceNow: 3600))
+            }
+        )
+
+        let authenticated = try await auth.authenticate(request: URLRequest(url: URL(string: "https://example.com")!))
+
+        #expect(authenticated.value(forHTTPHeaderField: Header.authorization.name) == "Bearer new")
+        #expect(await counter.value() == 1)
+    }
+
+    @Test
+    func jwtDoesNotRefreshFreshToken() async throws {
+        let counter = RefreshCounter()
+        let auth = JWTAuth(
+            initialTokens: .init(accessToken: "fresh", refreshToken: "refresh", expiresAt: Date(timeIntervalSinceNow: 3600)),
+            refreshHandler: { refreshToken in
+                await counter.increment()
+                return JWTAuth.TokenPair(accessToken: "new", refreshToken: refreshToken)
+            }
+        )
+
+        let authenticated = try await auth.authenticate(request: URLRequest(url: URL(string: "https://example.com")!))
+
+        #expect(authenticated.value(forHTTPHeaderField: Header.authorization.name) == "Bearer fresh")
+        #expect(await counter.value() == 0)
+    }
+
+    @Test
+    func jwtProactiveRefreshFailureFallsBackToStaleToken() async throws {
+        struct ProactiveRefreshError: Error {}
+        let auth = JWTAuth(
+            initialTokens: .init(accessToken: "stale", refreshToken: "refresh", expiresAt: Date(timeIntervalSinceNow: -60)),
+            refreshHandler: { _ in throw ProactiveRefreshError() }
+        )
+
+        // The proactive refresh fails; the request still goes out with the stale
+        // token so the server stays the source of truth.
+        let authenticated = try await auth.authenticate(request: URLRequest(url: URL(string: "https://example.com")!))
+
+        #expect(authenticated.value(forHTTPHeaderField: Header.authorization.name) == "Bearer stale")
+    }
+
+    @Test
+    func jwtProactiveRefreshCoalesces() async throws {
+        let counter = RefreshCounter()
+        let auth = JWTAuth(
+            initialTokens: .init(accessToken: "old", refreshToken: "refresh", expiresAt: Date(timeIntervalSinceNow: -60)),
+            refreshHandler: { refreshToken in
+                await counter.increment()
+                try await Task.sleep(nanoseconds: 50_000_000)
+                return JWTAuth.TokenPair(accessToken: "new", refreshToken: refreshToken, expiresAt: Date(timeIntervalSinceNow: 3600))
+            }
+        )
+
+        let headers = await withTaskGroup(of: String?.self) { group in
+            for _ in 0..<5 {
+                group.addTask {
+                    let request = try? await auth.authenticate(request: URLRequest(url: URL(string: "https://example.com")!))
+                    return request?.value(forHTTPHeaderField: Header.authorization.name)
+                }
+            }
+            return await group.reduce(into: [String?]()) { $0.append($1) }
+        }
+
+        #expect(await counter.value() == 1)
+        #expect(headers.allSatisfy { $0 == "Bearer new" })
+    }
+
+    @Test
     func authenticationErrorExposesUnderlyingError() {
         let underlying = URLError(.timedOut)
         let bridged = AuthenticationError.refreshFailed(underlying: underlying) as NSError

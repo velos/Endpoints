@@ -91,10 +91,10 @@ struct AuthenticatedSessionMockingTests {
 
     @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
     @Test
-    func mockedAuthenticationErrorSurfacesTyped() async throws {
+    func mockedAuthenticationErrorSurfacesTyped() async {
         let session = AuthenticatedSession(auth: HeaderKeyAuth(key: "test"))
 
-        try await withMock(MockSimpleEndpoint.self, action: .throw(.authenticationError(.notAuthenticated))) {
+        await withMock(MockSimpleEndpoint.self, action: .throw(.authenticationError(.notAuthenticated))) {
             do throws(MockSimpleEndpoint.TaskError) {
                 _ = try await session.response(with: MockSimpleEndpoint(pathComponents: .init(name: "a", id: "b")))
                 Issue.record("Expected authenticationError to be thrown")

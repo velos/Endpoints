@@ -206,6 +206,40 @@ struct AuthenticatedSessionTests {
 
     @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
     @Test
+    func jwtProactiveRefreshHappensBeforeRequest() async throws {
+        let successData = try JSONEncoder().encode(AuthTestEndpoint.Response(value: "ok"))
+
+        let responses = ResponseQueue([
+            (HTTPURLResponse(url: Self.url, statusCode: 200, httpVersion: nil, headerFields: nil)!, successData)
+        ])
+
+        let recorder = RequestRecorder()
+        TestURLProtocol.register(path: "/auth/test") { request in
+            recorder.record(request)
+            return try responses.next()
+        }
+        defer { TestURLProtocol.unregister(path: "/auth/test") }
+
+        let auth = JWTAuth(
+            initialTokens: .init(accessToken: "expired-access", refreshToken: "old-refresh", expiresAt: Date(timeIntervalSinceNow: -60)),
+            refreshHandler: { refreshToken in
+                #expect(refreshToken == "old-refresh")
+                return JWTAuth.TokenPair(accessToken: "new-access", refreshToken: "new-refresh", expiresAt: Date(timeIntervalSinceNow: 3600))
+            }
+        )
+        let session = AuthenticatedSession(session: TestURLProtocol.makeSession(), auth: auth)
+
+        let response = try await session.response(with: AuthTestEndpoint())
+
+        #expect(response.value == "ok")
+
+        // The expired token never went over the wire: one request, already refreshed.
+        let sentAuthorization = recorder.all().map { $0.value(forHTTPHeaderField: Header.authorization.name) }
+        #expect(sentAuthorization == ["Bearer new-access"])
+    }
+
+    @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
+    @Test
     func staticAuthDoesNotRetryOn401() async throws {
         let errorData = try JSONEncoder().encode(AuthTestEndpoint.ErrorResponse(message: "unauthorized"))
 
