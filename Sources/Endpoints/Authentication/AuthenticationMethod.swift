@@ -33,3 +33,18 @@ public protocol AuthenticationMethod: Sendable {
     /// Implementations should coalesce concurrent calls into a single refresh operation.
     func reauthenticate(after failedRequest: URLRequest) async throws(AuthenticationError)
 }
+
+public extension AuthenticationMethod {
+
+    /// By default, failed requests never trigger reauthentication.
+    /// Override for credentials that can be refreshed.
+    func shouldReauthenticate(for error: any Error, response: HTTPURLResponse?) -> Bool {
+        false
+    }
+
+    /// By default, refresh is unsupported.
+    /// Override for credentials that can be refreshed.
+    func reauthenticate(after failedRequest: URLRequest) async throws(AuthenticationError) {
+        throw AuthenticationError.refreshNotSupported
+    }
+}

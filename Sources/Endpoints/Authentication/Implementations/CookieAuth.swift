@@ -12,21 +12,17 @@ public struct CookieAuth: AuthenticationMethod {
     /// The cookie value.
     public let value: String
 
-    /// The HTTP header to use. Defaults to `.cookie`.
-    public let header: Header
-
-    /// Whether to append to an existing Cookie header. Defaults to true.
+    /// Whether to merge with cookies already on the request. Defaults to true.
+    /// An existing cookie with the same name is replaced.
     public let appendToExisting: Bool
 
     public init(
         name: String,
         value: String,
-        header: Header = .cookie,
         appendToExisting: Bool = true
     ) {
         self.name = name
         self.value = value
-        self.header = header
         self.appendToExisting = appendToExisting
     }
 
@@ -35,21 +31,18 @@ public struct CookieAuth: AuthenticationMethod {
         let cookiePair = "\(name)=\(value)"
 
         if appendToExisting,
-           let existing = request.value(forHTTPHeaderField: header.name),
+           let existing = request.value(forHTTPHeaderField: Header.cookie.name),
            !existing.isEmpty {
-            mutableRequest.setValue("\(existing); \(cookiePair)", forHTTPHeaderField: header.name)
+            var pairs = existing
+                .components(separatedBy: ";")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty && $0 != name && !$0.hasPrefix("\(name)=") }
+            pairs.append(cookiePair)
+            mutableRequest.setValue(pairs.joined(separator: "; "), forHTTPHeaderField: Header.cookie.name)
         } else {
-            mutableRequest.setValue(cookiePair, forHTTPHeaderField: header.name)
+            mutableRequest.setValue(cookiePair, forHTTPHeaderField: Header.cookie.name)
         }
 
         return mutableRequest
-    }
-
-    public func shouldReauthenticate(for error: any Error, response: HTTPURLResponse?) -> Bool {
-        false
-    }
-
-    public func reauthenticate(after failedRequest: URLRequest) async throws(AuthenticationError) {
-        throw AuthenticationError.refreshNotSupported
     }
 }

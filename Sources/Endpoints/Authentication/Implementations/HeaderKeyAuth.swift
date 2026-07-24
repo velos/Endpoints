@@ -38,12 +38,4 @@ public struct HeaderKeyAuth: AuthenticationMethod {
         mutableRequest.setValue(headerValue, forHTTPHeaderField: header.name)
         return mutableRequest
     }
-
-    public func shouldReauthenticate(for error: any Error, response: HTTPURLResponse?) -> Bool {
-        false
-    }
-
-    public func reauthenticate(after failedRequest: URLRequest) async throws(AuthenticationError) {
-        throw AuthenticationError.refreshNotSupported
-    }
 }
