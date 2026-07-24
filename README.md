@@ -187,6 +187,19 @@ import EndpointsMocking
 }
 ```
 
+When a flow touches several endpoints, register them together with a `MockRegistry` instead of nesting `withMock` calls:
+
+```swift
+try await withMock { mocks in
+    mocks.register(RefreshEndpoint.self, action: .return(.init(access: "new", refresh: "next")))
+    mocks.register(ProfileEndpoint.self, action: .return(.init(name: "Zac")))
+} test: {
+    let profile = try await session.response(with: ProfileEndpoint())
+}
+```
+
+Mocks are scoped per endpoint type: endpoints without a registered mock pass through to the real transport, nested `withMock` scopes merge, and an inner mock for the same endpoint type shadows the outer one for the duration of its scope.
+
 The mocking system supports:
 - Returning successful responses
 - Returning error responses
@@ -194,6 +207,8 @@ The mocking system supports:
 - Dynamic response generation
 - Combine publisher mocking
 - Both `URLSession` extensions and `AuthenticatedSession`
+
+Note that mocks bypass authentication entirely: a mocked request never invokes the `AuthenticationMethod`, and mock errors do not trigger the refresh/retry loop. To simulate an authentication failure, throw one directly with `.throw(.authenticationError(.notAuthenticated))`; to test the refresh flow itself, use a `URLProtocol`-based fake transport.
 
 To find out more about the pieces of the `Endpoint`, check out [Defining a ResponseType](https://github.com/velos/Endpoints/wiki/DefiningResponseType) on the wiki.
 

@@ -65,6 +65,12 @@ public class MockContinuation<T: Endpoint> where T.Response: Sendable {
     public func resume(throwing error: EndpointTaskError<T.ErrorResponse>) where T.ErrorResponse: Sendable {
         action = .throw(error)
     }
+
+    /// Resumes the mock with a pre-configured action.
+    /// - Parameter action: The mock action to perform (return, fail, throw, or none)
+    public func resume(with action: MockAction<T.Response, T.ErrorResponse>) {
+        self.action = action
+    }
 }
 
 #endif
