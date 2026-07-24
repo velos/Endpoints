@@ -5,6 +5,9 @@ import FoundationNetworking
 #endif
 
 /// A session wrapper that applies authentication to requests and handles token refresh.
+///
+/// All errors — including authentication failures — surface as the endpoint's ``EndpointTaskError``.
+/// Authentication-specific failures are wrapped in ``EndpointTaskError/authenticationError(_:)``.
 public struct AuthenticatedSession<Auth: AuthenticationMethod>: Sendable {
     /// The underlying URLSession for network requests.
     public let session: URLSession
@@ -12,7 +15,8 @@ public struct AuthenticatedSession<Auth: AuthenticationMethod>: Sendable {
     /// The authentication method to use.
     public let auth: Auth
 
-    /// Maximum number of retry attempts after reauthentication. Defaults to 1.
+    /// Maximum number of retry attempts after reauthentication.
+    /// Negative values are treated as 0. Defaults to 1.
     public let maxRetryAttempts: Int
 
     public init(
@@ -22,7 +26,7 @@ public struct AuthenticatedSession<Auth: AuthenticationMethod>: Sendable {
     ) {
         self.session = session
         self.auth = auth
-        self.maxRetryAttempts = maxRetryAttempts
+        self.maxRetryAttempts = max(0, maxRetryAttempts)
     }
 }
 
@@ -30,7 +34,7 @@ public struct AuthenticatedSession<Auth: AuthenticationMethod>: Sendable {
 public extension AuthenticatedSession {
 
     /// Performs an authenticated request expecting a Decodable response.
-    func response<T: Endpoint>(with endpoint: T) async throws -> T.Response
+    func response<T: Endpoint>(with endpoint: T) async throws(T.TaskError) -> T.Response
     where T.Response: Decodable {
         #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
         if let mockResponse = try await Mocking.shared.handleMock(for: T.self) {
@@ -38,13 +42,17 @@ public extension AuthenticatedSession {
         }
         #endif
 
-        return try await performRequest(with: endpoint) { data in
-            try T.responseDecoder.decode(T.Response.self, from: data)
+        return try await performRequest(with: endpoint) { (data) throws(T.TaskError) in
+            do {
+                return try T.responseDecoder.decode(T.Response.self, from: data)
+            } catch {
+                throw T.TaskError.responseParseError(data: data, error: error)
+            }
         }
     }
 
     /// Performs an authenticated request expecting a Void response.
-    func response<T: Endpoint>(with endpoint: T) async throws
+    func response<T: Endpoint>(with endpoint: T) async throws(T.TaskError)
     where T.Response == Void {
         #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
         if let _: T.Response = try await Mocking.shared.handleMock(for: T.self) {
@@ -52,11 +60,11 @@ public extension AuthenticatedSession {
         }
         #endif
 
-        _ = try await performRequest(with: endpoint) { _ in () }
+        _ = try await performRequest(with: endpoint) { (_) throws(T.TaskError) in () }
     }
 
     /// Performs an authenticated request expecting raw Data.
-    func response<T: Endpoint>(with endpoint: T) async throws -> T.Response
+    func response<T: Endpoint>(with endpoint: T) async throws(T.TaskError) -> T.Response
     where T.Response == Data {
         #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
         if let mockResponse = try await Mocking.shared.handleMock(for: T.self) {
@@ -64,53 +72,48 @@ public extension AuthenticatedSession {
         }
         #endif
 
-        return try await performRequest(with: endpoint) { $0 }
+        return try await performRequest(with: endpoint) { (data) throws(T.TaskError) in data }
     }
 
     private func performRequest<T: Endpoint, R>(
         with endpoint: T,
-        transform: (Data) throws -> R
-    ) async throws -> R {
-        for attempt in 0...maxRetryAttempts {
+        transform: (Data) throws(T.TaskError) -> R
+    ) async throws(T.TaskError) -> R {
+        var attempt = 0
+        while true {
+            let request = try createUrlRequest(for: endpoint)
+
+            let authenticatedRequest: URLRequest
             do {
-                let request = try createUrlRequest(for: endpoint)
-                let authenticatedRequest = try await auth.authenticate(request: request)
+                authenticatedRequest = try await auth.authenticate(request: request)
+            } catch {
+                throw T.TaskError.authenticationError(error)
+            }
 
-                let result: (data: Data, response: URLResponse)
-                do {
-                    result = try await session.data(for: authenticatedRequest)
-                } catch {
-                    if (error as NSError).code == URLError.Code.notConnectedToInternet.rawValue {
-                        throw T.TaskError.internetConnectionOffline
-                    } else {
-                        throw T.TaskError.urlLoadError(error)
-                    }
-                }
-
+            do {
+                let result = try await session.loadData(for: authenticatedRequest, endpoint: T.self)
                 let data = try T.definition.response(
                     data: result.data,
                     response: result.response,
                     error: nil
                 ).get()
 
-                do {
-                    return try transform(data)
-                } catch {
-                    throw T.TaskError.responseParseError(data: data, error: error)
-                }
-            } catch let error as T.TaskError {
-                let httpResponse = extractHTTPResponse(from: error)
-                if auth.shouldReauthenticate(for: error, response: httpResponse),
-                   attempt < maxRetryAttempts {
-                    try await auth.reauthenticate()
-                    continue
+                return try transform(data)
+            } catch {
+                guard attempt < maxRetryAttempts,
+                      auth.shouldReauthenticate(for: error, response: extractHTTPResponse(from: error)) else {
+                    throw error
                 }
 
-                throw error
+                do {
+                    try await auth.reauthenticate()
+                } catch {
+                    throw T.TaskError.authenticationError(error)
+                }
+
+                attempt += 1
             }
         }
-
-        throw AuthenticationError.maxRetriesExceeded
     }
 
     private func createUrlRequest<T: Endpoint>(for endpoint: T) throws(T.TaskError) -> URLRequest {

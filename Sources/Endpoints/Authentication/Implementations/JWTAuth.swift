@@ -85,7 +85,7 @@ public actor JWTAuth: AuthenticationMethod {
 
     // MARK: - AuthenticationMethod
 
-    public func authenticate(request: URLRequest) async throws -> URLRequest {
+    public func authenticate(request: URLRequest) async throws(AuthenticationError) -> URLRequest {
         if let pendingRefresh {
             do {
                 currentTokens = try await pendingRefresh.value
@@ -111,9 +111,9 @@ public actor JWTAuth: AuthenticationMethod {
         return configuration.refreshTriggerStatusCodes.contains(statusCode)
     }
 
-    public func reauthenticate() async throws {
+    public func reauthenticate() async throws(AuthenticationError) {
         if let existingRefresh = pendingRefresh {
-            currentTokens = try await existingRefresh.value
+            currentTokens = try await awaitRefresh(existingRefresh)
             return
         }
 
@@ -139,11 +139,22 @@ public actor JWTAuth: AuthenticationMethod {
         pendingRefresh = refreshTask
 
         do {
-            currentTokens = try await refreshTask.value
+            currentTokens = try await awaitRefresh(refreshTask)
             pendingRefresh = nil
         } catch {
             pendingRefresh = nil
             throw error
+        }
+    }
+
+    /// Awaits a refresh task, mapping its untyped failure back to ``AuthenticationError``.
+    private func awaitRefresh(_ task: Task<TokenPair, Error>) async throws(AuthenticationError) -> TokenPair {
+        do {
+            return try await task.value
+        } catch let error as AuthenticationError {
+            throw error
+        } catch {
+            throw .refreshFailed(underlying: error)
         }
     }
 

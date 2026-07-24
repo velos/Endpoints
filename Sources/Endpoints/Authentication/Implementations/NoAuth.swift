@@ -8,7 +8,7 @@ import FoundationNetworking
 public struct NoAuth: AuthenticationMethod {
     public init() {}
 
-    public func authenticate(request: URLRequest) async throws -> URLRequest {
+    public func authenticate(request: URLRequest) async throws(AuthenticationError) -> URLRequest {
         request
     }
 
@@ -16,7 +16,7 @@ public struct NoAuth: AuthenticationMethod {
         false
     }
 
-    public func reauthenticate() async throws {
+    public func reauthenticate() async throws(AuthenticationError) {
         throw AuthenticationError.refreshNotSupported
     }
 }

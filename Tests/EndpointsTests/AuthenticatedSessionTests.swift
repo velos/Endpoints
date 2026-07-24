@@ -65,7 +65,7 @@ actor TestAuth: AuthenticationMethod {
     private var authenticateCount = 0
     private var reauthenticateCount = 0
 
-    func authenticate(request: URLRequest) async throws -> URLRequest {
+    func authenticate(request: URLRequest) async throws(AuthenticationError) -> URLRequest {
         authenticateCount += 1
         return request
     }
@@ -74,7 +74,7 @@ actor TestAuth: AuthenticationMethod {
         response?.statusCode == 401
     }
 
-    func reauthenticate() async throws {
+    func reauthenticate() async throws(AuthenticationError) {
         reauthenticateCount += 1
     }
 

@@ -30,7 +30,7 @@ public struct CookieAuth: AuthenticationMethod {
         self.appendToExisting = appendToExisting
     }
 
-    public func authenticate(request: URLRequest) async throws -> URLRequest {
+    public func authenticate(request: URLRequest) async throws(AuthenticationError) -> URLRequest {
         var mutableRequest = request
         let cookiePair = "\(name)=\(value)"
 
@@ -49,7 +49,7 @@ public struct CookieAuth: AuthenticationMethod {
         false
     }
 
-    public func reauthenticate() async throws {
+    public func reauthenticate() async throws(AuthenticationError) {
         throw AuthenticationError.refreshNotSupported
     }
 }

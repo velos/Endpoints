@@ -11,8 +11,8 @@ public protocol AuthenticationMethod: Sendable {
     ///
     /// - Parameter request: The URLRequest to authenticate.
     /// - Returns: The authenticated URLRequest.
-    /// - Throws: `AuthenticationError.notAuthenticated` if no valid credentials are available.
-    func authenticate(request: URLRequest) async throws -> URLRequest
+    /// - Throws: ``AuthenticationError/notAuthenticated`` if no valid credentials are available.
+    func authenticate(request: URLRequest) async throws(AuthenticationError) -> URLRequest
 
     /// Determines whether a failed request should trigger reauthentication.
     ///
@@ -25,5 +25,5 @@ public protocol AuthenticationMethod: Sendable {
     /// Performs reauthentication (e.g., token refresh).
     ///
     /// Implementations should coalesce concurrent calls into a single refresh operation.
-    func reauthenticate() async throws
+    func reauthenticate() async throws(AuthenticationError)
 }

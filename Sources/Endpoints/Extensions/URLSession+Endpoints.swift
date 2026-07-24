@@ -24,6 +24,10 @@ public enum EndpointTaskError<ErrorResponseType: Sendable>: Error, Sendable {
 
     case urlLoadError(Error)
     case internetConnectionOffline
+
+    /// An authentication operation failed while performing the request
+    /// through an ``AuthenticatedSession``.
+    case authenticationError(AuthenticationError)
 }
 
 public extension Endpoint {

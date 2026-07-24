@@ -32,7 +32,7 @@ public struct HeaderKeyAuth: AuthenticationMethod {
         self.prefix = prefix
     }
 
-    public func authenticate(request: URLRequest) async throws -> URLRequest {
+    public func authenticate(request: URLRequest) async throws(AuthenticationError) -> URLRequest {
         var mutableRequest = request
         let headerValue = prefix.map { "\($0) \(key)" } ?? key
         mutableRequest.setValue(headerValue, forHTTPHeaderField: header.name)
@@ -43,7 +43,7 @@ public struct HeaderKeyAuth: AuthenticationMethod {
         false
     }
 
-    public func reauthenticate() async throws {
+    public func reauthenticate() async throws(AuthenticationError) {
         throw AuthenticationError.refreshNotSupported
     }
 }

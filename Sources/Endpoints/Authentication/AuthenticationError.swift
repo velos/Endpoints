@@ -11,9 +11,6 @@ public enum AuthenticationError: Error, Sendable {
     /// The token refresh operation failed.
     case refreshFailed(underlying: Error)
 
-    /// Maximum retry attempts exceeded.
-    case maxRetriesExceeded
-
     /// The authentication method does not support refresh.
     case refreshNotSupported
 }
