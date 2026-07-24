@@ -8,23 +8,26 @@
 import Foundation
 
 /// Thread-safe storage for server environments.
-/// Maps environment types to their current values, allowing runtime switching.
+/// Maps server types to their current environment values, allowing runtime switching.
+///
+/// Keyed by the server type — not its `Environments` type — so servers that share an
+/// environment type (e.g. the default ``TypicalEnvironments``) switch independently.
 enum EnvironmentStorage {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var environments: [ObjectIdentifier: Any] = [:]
 
-    static func getEnvironment<T: Sendable>(for type: T.Type) -> T? {
+    static func getEnvironment<S: ServerDefinition>(for server: S.Type) -> S.Environments? {
         lock.lock()
         defer { lock.unlock() }
-        let typeKey = ObjectIdentifier(type)
-        return environments[typeKey] as? T
+        let serverKey = ObjectIdentifier(server)
+        return environments[serverKey] as? S.Environments
     }
 
-    static func setEnvironment<T: Sendable>(_ environment: T, for type: T.Type) {
+    static func setEnvironment<S: ServerDefinition>(_ environment: S.Environments, for server: S.Type) {
         lock.lock()
         defer { lock.unlock() }
-        let typeKey = ObjectIdentifier(type)
-        environments[typeKey] = environment
+        let serverKey = ObjectIdentifier(server)
+        environments[serverKey] = environment
     }
 }
 
@@ -40,10 +43,10 @@ extension ServerDefinition {
     /// ```
     public static var environment: Self.Environments {
         get {
-            EnvironmentStorage.getEnvironment(for: Self.Environments.self) ?? Self.defaultEnvironment
+            EnvironmentStorage.getEnvironment(for: Self.self) ?? Self.defaultEnvironment
         }
         set {
-            EnvironmentStorage.setEnvironment(newValue, for: Self.Environments.self)
+            EnvironmentStorage.setEnvironment(newValue, for: Self.self)
         }
     }
 }

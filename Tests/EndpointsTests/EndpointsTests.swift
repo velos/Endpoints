@@ -266,4 +266,24 @@ struct EndpointsTests {
     func defaultEnvironment() throws {
         #expect(TestServer.defaultEnvironment == .production)
     }
+
+    @Test
+    func environmentSwitchingIsPerServer() {
+        // Both servers use TypicalEnvironments; switching one must not affect
+        // the other, which stays on its default.
+        EnvironmentIsolationServerA.environment = .staging
+
+        #expect(EnvironmentIsolationServerA.environment == .staging)
+        #expect(EnvironmentIsolationServerB.environment == .production)
+    }
+}
+
+struct EnvironmentIsolationServerA: ServerDefinition {
+    var baseUrls: [Environments: URL] { [.production: URL(string: "https://a.example.com")!] }
+    static var defaultEnvironment: Environments { .production }
+}
+
+struct EnvironmentIsolationServerB: ServerDefinition {
+    var baseUrls: [Environments: URL] { [.production: URL(string: "https://b.example.com")!] }
+    static var defaultEnvironment: Environments { .production }
 }
