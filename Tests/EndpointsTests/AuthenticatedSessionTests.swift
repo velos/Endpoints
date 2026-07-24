@@ -74,7 +74,7 @@ actor TestAuth: AuthenticationMethod {
         response?.statusCode == 401
     }
 
-    func reauthenticate() async throws(AuthenticationError) {
+    func reauthenticate(after failedRequest: URLRequest) async throws(AuthenticationError) {
         reauthenticateCount += 1
     }
 

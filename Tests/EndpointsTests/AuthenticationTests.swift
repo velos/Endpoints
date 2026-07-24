@@ -59,16 +59,19 @@ struct AuthenticationTests {
             }
         )
 
-        await withTaskGroup(of: Void.self) { group in
+        var failedRequest = URLRequest(url: URL(string: "https://example.com")!)
+        failedRequest.setValue("Bearer old", forHTTPHeaderField: Header.authorization.name)
+
+        await withTaskGroup(of: Void.self) { [failedRequest] group in
             for _ in 0..<5 {
                 group.addTask {
-                    try? await auth.reauthenticate()
+                    try? await auth.reauthenticate(after: failedRequest)
                 }
             }
         }
 
         #expect(await counter.value() == 1)
-        #expect((await auth.getTokens())?.accessToken == "new")
+        #expect((await auth.tokens)?.accessToken == "new")
     }
 
     @Test

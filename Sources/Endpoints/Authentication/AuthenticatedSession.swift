@@ -106,7 +106,7 @@ public extension AuthenticatedSession {
                 }
 
                 do {
-                    try await auth.reauthenticate()
+                    try await auth.reauthenticate(after: authenticatedRequest)
                 } catch {
                     throw T.TaskError.authenticationError(error)
                 }

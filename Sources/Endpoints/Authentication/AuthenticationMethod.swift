@@ -24,6 +24,12 @@ public protocol AuthenticationMethod: Sendable {
 
     /// Performs reauthentication (e.g., token refresh).
     ///
+    /// - Parameter failedRequest: The authenticated request that failed, as returned by
+    ///   ``authenticate(request:)``. Implementations that rotate credentials should compare
+    ///   the failed request's credentials against their current ones and skip refreshing
+    ///   when they no longer match — the request failed with credentials that have already
+    ///   been replaced, so refreshing again would needlessly consume a refresh token.
+    ///
     /// Implementations should coalesce concurrent calls into a single refresh operation.
-    func reauthenticate() async throws(AuthenticationError)
+    func reauthenticate(after failedRequest: URLRequest) async throws(AuthenticationError)
 }

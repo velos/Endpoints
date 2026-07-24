@@ -16,7 +16,7 @@ public struct NoAuth: AuthenticationMethod {
         false
     }
 
-    public func reauthenticate() async throws(AuthenticationError) {
+    public func reauthenticate(after failedRequest: URLRequest) async throws(AuthenticationError) {
         throw AuthenticationError.refreshNotSupported
     }
 }

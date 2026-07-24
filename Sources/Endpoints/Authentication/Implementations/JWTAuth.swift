@@ -90,7 +90,9 @@ public actor JWTAuth: AuthenticationMethod {
             do {
                 currentTokens = try await pendingRefresh.value
             } catch {
-                // Refresh failed - fall through to notAuthenticated if no token is available.
+                // The in-flight refresh failed. Keep the existing (possibly expired)
+                // tokens and send the request anyway; if it is rejected, the failure
+                // surfaces through shouldReauthenticate/reauthenticate.
             }
         }
 
@@ -99,8 +101,7 @@ public actor JWTAuth: AuthenticationMethod {
         }
 
         var mutableRequest = request
-        let headerValue = "\(configuration.tokenPrefix) \(accessToken)"
-        mutableRequest.setValue(headerValue, forHTTPHeaderField: configuration.header.name)
+        mutableRequest.setValue(headerValue(for: accessToken), forHTTPHeaderField: configuration.header.name)
         return mutableRequest
     }
 
@@ -111,7 +112,15 @@ public actor JWTAuth: AuthenticationMethod {
         return configuration.refreshTriggerStatusCodes.contains(statusCode)
     }
 
-    public func reauthenticate() async throws(AuthenticationError) {
+    public func reauthenticate(after failedRequest: URLRequest) async throws(AuthenticationError) {
+        // If the tokens have rotated since the failed request was authenticated, the
+        // refresh that request needed has already happened. Refreshing again would
+        // consume another refresh token (often single-use), so skip.
+        if let accessToken = currentTokens?.accessToken,
+           failedRequest.value(forHTTPHeaderField: configuration.header.name) != headerValue(for: accessToken) {
+            return
+        }
+
         if let existingRefresh = pendingRefresh {
             currentTokens = try await awaitRefresh(existingRefresh)
             return
@@ -147,6 +156,10 @@ public actor JWTAuth: AuthenticationMethod {
         }
     }
 
+    private nonisolated func headerValue(for accessToken: String) -> String {
+        "\(configuration.tokenPrefix) \(accessToken)"
+    }
+
     /// Awaits a refresh task, mapping its untyped failure back to ``AuthenticationError``.
     private func awaitRefresh(_ task: Task<TokenPair, Error>) async throws(AuthenticationError) -> TokenPair {
         do {
@@ -172,7 +185,8 @@ public actor JWTAuth: AuthenticationMethod {
         pendingRefresh = nil
     }
 
-    public func getTokens() -> TokenPair? {
+    /// The current token pair, if any.
+    public var tokens: TokenPair? {
         currentTokens
     }
 
