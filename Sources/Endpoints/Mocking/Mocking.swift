@@ -44,7 +44,7 @@ struct Mocking {
     /// Handles a mock request for the specified endpoint type (async/await version).
     /// - Parameter endpointsOfType: The endpoint type being requested
     /// - Returns: The mock response, or nil if no mock is active
-    func handlMock<T: Endpoint>(for endpointsOfType: T.Type) async throws -> T.Response? {
+    func handleMock<T: Endpoint>(for endpointsOfType: T.Type) async throws(T.TaskError) -> T.Response? {
         guard let action = await actionForMock(for: T.self) else {
             return nil
         }
@@ -100,7 +100,7 @@ extension Mocking {
     /// Handles a mock request for Combine publishers.
     /// - Parameter endpointsOfType: The endpoint type being requested
     /// - Returns: A publisher that emits the mock response or error
-    func handleMock<T: Endpoint>(for endpointsOfType: T.Type) -> AnyPublisher<T.Response?, T.TaskError> {
+    func handleMockPublisher<T: Endpoint>(for endpointsOfType: T.Type) -> AnyPublisher<T.Response?, T.TaskError> {
         guard shouldHandleMock(for: T.self) else {
             return Just(nil)
                 .setFailureType(to: T.TaskError.self)

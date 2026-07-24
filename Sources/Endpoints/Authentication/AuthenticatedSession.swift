@@ -33,7 +33,7 @@ public extension AuthenticatedSession {
     func response<T: Endpoint>(with endpoint: T) async throws -> T.Response
     where T.Response: Decodable {
         #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
-        if let mockResponse = try await Mocking.shared.handlMock(for: T.self) {
+        if let mockResponse = try await Mocking.shared.handleMock(for: T.self) {
             return mockResponse
         }
         #endif
@@ -47,7 +47,7 @@ public extension AuthenticatedSession {
     func response<T: Endpoint>(with endpoint: T) async throws
     where T.Response == Void {
         #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
-        if let _: T.Response = try await Mocking.shared.handlMock(for: T.self) {
+        if let _: T.Response = try await Mocking.shared.handleMock(for: T.self) {
             return
         }
         #endif
@@ -59,7 +59,7 @@ public extension AuthenticatedSession {
     func response<T: Endpoint>(with endpoint: T) async throws -> T.Response
     where T.Response == Data {
         #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
-        if let mockResponse = try await Mocking.shared.handlMock(for: T.self) {
+        if let mockResponse = try await Mocking.shared.handleMock(for: T.self) {
             return mockResponse
         }
         #endif
@@ -113,15 +113,11 @@ public extension AuthenticatedSession {
         throw AuthenticationError.maxRetriesExceeded
     }
 
-    private func createUrlRequest<T: Endpoint>(for endpoint: T) throws -> URLRequest {
+    private func createUrlRequest<T: Endpoint>(for endpoint: T) throws(T.TaskError) -> URLRequest {
         do {
             return try endpoint.urlRequest()
         } catch {
-            guard let endpointError = error as? EndpointError else {
-                fatalError("Unhandled endpoint error: \(error)")
-            }
-
-            throw T.TaskError.endpointError(endpointError)
+            throw T.TaskError.endpointError(error)
         }
     }
 

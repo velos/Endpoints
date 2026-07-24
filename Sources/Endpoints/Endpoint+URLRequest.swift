@@ -18,12 +18,13 @@ extension Endpoint {
     /// - Parameter environment: The environment in which to create the request
     /// - Throws: An ``EndpointError`` which describes the error filling in data to the associated ``Definition``.
     /// - Returns: A `URLRequest` ready for requesting with all values from `self` filled in according to the associated ``Endpoint``.
-    public func urlRequest() throws -> URLRequest {
+    public func urlRequest() throws(EndpointError) -> URLRequest {
 
         var components = URLComponents()
         components.path = Self.definition.path.path(with: pathComponents)
 
-        let urlQueryItems: [URLQueryItem] = try Self.definition.parameters.compactMap { item in
+        var urlQueryItems: [URLQueryItem] = []
+        for item in Self.definition.parameters {
 
             let value: Any
             let name: String
@@ -35,7 +36,7 @@ extension Endpoint {
                 value = queryValue
                 name = queryName
             default:
-                return nil
+                continue
             }
 
             guard let queryValue = value as? ParameterRepresentable else {
@@ -43,13 +44,12 @@ extension Endpoint {
             }
 
             if let encodedValue = queryValue.parameterValue {
-                return URLQueryItem(name: name, value: encodedValue)
+                urlQueryItems.append(URLQueryItem(name: name, value: encodedValue))
             }
-
-            return nil
         }
 
-        let bodyFormItems: [URLQueryItem] = try Self.definition.parameters.compactMap { item in
+        var bodyFormItems: [URLQueryItem] = []
+        for item in Self.definition.parameters {
 
             let value: Any
             let name: String
@@ -61,7 +61,7 @@ extension Endpoint {
                 value = formValue
                 name = formName
             default:
-                return nil
+                continue
             }
 
             guard let formValue = value as? ParameterRepresentable else {
@@ -69,10 +69,8 @@ extension Endpoint {
             }
 
             if let encodedValue = formValue.parameterValue {
-                return URLQueryItem(name: name, value: encodedValue)
+                bodyFormItems.append(URLQueryItem(name: name, value: encodedValue))
             }
-
-            return nil
         }
 
         if !urlQueryItems.isEmpty {
@@ -106,7 +104,8 @@ extension Endpoint {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = Self.definition.method.methodString
 
-        let headerItems: [String: String] = try Self.definition.headers.reduce(into: [:]) { allHeaders, field in
+        var headerItems: [String: String] = [:]
+        for field in Self.definition.headers {
             let value: Any
             let name = field.key.name
 
@@ -121,7 +120,7 @@ extension Endpoint {
                 throw EndpointError.invalidHeader(named: name, type: type(of: value))
             }
 
-            allHeaders[name] = headerValue.description
+            headerItems[name] = headerValue.description
         }
 
         for (name, value) in headerItems {

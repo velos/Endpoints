@@ -24,7 +24,7 @@ public extension URLSession {
         do {
             urlRequest = try createUrlRequest(for: endpoint)
         } catch {
-            return Fail(outputType: T.Response.self, failure: error as! T.TaskError)
+            return Fail(outputType: T.Response.self, failure: error)
                 .eraseToAnyPublisher()
         }
 
@@ -45,7 +45,7 @@ public extension URLSession {
             .mapError { $0 as! T.TaskError }
 
             #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
-            return Mocking.shared.handleMock(for: T.self)
+            return Mocking.shared.handleMockPublisher(for: T.self)
                 .flatMap { mock in
                     if let mock {
                         return Just(mock)
@@ -74,7 +74,7 @@ public extension URLSession {
         do {
             urlRequest = try createUrlRequest(for: endpoint)
         } catch {
-            return Fail(outputType: T.Response.self, failure: error as! T.TaskError)
+            return Fail(outputType: T.Response.self, failure: error)
                 .eraseToAnyPublisher()
         }
 
@@ -95,7 +95,7 @@ public extension URLSession {
             .mapError { $0 as! T.TaskError }
 
             #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
-            return Mocking.shared.handleMock(for: T.self)
+            return Mocking.shared.handleMockPublisher(for: T.self)
                 .flatMap { mock in
                     if let mock {
                         return Just(mock)
@@ -124,7 +124,7 @@ public extension URLSession {
         do {
             urlRequest = try createUrlRequest(for: endpoint)
         } catch {
-            return Fail(outputType: T.Response.self, failure: error as! T.TaskError)
+            return Fail(outputType: T.Response.self, failure: error)
                 .eraseToAnyPublisher()
         }
         
@@ -151,7 +151,7 @@ public extension URLSession {
             .mapError { $0 as! T.TaskError }
 
         #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
-        return Mocking.shared.handleMock(for: T.self)
+        return Mocking.shared.handleMockPublisher(for: T.self)
             .flatMap { mock in
                 if let mock {
                     return Just(mock)
