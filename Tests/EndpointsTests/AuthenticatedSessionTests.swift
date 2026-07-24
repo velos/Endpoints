@@ -11,12 +11,6 @@ import FoundationNetworking
 @Suite("Authenticated Session", .serialized)
 struct AuthenticatedSessionTests {
 
-    private static func makeSession() -> URLSession {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [TestURLProtocol.self]
-        return URLSession(configuration: configuration)
-    }
-
     private static let url = URL(string: "https://api.velosmobile.com/auth/test")!
 
     @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
@@ -30,13 +24,13 @@ struct AuthenticatedSessionTests {
             (HTTPURLResponse(url: Self.url, statusCode: 200, httpVersion: nil, headerFields: nil)!, successData)
         ])
 
-        TestURLProtocol.handler = { _ in
+        TestURLProtocol.register(path: "/auth/test") { _ in
             try responses.next()
         }
-        defer { TestURLProtocol.handler = nil }
+        defer { TestURLProtocol.unregister(path: "/auth/test") }
 
         let auth = TestAuth()
-        let session = AuthenticatedSession(session: Self.makeSession(), auth: auth, maxRetryAttempts: 1)
+        let session = AuthenticatedSession(session: TestURLProtocol.makeSession(), auth: auth, maxRetryAttempts: 1)
 
         let response = try await session.response(with: AuthTestEndpoint())
 
@@ -57,13 +51,13 @@ struct AuthenticatedSessionTests {
             (HTTPURLResponse(url: Self.url, statusCode: 401, httpVersion: nil, headerFields: nil)!, errorData)
         ])
 
-        TestURLProtocol.handler = { _ in
+        TestURLProtocol.register(path: "/auth/test") { _ in
             try responses.next()
         }
-        defer { TestURLProtocol.handler = nil }
+        defer { TestURLProtocol.unregister(path: "/auth/test") }
 
         let auth = TestAuth()
-        let session = AuthenticatedSession(session: Self.makeSession(), auth: auth, maxRetryAttempts: 1)
+        let session = AuthenticatedSession(session: TestURLProtocol.makeSession(), auth: auth, maxRetryAttempts: 1)
 
         do {
             _ = try await session.response(with: AuthTestEndpoint())
@@ -91,12 +85,12 @@ struct AuthenticatedSessionTests {
             (HTTPURLResponse(url: Self.url, statusCode: 401, httpVersion: nil, headerFields: nil)!, errorData)
         ])
 
-        TestURLProtocol.handler = { _ in
+        TestURLProtocol.register(path: "/auth/test") { _ in
             try responses.next()
         }
-        defer { TestURLProtocol.handler = nil }
+        defer { TestURLProtocol.unregister(path: "/auth/test") }
 
-        let session = AuthenticatedSession(session: Self.makeSession(), auth: FailingRefreshAuth(), maxRetryAttempts: 1)
+        let session = AuthenticatedSession(session: TestURLProtocol.makeSession(), auth: FailingRefreshAuth(), maxRetryAttempts: 1)
 
         do {
             _ = try await session.response(with: AuthTestEndpoint())
@@ -121,11 +115,11 @@ struct AuthenticatedSessionTests {
         ])
 
         let recorder = RequestRecorder()
-        TestURLProtocol.handler = { request in
+        TestURLProtocol.register(path: "/auth/test") { request in
             recorder.record(request)
             return try responses.next()
         }
-        defer { TestURLProtocol.handler = nil }
+        defer { TestURLProtocol.unregister(path: "/auth/test") }
 
         let auth = JWTAuth(
             initialTokens: .init(accessToken: "old-access", refreshToken: "old-refresh"),
@@ -134,7 +128,7 @@ struct AuthenticatedSessionTests {
                 return JWTAuth.TokenPair(accessToken: "new-access", refreshToken: "new-refresh")
             }
         )
-        let session = AuthenticatedSession(session: Self.makeSession(), auth: auth, maxRetryAttempts: 1)
+        let session = AuthenticatedSession(session: TestURLProtocol.makeSession(), auth: auth, maxRetryAttempts: 1)
 
         let response = try await session.response(with: AuthTestEndpoint())
 
@@ -149,16 +143,16 @@ struct AuthenticatedSessionTests {
     @Test
     func jwtWithoutTokensFailsWithoutSendingRequest() async throws {
         let recorder = RequestRecorder()
-        TestURLProtocol.handler = { request in
+        TestURLProtocol.register(path: "/auth/test") { request in
             recorder.record(request)
             throw URLError(.badServerResponse)
         }
-        defer { TestURLProtocol.handler = nil }
+        defer { TestURLProtocol.unregister(path: "/auth/test") }
 
         let auth = JWTAuth(initialTokens: nil) { _ in
             JWTAuth.TokenPair(accessToken: "new", refreshToken: "refresh")
         }
-        let session = AuthenticatedSession(session: Self.makeSession(), auth: auth)
+        let session = AuthenticatedSession(session: TestURLProtocol.makeSession(), auth: auth)
 
         do {
             _ = try await session.response(with: AuthTestEndpoint())
@@ -171,6 +165,142 @@ struct AuthenticatedSessionTests {
         }
 
         #expect(recorder.all().isEmpty)
+    }
+
+    @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
+    @Test
+    func jwtRefreshFailureInvokesFailureHandler() async throws {
+        let errorData = try JSONEncoder().encode(AuthTestEndpoint.ErrorResponse(message: "unauthorized"))
+
+        let responses = ResponseQueue([
+            (HTTPURLResponse(url: Self.url, statusCode: 401, httpVersion: nil, headerFields: nil)!, errorData)
+        ])
+
+        TestURLProtocol.register(path: "/auth/test") { _ in
+            try responses.next()
+        }
+        defer { TestURLProtocol.unregister(path: "/auth/test") }
+
+        let failureBox = ErrorBox()
+        let auth = JWTAuth(
+            initialTokens: .init(accessToken: "old", refreshToken: "refresh"),
+            refreshHandler: { _ in throw TestRefreshError() },
+            onRefreshFailed: { error in await failureBox.set(error) }
+        )
+        let session = AuthenticatedSession(session: TestURLProtocol.makeSession(), auth: auth, maxRetryAttempts: 1)
+
+        do {
+            _ = try await session.response(with: AuthTestEndpoint())
+            Issue.record("Expected authenticationError to be thrown")
+        } catch {
+            guard case .authenticationError(.refreshFailed(let underlying)) = error else {
+                Issue.record("Unexpected error: \(error)")
+                return
+            }
+            #expect(underlying is TestRefreshError)
+        }
+
+        #expect(await failureBox.error is TestRefreshError)
+        #expect((await auth.tokens)?.accessToken == "old")
+    }
+
+    @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
+    @Test
+    func staticAuthDoesNotRetryOn401() async throws {
+        let errorData = try JSONEncoder().encode(AuthTestEndpoint.ErrorResponse(message: "unauthorized"))
+
+        let responses = ResponseQueue([
+            (HTTPURLResponse(url: Self.url, statusCode: 401, httpVersion: nil, headerFields: nil)!, errorData)
+        ])
+
+        let recorder = RequestRecorder()
+        TestURLProtocol.register(path: "/auth/test") { request in
+            recorder.record(request)
+            return try responses.next()
+        }
+        defer { TestURLProtocol.unregister(path: "/auth/test") }
+
+        let session = AuthenticatedSession(session: TestURLProtocol.makeSession(), auth: HeaderKeyAuth(key: "static-key"), maxRetryAttempts: 1)
+
+        do {
+            _ = try await session.response(with: AuthTestEndpoint())
+            Issue.record("Expected errorResponse to be thrown")
+        } catch {
+            guard case .errorResponse(let httpResponse, _) = error else {
+                Issue.record("Unexpected error: \(error)")
+                return
+            }
+            #expect(httpResponse.statusCode == 401)
+        }
+
+        let sent = recorder.all()
+        #expect(sent.count == 1)
+        #expect(sent.first?.value(forHTTPHeaderField: Header.authorization.name) == "Bearer static-key")
+    }
+
+    @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
+    @Test
+    func voidResponse() async throws {
+        let voidUrl = URL(string: "https://api.velosmobile.com/auth/void")!
+        let responses = ResponseQueue([
+            (HTTPURLResponse(url: voidUrl, statusCode: 204, httpVersion: nil, headerFields: nil)!, Data())
+        ])
+
+        TestURLProtocol.register(path: "/auth/void") { _ in
+            try responses.next()
+        }
+        defer { TestURLProtocol.unregister(path: "/auth/void") }
+
+        let session = AuthenticatedSession(session: TestURLProtocol.makeSession(), auth: NoAuth())
+
+        try await session.response(with: AuthVoidEndpoint())
+    }
+
+    @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
+    @Test
+    func dataResponse() async throws {
+        let dataUrl = URL(string: "https://api.velosmobile.com/auth/data")!
+        let payload = Data([0xde, 0xad, 0xbe, 0xef])
+        let responses = ResponseQueue([
+            (HTTPURLResponse(url: dataUrl, statusCode: 200, httpVersion: nil, headerFields: nil)!, payload)
+        ])
+
+        TestURLProtocol.register(path: "/auth/data") { _ in
+            try responses.next()
+        }
+        defer { TestURLProtocol.unregister(path: "/auth/data") }
+
+        let session = AuthenticatedSession(session: TestURLProtocol.makeSession(), auth: NoAuth())
+
+        let response = try await session.response(with: AuthDataEndpoint())
+        #expect(response == payload)
+    }
+
+    @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
+    @Test
+    func decodeFailureSurfacesAsResponseParseError() async throws {
+        let garbage = Data("not json".utf8)
+        let responses = ResponseQueue([
+            (HTTPURLResponse(url: Self.url, statusCode: 200, httpVersion: nil, headerFields: nil)!, garbage)
+        ])
+
+        TestURLProtocol.register(path: "/auth/test") { _ in
+            try responses.next()
+        }
+        defer { TestURLProtocol.unregister(path: "/auth/test") }
+
+        let session = AuthenticatedSession(session: TestURLProtocol.makeSession(), auth: NoAuth())
+
+        do {
+            _ = try await session.response(with: AuthTestEndpoint())
+            Issue.record("Expected responseParseError to be thrown")
+        } catch {
+            guard case .responseParseError(let data, _) = error else {
+                Issue.record("Unexpected error: \(error)")
+                return
+            }
+            #expect(data == garbage)
+        }
     }
 }
 
@@ -189,6 +319,26 @@ struct AuthTestEndpoint: Endpoint {
     struct ErrorResponse: Codable, Sendable, Equatable {
         let message: String
     }
+}
+
+struct AuthVoidEndpoint: Endpoint {
+    typealias Server = TestServer
+    typealias Response = Void
+
+    static let definition: Definition<AuthVoidEndpoint> = Definition(
+        method: .post,
+        path: "auth/void"
+    )
+}
+
+struct AuthDataEndpoint: Endpoint {
+    typealias Server = TestServer
+    typealias Response = Data
+
+    static let definition: Definition<AuthDataEndpoint> = Definition(
+        method: .get,
+        path: "auth/data"
+    )
 }
 
 actor TestAuth: AuthenticationMethod {
@@ -227,69 +377,13 @@ struct FailingRefreshAuth: AuthenticationMethod {
     }
 }
 
-final class ResponseQueue: @unchecked Sendable {
-    private var responses: [(HTTPURLResponse, Data)]
-    private let lock = NSLock()
+struct TestRefreshError: Error {}
 
-    init(_ responses: [(HTTPURLResponse, Data)]) {
-        self.responses = responses
+actor ErrorBox {
+    private(set) var error: Error?
+
+    func set(_ error: Error) {
+        self.error = error
     }
-
-    func next() throws -> (HTTPURLResponse, Data) {
-        lock.lock()
-        defer { lock.unlock() }
-
-        guard !responses.isEmpty else {
-            throw URLError(.badServerResponse)
-        }
-        return responses.removeFirst()
-    }
-}
-
-final class RequestRecorder: @unchecked Sendable {
-    private var requests: [URLRequest] = []
-    private let lock = NSLock()
-
-    func record(_ request: URLRequest) {
-        lock.lock()
-        defer { lock.unlock() }
-        requests.append(request)
-    }
-
-    func all() -> [URLRequest] {
-        lock.lock()
-        defer { lock.unlock() }
-        return requests
-    }
-}
-
-final class TestURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
-
-    override class func canInit(with request: URLRequest) -> Bool {
-        true
-    }
-
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
-        request
-    }
-
-    override func startLoading() {
-        guard let handler = Self.handler else {
-            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
-            return
-        }
-
-        do {
-            let (response, data) = try handler(request)
-            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-            client?.urlProtocol(self, didLoad: data)
-            client?.urlProtocolDidFinishLoading(self)
-        } catch {
-            client?.urlProtocol(self, didFailWithError: error)
-        }
-    }
-
-    override func stopLoading() {}
 }
 #endif

@@ -126,6 +126,122 @@ struct AuthenticationTests {
 
         #expect(authenticated.value(forHTTPHeaderField: Header.cookie.name) == "theme=dark; session=new")
     }
+
+    @Test
+    func noAuthPassesThroughAndDoesNotSupportRefresh() async throws {
+        let auth = NoAuth()
+        var request = URLRequest(url: URL(string: "https://example.com")!)
+        request.setValue("value", forHTTPHeaderField: "X-Existing")
+
+        let authenticated = try await auth.authenticate(request: request)
+        #expect(authenticated == request)
+
+        // Default implementations: never reauthenticate, refresh unsupported.
+        #expect(auth.shouldReauthenticate(for: URLError(.userAuthenticationRequired), response: nil) == false)
+
+        do {
+            try await auth.reauthenticate(after: request)
+            Issue.record("Expected refreshNotSupported error")
+        } catch {
+            guard case .refreshNotSupported = error else {
+                Issue.record("Unexpected error: \(error)")
+                return
+            }
+        }
+    }
+
+    @Test
+    func jwtAuthTokenManagement() async throws {
+        let auth = JWTAuth(initialTokens: nil) { refreshToken in
+            JWTAuth.TokenPair(accessToken: "refreshed", refreshToken: refreshToken)
+        }
+
+        #expect(await auth.isAuthenticated == false)
+        #expect(await auth.tokens == nil)
+
+        let tokens = JWTAuth.TokenPair(accessToken: "access", refreshToken: "refresh")
+        await auth.setTokens(tokens)
+        #expect(await auth.isAuthenticated == true)
+        #expect(await auth.tokens == tokens)
+
+        let authenticated = try await auth.authenticate(request: URLRequest(url: URL(string: "https://example.com")!))
+        #expect(authenticated.value(forHTTPHeaderField: Header.authorization.name) == "Bearer access")
+
+        await auth.clearTokens()
+        #expect(await auth.isAuthenticated == false)
+        #expect(await auth.tokens == nil)
+
+        do {
+            _ = try await auth.authenticate(request: URLRequest(url: URL(string: "https://example.com")!))
+            Issue.record("Expected notAuthenticated error")
+        } catch {
+            guard case .notAuthenticated = error else {
+                Issue.record("Unexpected error: \(error)")
+                return
+            }
+        }
+    }
+
+    @Test
+    func jwtAuthenticateAwaitsInFlightRefresh() async throws {
+        let refreshStarted = Gate()
+        let releaseRefresh = Gate()
+
+        let auth = JWTAuth(
+            initialTokens: .init(accessToken: "old", refreshToken: "refresh"),
+            refreshHandler: { refreshToken in
+                await refreshStarted.open()
+                await releaseRefresh.wait()
+                return JWTAuth.TokenPair(accessToken: "new", refreshToken: refreshToken)
+            }
+        )
+
+        var staleRequest = URLRequest(url: URL(string: "https://example.com")!)
+        staleRequest.setValue("Bearer old", forHTTPHeaderField: Header.authorization.name)
+
+        let refreshTask = Task { [staleRequest] in
+            try await auth.reauthenticate(after: staleRequest)
+        }
+
+        await refreshStarted.wait()
+
+        // While the refresh is still in flight, authenticate must wait for it
+        // and pick up the new access token.
+        async let authenticated = auth.authenticate(request: URLRequest(url: URL(string: "https://example.com")!))
+        await Task.yield()
+        await releaseRefresh.open()
+
+        let request = try await authenticated
+        #expect(request.value(forHTTPHeaderField: Header.authorization.name) == "Bearer new")
+
+        try await refreshTask.value
+        #expect((await auth.tokens)?.accessToken == "new")
+    }
+
+    @Test
+    func authenticationErrorExposesUnderlyingError() {
+        let underlying = URLError(.timedOut)
+        let bridged = AuthenticationError.refreshFailed(underlying: underlying) as NSError
+
+        #expect((bridged.userInfo[NSUnderlyingErrorKey] as? URLError) == underlying)
+        #expect((AuthenticationError.notAuthenticated as NSError).userInfo[NSUnderlyingErrorKey] == nil)
+    }
+}
+
+actor Gate {
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        if isOpen { return }
+        await withCheckedContinuation { waiters.append($0) }
+    }
+
+    func open() {
+        isOpen = true
+        waiters.forEach { $0.resume() }
+        waiters.removeAll()
+    }
 }
 
 actor RefreshCounter {
