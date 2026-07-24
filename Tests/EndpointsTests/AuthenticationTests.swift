@@ -75,6 +75,27 @@ struct AuthenticationTests {
     }
 
     @Test
+    func jwtAuthSkipsRefreshWhenTokensAlreadyRotated() async throws {
+        let counter = RefreshCounter()
+        let auth = JWTAuth(
+            initialTokens: .init(accessToken: "new", refreshToken: "refresh"),
+            refreshHandler: { refreshToken in
+                await counter.increment()
+                return JWTAuth.TokenPair(accessToken: "newer", refreshToken: refreshToken)
+            }
+        )
+
+        // A request authenticated with credentials that have since been replaced.
+        var staleRequest = URLRequest(url: URL(string: "https://example.com")!)
+        staleRequest.setValue("Bearer old", forHTTPHeaderField: Header.authorization.name)
+
+        try await auth.reauthenticate(after: staleRequest)
+
+        #expect(await counter.value() == 0)
+        #expect((await auth.tokens)?.accessToken == "new")
+    }
+
+    @Test
     func cookieAuthSetsCookieHeader() async throws {
         let auth = CookieAuth(name: "session", value: "abc123")
         let request = URLRequest(url: URL(string: "https://example.com")!)
@@ -93,6 +114,17 @@ struct AuthenticationTests {
         let authenticated = try await auth.authenticate(request: request)
 
         #expect(authenticated.value(forHTTPHeaderField: Header.cookie.name) == "theme=dark; session=abc123")
+    }
+
+    @Test
+    func cookieAuthReplacesExistingSameNameCookie() async throws {
+        let auth = CookieAuth(name: "session", value: "new")
+        var request = URLRequest(url: URL(string: "https://example.com")!)
+        request.setValue("session=old; theme=dark", forHTTPHeaderField: Header.cookie.name)
+
+        let authenticated = try await auth.authenticate(request: request)
+
+        #expect(authenticated.value(forHTTPHeaderField: Header.cookie.name) == "theme=dark; session=new")
     }
 }
 
