@@ -105,6 +105,7 @@ let response = try await session.response(with: MyEndpoint())
 Built-in authentication methods:
 
 - `HeaderKeyAuth` - A static key in a header, with an optional prefix. Defaults to `Authorization: Bearer <key>`; use `HeaderKeyAuth(key: "secret", header: "X-API-Key", prefix: nil)` for custom API-key headers.
+- `BasicAuth` - HTTP Basic credentials (RFC 7617), UTF-8 encoded.
 - `CookieAuth` - A static cookie, merged with any cookies already on the request.
 - `JWTAuth` - Access/refresh token pairs with automatic refresh (see below).
 - `NoAuth` - Passes requests through unchanged. Useful as a generic placeholder.
@@ -149,6 +150,8 @@ struct SignatureAuth: AuthenticationMethod {
     }
 }
 ```
+
+For failures that don't fit the built-in `AuthenticationError` cases (credential storage errors, signing failures), wrap them in `AuthenticationError.custom(underlying:)`.
 
 ### Error handling
 

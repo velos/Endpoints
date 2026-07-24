@@ -38,6 +38,57 @@ struct AuthenticatedSessionMockingTests {
         }
     }
 
+    /// Conforms to AuthenticationMethod against the public API only (this target does
+    /// not use @testable import Endpoints), proving external packages can implement
+    /// custom authentication methods.
+    @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
+    @Test
+    func externalCustomAuthMethodConformance() async throws {
+        struct StampAuth: AuthenticationMethod {
+            let stamp: String
+            let failSigning: Bool
+
+            struct SigningError: Error {}
+
+            func authenticate(request: URLRequest) async throws(AuthenticationError) -> URLRequest {
+                guard !failSigning else {
+                    throw .custom(underlying: SigningError())
+                }
+                var request = request
+                request.setValue(stamp, forHTTPHeaderField: "X-Stamp")
+                return request
+            }
+        }
+
+        let authenticated = try await StampAuth(stamp: "stamped", failSigning: false)
+            .authenticate(request: URLRequest(url: URL(string: "https://example.com")!))
+        #expect(authenticated.value(forHTTPHeaderField: "X-Stamp") == "stamped")
+
+        // The default implementations come along for free.
+        do {
+            try await StampAuth(stamp: "stamped", failSigning: false)
+                .reauthenticate(after: authenticated)
+            Issue.record("Expected refreshNotSupported error")
+        } catch {
+            guard case .refreshNotSupported = error else {
+                Issue.record("Unexpected error: \(error)")
+                return
+            }
+        }
+
+        // Implementation-specific failures surface through the custom case.
+        do {
+            _ = try await StampAuth(stamp: "stamped", failSigning: true)
+                .authenticate(request: URLRequest(url: URL(string: "https://example.com")!))
+            Issue.record("Expected custom error")
+        } catch {
+            guard case .custom(let underlying) = error, underlying is StampAuth.SigningError else {
+                Issue.record("Unexpected error: \(error)")
+                return
+            }
+        }
+    }
+
     @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
     @Test
     func mockedAuthenticationErrorSurfacesTyped() async throws {

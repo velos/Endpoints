@@ -13,12 +13,18 @@ public enum AuthenticationError: Error, Sendable {
 
     /// The authentication method does not support refresh.
     case refreshNotSupported
+
+    /// An implementation-specific authentication failure.
+    ///
+    /// Use this from custom ``AuthenticationMethod`` implementations for failures
+    /// that don't fit the other cases (e.g. credential storage or signing errors).
+    case custom(underlying: Error)
 }
 
 extension AuthenticationError: CustomNSError {
     public var errorUserInfo: [String: Any] {
         switch self {
-        case .refreshFailed(let underlying):
+        case .refreshFailed(let underlying), .custom(let underlying):
             return [NSUnderlyingErrorKey: underlying]
         default:
             return [:]

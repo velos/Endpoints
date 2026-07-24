@@ -128,6 +128,29 @@ struct AuthenticationTests {
     }
 
     @Test
+    func basicAuthEncodesCredentials() async throws {
+        let auth = BasicAuth(username: "user", password: "pass")
+        let request = URLRequest(url: URL(string: "https://example.com")!)
+
+        let authenticated = try await auth.authenticate(request: request)
+
+        #expect(authenticated.value(forHTTPHeaderField: Header.authorization.name) == "Basic dXNlcjpwYXNz")
+    }
+
+    @Test
+    func basicAuthEncodesUTF8AndColonsInPassword() async throws {
+        let utf8Auth = BasicAuth(username: "müller", password: "pässwörd")
+        let request = URLRequest(url: URL(string: "https://example.com")!)
+
+        let utf8Authenticated = try await utf8Auth.authenticate(request: request)
+        #expect(utf8Authenticated.value(forHTTPHeaderField: Header.authorization.name) == "Basic bcO8bGxlcjpww6Rzc3fDtnJk")
+
+        let colonAuth = BasicAuth(username: "user", password: "pa:ss")
+        let colonAuthenticated = try await colonAuth.authenticate(request: request)
+        #expect(colonAuthenticated.value(forHTTPHeaderField: Header.authorization.name) == "Basic dXNlcjpwYTpzcw==")
+    }
+
+    @Test
     func noAuthPassesThroughAndDoesNotSupportRefresh() async throws {
         let auth = NoAuth()
         var request = URLRequest(url: URL(string: "https://example.com")!)
