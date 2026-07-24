@@ -13,14 +13,14 @@ enum EnvironmentStorage {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var environments: [ObjectIdentifier: Any] = [:]
 
-    static func getEnvironment<T>(for type: T.Type) -> T? {
+    static func getEnvironment<T: Sendable>(for type: T.Type) -> T? {
         lock.lock()
         defer { lock.unlock() }
         let typeKey = ObjectIdentifier(type)
         return environments[typeKey] as? T
     }
 
-    static func setEnvironment<T>(_ environment: T, for type: T.Type) {
+    static func setEnvironment<T: Sendable>(_ environment: T, for type: T.Type) {
         lock.lock()
         defer { lock.unlock() }
         let typeKey = ObjectIdentifier(type)

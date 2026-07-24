@@ -41,7 +41,10 @@ public enum TypicalEnvironments: String, CaseIterable, Sendable {
 /// ```
 public protocol ServerDefinition: Sendable {
     /// The environment type for this server. Defaults to ``TypicalEnvironments``.
-    associatedtype Environments: Hashable = TypicalEnvironments
+    ///
+    /// Must be `Sendable`: the current environment is stored in shared state and may be
+    /// read and switched from any thread via ``environment``.
+    associatedtype Environments: Hashable & Sendable = TypicalEnvironments
 
     /// Required initializer for creating server instances.
     init()

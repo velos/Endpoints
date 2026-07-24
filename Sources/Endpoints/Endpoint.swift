@@ -18,7 +18,7 @@ public enum EndpointError: Error, Sendable {
     case invalidForm(named: String, type: Any.Type)
     case invalidHeader(named: String, type: Any.Type)
     case invalidBody(Error)
-    case misconfiguredServer(server: any (ServerDefinition & Sendable))
+    case misconfiguredServer(server: any ServerDefinition)
 }
 
 public enum Parameter<T>: Sendable {
