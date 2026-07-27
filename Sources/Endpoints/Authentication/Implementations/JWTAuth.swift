@@ -96,6 +96,13 @@ public actor JWTAuth: AuthenticationMethod {
     private var currentTokens: TokenPair?
     private var pendingRefresh: Task<TokenPair, Error>?
 
+    /// Instances whose `refreshHandler` is running in the current task tree.
+    ///
+    /// Task-local, so it propagates into any request the handler makes and lets
+    /// ``authenticate(request:)`` recognize a reentrant call.
+    @TaskLocal
+    private static var refreshingInstances: Set<ObjectIdentifier> = []
+
     // MARK: - Configuration & Handlers
 
     private nonisolated let configuration: Configuration
@@ -122,6 +129,13 @@ public actor JWTAuth: AuthenticationMethod {
     // MARK: - AuthenticationMethod
 
     public func authenticate(request: URLRequest) async throws(AuthenticationError) -> URLRequest {
+        // A request made from inside this instance's own refreshHandler would wait on
+        // the very refresh that is waiting on it. Fail with a diagnosable error instead
+        // of deadlocking the task.
+        if Self.refreshingInstances.contains(ObjectIdentifier(self)) {
+            throw .custom(underlying: RefreshReentrancyError(authType: Self.self))
+        }
+
         if let tokens = currentTokens,
            pendingRefresh != nil || tokens.isExpiring(within: configuration.expiryLeeway) {
             do {
@@ -195,10 +209,18 @@ public actor JWTAuth: AuthenticationMethod {
         let refreshHandler = self.refreshHandler
         let onTokensUpdated = self.onTokensUpdated
         let onRefreshFailed = self.onRefreshFailed
+        // Captured as a value so the refresh task does not retain the actor.
+        let identity = ObjectIdentifier(self)
 
         let refreshTask = Task<TokenPair, Error> {
             do {
-                let newTokens = try await refreshHandler(refreshToken)
+                // Marks this instance as refreshing for the duration of the handler, so a
+                // request that reenters authenticate from inside it can be detected.
+                let newTokens = try await Self.$refreshingInstances.withValue(
+                    Self.refreshingInstances.union([identity])
+                ) {
+                    try await refreshHandler(refreshToken)
+                }
                 await onTokensUpdated?(newTokens)
                 return newTokens
             } catch {

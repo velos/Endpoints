@@ -191,6 +191,43 @@ struct AuthenticatedEndpointTests {
         #expect(sentAuthorization == ["Bearer new-access"])
     }
 
+    /// A refresh handler that calls back through an endpoint authenticated by the same
+    /// JWTAuth would deadlock; it must surface as an error instead of hanging.
+    @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
+    @Test
+    func refreshHandlerReenteringItsOwnAuthFailsInsteadOfDeadlocking() async throws {
+        let errorData = try JSONEncoder().encode(AuthTestErrorResponse(message: "unauthorized"))
+        let successData = try JSONEncoder().encode(AuthTestResponse(value: "ok"))
+
+        TestURLProtocol.register(path: "/auth/reentrant") { _ in
+            (HTTPURLResponse(url: testURL("/auth/reentrant"), statusCode: 401, httpVersion: nil, headerFields: nil)!, errorData)
+        }
+        TestURLProtocol.register(path: "/auth/reentrant-refresh") { _ in
+            (HTTPURLResponse(url: testURL("/auth/reentrant-refresh"), statusCode: 200, httpVersion: nil, headerFields: nil)!, successData)
+        }
+        defer {
+            TestURLProtocol.unregister(path: "/auth/reentrant")
+            TestURLProtocol.unregister(path: "/auth/reentrant-refresh")
+        }
+
+        await ReentrantEndpoint.auth.setTokens(.init(accessToken: "old", refreshToken: "refresh"))
+
+        do {
+            _ = try await TestURLProtocol.makeSession().response(with: ReentrantEndpoint())
+            Issue.record("Expected the reentrant refresh to fail")
+        } catch {
+            // The refresh handler's own request failed with the reentrancy error, and
+            // that failure is what the refresh reports back.
+            guard case .authenticationError(.refreshFailed(let underlying)) = error,
+                  let handlerError = underlying as? ReentrantRefreshEndpoint.TaskError,
+                  case .authenticationError(.custom(let reentrancy)) = handlerError,
+                  reentrancy is RefreshReentrancyError else {
+                Issue.record("Unexpected error: \(error)")
+                return
+            }
+        }
+    }
+
     @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
     @Test
     func staticAuthDoesNotRetryOn401() async throws {
@@ -388,6 +425,32 @@ struct ProactiveEndpoint: Endpoint {
     }
 
     static let definition: Definition<ProactiveEndpoint> = Definition(method: .get, path: "auth/proactive")
+}
+
+/// Its refresh handler requests `ReentrantRefreshEndpoint`, which is authenticated by
+/// the very same JWTAuth — the deadlock shape the reentrancy guard detects.
+struct ReentrantEndpoint: Endpoint {
+    typealias Server = TestServer
+    typealias Response = AuthTestResponse
+    typealias ErrorResponse = AuthTestErrorResponse
+
+    static let auth = JWTAuth(initialTokens: nil) { _ in
+        _ = try await TestURLProtocol.makeSession().response(with: ReentrantRefreshEndpoint())
+        return JWTAuth.TokenPair(accessToken: "new", refreshToken: "new-refresh")
+    }
+
+    static let definition: Definition<ReentrantEndpoint> = Definition(method: .get, path: "auth/reentrant")
+}
+
+/// Deliberately shares `ReentrantEndpoint`'s auth instead of opting out with NoAuth.
+struct ReentrantRefreshEndpoint: Endpoint {
+    typealias Server = TestServer
+    typealias Response = AuthTestResponse
+    typealias ErrorResponse = AuthTestErrorResponse
+
+    static var auth: JWTAuth { ReentrantEndpoint.auth }
+
+    static let definition: Definition<ReentrantRefreshEndpoint> = Definition(method: .get, path: "auth/reentrant-refresh")
 }
 
 struct StaticKeyEndpoint: Endpoint {

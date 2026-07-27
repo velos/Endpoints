@@ -135,7 +135,7 @@ struct MetricsEndpoint: Endpoint {
 }
 ```
 
-Declare the method as a `static let` so all endpoints on a server share one instance. That shared instance is what allows a stateful method like `JWTAuth` to coalesce concurrent token refreshes across every endpoint.
+Declare the method as a `static let` so all endpoints on a server share one instance. That shared instance is what allows a stateful method like `JWTAuth` to coalesce concurrent token refreshes across every endpoint — a computed `static var` would hand out a fresh instance per request, losing tokens. Debug builds assert if that happens, so the mistake surfaces in development rather than as mysterious re-authentication in production.
 
 Servers that declare no `auth` use `NoAuth`, so existing endpoints keep working unchanged.
 
@@ -179,7 +179,7 @@ struct ApiServer: ServerDefinition {
 }
 ```
 
-> **Important:** the refresh endpoint must not be authenticated by the same `JWTAuth` — the request would wait on the very refresh that is waiting on it, deadlocking the task. Give it `static var auth: NoAuth { NoAuth() }`; it authenticates with the refresh token, not the access token.
+> **Important:** the refresh endpoint must not be authenticated by the same `JWTAuth` — the request would wait on the very refresh that is waiting on it. Give it `static var auth: NoAuth { NoAuth() }`; it authenticates with the refresh token, not the access token. If you do hit this, the request fails with a `RefreshReentrancyError` explaining the fix rather than hanging.
 
 After a login or logout, update the tokens with `await ApiServer.auth.setTokens(_:)` or `await ApiServer.auth.clearTokens()`.
 
@@ -270,7 +270,8 @@ To browse more complex examples, make sure to check out the [Examples](https://g
 ## Requirements
 
 - Swift 6.0+
-- iOS 15.0+ / macOS 12.0+ / tvOS 15.0+ / watchOS 8.0+
+- iOS 13.0+ / macOS 10.15+ / tvOS 13.0+ / watchOS 6.0+ to build endpoints and create `URLRequest`s
+- macOS 12.0+ for the async/await and Combine request APIs (`response(with:)`, `endpointPublisher(with:)`), and therefore for authentication
 
 ## Installation
 

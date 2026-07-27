@@ -56,6 +56,10 @@ public extension URLSession {
         }
         #endif
 
+        #if DEBUG
+        AuthenticationStability.verifySharedInstance(for: T.self)
+        #endif
+
         let auth = T.auth
         // The endpoint is immutable, so the unauthenticated request is identical on
         // every attempt; only the credentials applied to it change.
