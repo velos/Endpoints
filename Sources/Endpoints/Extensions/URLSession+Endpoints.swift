@@ -63,9 +63,9 @@ public extension URLSession {
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
     /// - Throws: Throws an ``EndpointTaskError`` of ``EndpointTaskError/endpointError(_:)`` if there is an issue constructing the request.
     /// - Returns: The new session data task.
-    func endpointTask<T: Endpoint>(with endpoint: T, completion: @escaping @Sendable (Result<T.Response, T.TaskError>) -> Void) throws(T.TaskError) -> URLSessionDataTask where T.Response == Void, T.Auth == NoAuth {
+    func endpointTask<T: Endpoint>(with endpoint: T, environment: T.Server.Environments = T.Server.defaultEnvironment, completion: @escaping @Sendable (Result<T.Response, T.TaskError>) -> Void) throws(T.TaskError) -> URLSessionDataTask where T.Response == Void, T.Auth == NoAuth {
 
-        let urlRequest = try createUrlRequest(for: endpoint)
+        let urlRequest = try createUrlRequest(for: endpoint, in: environment)
 
         let task = dataTask(with: urlRequest) { (data, response, error) in
             completion(T.definition.response(data: data, response: response, error: error).map { _ in })
@@ -102,9 +102,9 @@ public extension URLSession {
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
     /// - Throws: Throws an ``EndpointTaskError`` of ``EndpointTaskError/endpointError(_:)`` if there is an issue constructing the request.
     /// - Returns: The new session data task.
-    func endpointTask<T: Endpoint>(with endpoint: T, completion: @escaping @Sendable (Result<T.Response, T.TaskError>) -> Void) throws(T.TaskError) -> URLSessionDataTask where T.Response == Data, T.Auth == NoAuth {
+    func endpointTask<T: Endpoint>(with endpoint: T, environment: T.Server.Environments = T.Server.defaultEnvironment, completion: @escaping @Sendable (Result<T.Response, T.TaskError>) -> Void) throws(T.TaskError) -> URLSessionDataTask where T.Response == Data, T.Auth == NoAuth {
 
-        let urlRequest = try createUrlRequest(for: endpoint)
+        let urlRequest = try createUrlRequest(for: endpoint, in: environment)
 
         let task = dataTask(with: urlRequest) { (data, response, error) in
             completion(T.definition.response(data: data, response: response, error: error))
@@ -139,9 +139,9 @@ public extension URLSession {
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
     /// - Throws: Throws an ``EndpointTaskError`` of ``EndpointTaskError/endpointError(_:)`` if there is an issue constructing the request.
     /// - Returns: The new session data task.
-    func endpointTask<T: Endpoint>(with endpoint: T, completion: @escaping @Sendable (Result<T.Response, T.TaskError>) -> Void) throws(T.TaskError) -> URLSessionDataTask where T.Response: Decodable, T.Auth == NoAuth {
+    func endpointTask<T: Endpoint>(with endpoint: T, environment: T.Server.Environments = T.Server.defaultEnvironment, completion: @escaping @Sendable (Result<T.Response, T.TaskError>) -> Void) throws(T.TaskError) -> URLSessionDataTask where T.Response: Decodable, T.Auth == NoAuth {
 
-        let urlRequest = try createUrlRequest(for: endpoint)
+        let urlRequest = try createUrlRequest(for: endpoint, in: environment)
 
         let task = dataTask(with: urlRequest) { (data, response, error) in
             let response = T.definition.response(data: data, response: response, error: error)
@@ -181,9 +181,12 @@ public extension URLSession {
         return task
     }
 
-    func createUrlRequest<T: Endpoint>(for endpoint: T) throws(T.TaskError) -> URLRequest {
+    func createUrlRequest<T: Endpoint>(
+        for endpoint: T,
+        in environment: T.Server.Environments = T.Server.defaultEnvironment
+    ) throws(T.TaskError) -> URLRequest {
         do {
-            return try endpoint.urlRequest()
+            return try endpoint.urlRequest(in: environment)
         } catch {
             throw T.TaskError.endpointError(error)
         }

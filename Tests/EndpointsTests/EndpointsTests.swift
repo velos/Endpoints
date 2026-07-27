@@ -242,48 +242,46 @@ struct EndpointsTests {
 
     @Test
     @available(iOS 16.0, *)
-    func environmentsChange() throws {
-        let existing = TestServer.environment
-
+    func environmentSelectsBaseUrl() throws {
         let endpoint = SimpleEndpoint(
             pathComponents: .init(name: "zac", id: "42")
         )
 
-        TestServer.environment = .local
-        #expect(try endpoint.urlRequest().url?.host() == "local-api.velosmobile.com")
-
-        TestServer.environment = .staging
-        #expect(try endpoint.urlRequest().url?.host() == "staging-api.velosmobile.com")
-
-        TestServer.environment = .production
-        #expect(try endpoint.urlRequest().url?.host() == "api.velosmobile.com")
-
-        TestServer.environment = existing
+        #expect(try endpoint.urlRequest(in: .local).url?.host() == "local-api.velosmobile.com")
+        #expect(try endpoint.urlRequest(in: .staging).url?.host() == "staging-api.velosmobile.com")
+        #expect(try endpoint.urlRequest(in: .production).url?.host() == "api.velosmobile.com")
     }
 
     @Test
     @available(iOS 16.0, *)
-    func defaultEnvironment() throws {
+    func environmentDefaultsToTheServersDefault() throws {
         #expect(TestServer.defaultEnvironment == .production)
+
+        let endpoint = SimpleEndpoint(pathComponents: .init(name: "zac", id: "42"))
+        #expect(try endpoint.urlRequest().url?.host() == "api.velosmobile.com")
     }
 
+    /// The environment is a per-request value, so requests built for different
+    /// environments do not interfere — including from concurrent tasks.
     @Test
-    func environmentSwitchingIsPerServer() {
-        // Both servers use TypicalEnvironments; switching one must not affect
-        // the other, which stays on its default.
-        EnvironmentIsolationServerA.environment = .staging
+    @available(iOS 16.0, *)
+    func environmentsDoNotLeakAcrossConcurrentRequests() async throws {
+        let hosts = await withTaskGroup(of: String?.self) { group in
+            for environment in [TypicalEnvironments.local, .staging, .production, .local, .staging] {
+                group.addTask {
+                    let endpoint = SimpleEndpoint(pathComponents: .init(name: "zac", id: "42"))
+                    return try? endpoint.urlRequest(in: environment).url?.host()
+                }
+            }
+            return await group.reduce(into: [String?]()) { $0.append($1) }
+        }
 
-        #expect(EnvironmentIsolationServerA.environment == .staging)
-        #expect(EnvironmentIsolationServerB.environment == .production)
+        #expect(hosts.compactMap { $0 }.sorted() == [
+            "api.velosmobile.com",
+            "local-api.velosmobile.com",
+            "local-api.velosmobile.com",
+            "staging-api.velosmobile.com",
+            "staging-api.velosmobile.com"
+        ])
     }
-}
-
-struct EnvironmentIsolationServerA: ServerDefinition {
-    var baseUrls: [Environments: URL] { [.production: URL(string: "https://a.example.com")!] }
-    static var defaultEnvironment: Environments { .production }
-}
-
-struct EnvironmentIsolationServerB: ServerDefinition {
-    var baseUrls: [Environments: URL] { [.production: URL(string: "https://b.example.com")!] }
-    static var defaultEnvironment: Environments { .production }
 }

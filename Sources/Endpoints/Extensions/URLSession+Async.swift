@@ -15,20 +15,47 @@ import FoundationNetworking
 @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
 public extension URLSession {
 
-    /// Perform the request for the endpoint on the given environment.
+    /// Perform the request for the endpoint.
     ///
     /// Use this when the response body is expected to be `Void` or empty as you would have in a 204.
-    /// - Parameter endpoint: The endpoint instance to be used to make the request
-    func response<T: Endpoint>(with endpoint: T) async throws(T.TaskError) where T.Response == Void {
-        try await performRequest(with: endpoint) { (_) throws(T.TaskError) in () }
+    /// - Parameters:
+    ///   - endpoint: The endpoint instance to be used to make the request
+    ///   - environment: The environment to resolve the base URL against. Defaults to the
+    ///     server's ``ServerDefinition/defaultEnvironment``.
+    ///   - auth: The credentials to authenticate with. Defaults to the endpoint's
+    ///     declared ``Endpoint/auth``.
+    func response<T: Endpoint>(
+        with endpoint: T,
+        environment: T.Server.Environments = T.Server.defaultEnvironment,
+        auth: any AuthenticationMethod = T.auth
+    ) async throws(T.TaskError) where T.Response == Void {
+        try await performRequest(with: endpoint, environment: environment, auth: auth) { (_) throws(T.TaskError) in () }
     }
 
-    func response<T: Endpoint>(with endpoint: T) async throws(T.TaskError) -> T.Response where T.Response == Data {
-        try await performRequest(with: endpoint) { (data) throws(T.TaskError) in data }
+    /// Perform the request for the endpoint, returning the raw response body.
+    /// - Parameters:
+    ///   - endpoint: The endpoint instance to be used to make the request
+    ///   - environment: The environment to resolve the base URL against.
+    ///   - auth: The credentials to authenticate with.
+    func response<T: Endpoint>(
+        with endpoint: T,
+        environment: T.Server.Environments = T.Server.defaultEnvironment,
+        auth: any AuthenticationMethod = T.auth
+    ) async throws(T.TaskError) -> T.Response where T.Response == Data {
+        try await performRequest(with: endpoint, environment: environment, auth: auth) { (data) throws(T.TaskError) in data }
     }
 
-    func response<T: Endpoint>(with endpoint: T) async throws(T.TaskError) -> T.Response where T.Response: Decodable {
-        try await performRequest(with: endpoint) { (data) throws(T.TaskError) in
+    /// Perform the request for the endpoint, decoding the response body.
+    /// - Parameters:
+    ///   - endpoint: The endpoint instance to be used to make the request
+    ///   - environment: The environment to resolve the base URL against.
+    ///   - auth: The credentials to authenticate with.
+    func response<T: Endpoint>(
+        with endpoint: T,
+        environment: T.Server.Environments = T.Server.defaultEnvironment,
+        auth: any AuthenticationMethod = T.auth
+    ) async throws(T.TaskError) -> T.Response where T.Response: Decodable {
+        try await performRequest(with: endpoint, environment: environment, auth: auth) { (data) throws(T.TaskError) in
             do {
                 return try T.responseDecoder.decode(T.Response.self, from: data)
             } catch {
@@ -38,9 +65,9 @@ public extension URLSession {
     }
 
     /// Authenticates and performs the request, retrying after reauthentication when the
-    /// endpoint's ``Endpoint/Auth`` asks for it.
+    /// supplied ``AuthenticationMethod`` asks for it.
     ///
-    /// With the default ``NoAuth``, `authenticate` returns the request unchanged and
+    /// With ``NoAuth``, `authenticate` returns the request unchanged and
     /// `shouldReauthenticate` is always false, so this is a single pass through the
     /// unauthenticated request path.
     ///
@@ -48,6 +75,8 @@ public extension URLSession {
     /// never applies credentials and never enters the retry loop.
     private func performRequest<T: Endpoint>(
         with endpoint: T,
+        environment: T.Server.Environments,
+        auth: any AuthenticationMethod,
         transform: (Data) throws(T.TaskError) -> T.Response
     ) async throws(T.TaskError) -> T.Response {
         #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
@@ -60,10 +89,9 @@ public extension URLSession {
         AuthenticationStability.verifySharedInstance(for: T.self)
         #endif
 
-        let auth = T.auth
         // The endpoint is immutable, so the unauthenticated request is identical on
         // every attempt; only the credentials applied to it change.
-        let request = try createUrlRequest(for: endpoint)
+        let request = try createUrlRequest(for: endpoint, in: environment)
 
         var attempt = 0
         while true {

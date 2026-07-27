@@ -15,9 +15,13 @@ import FoundationNetworking
 extension Endpoint {
 
     /// Generates a `URLRequest` given the associated request value.
+    /// - Parameter environment: The environment whose base URL the request is built against.
+    ///   Defaults to the server's ``ServerDefinition/defaultEnvironment``.
     /// - Throws: An ``EndpointError`` which describes the error filling in data to the associated ``Definition``.
     /// - Returns: A `URLRequest` ready for requesting with all values from `self` filled in according to the associated ``Endpoint``.
-    public func urlRequest() throws(EndpointError) -> URLRequest {
+    public func urlRequest(
+        in environment: Server.Environments = Server.defaultEnvironment
+    ) throws(EndpointError) -> URLRequest {
 
         var components = URLComponents()
         components.path = Self.definition.path.path(with: pathComponents)
@@ -82,7 +86,7 @@ extension Endpoint {
         }
 
         let server = Self.definition.server
-        let baseUrl = server.baseUrls[type(of: server).environment]
+        let baseUrl = server.baseUrls[environment]
 
         guard let baseUrl else {
             throw EndpointError.misconfiguredServer(server: Self.definition.server)

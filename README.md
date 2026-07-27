@@ -80,7 +80,34 @@ URLSession.shared.endpointPublisher(with: MyEndpoint())
     .store(in: &cancellables)
 ```
 
-Notice that the API no longer requires passing an environment - it's handled automatically by the server definition.
+Notice that the common case requires no environment or credentials at the call site — both default to what the server and endpoint declare.
+
+### Runtime context: environment and credentials
+
+When a request needs different context than the declarations provide — most often because your app talks to more than one deployment or account at once — pass it per request:
+
+```swift
+let response = try await URLSession.shared.response(
+    with: ProfileEndpoint(),
+    environment: client.environment,
+    auth: client.auth
+)
+```
+
+Both parameters default to the endpoint's declarations, so this is opt-in and existing call sites are unaffected. Because they are per-request values rather than global state, two clients with different environments *and* different credentials can issue requests concurrently without interfering:
+
+```swift
+struct WavelikeClient {
+    let environment: ApiServer.Environments
+    let auth: JWTAuth   // one instance per client, so its refreshes coalesce
+
+    func profile() async throws -> ProfileEndpoint.Response {
+        try await URLSession.shared.response(with: ProfileEndpoint(), environment: environment, auth: auth)
+    }
+}
+```
+
+The same parameters are available on `endpointPublisher(with:)`. `endpointTask(with:)` accepts `environment:` but remains restricted to unauthenticated endpoints, since it returns a `URLSessionDataTask` synchronously and cannot await authentication.
 
 ### Async/Await
 
@@ -307,8 +334,8 @@ Full documentation is available in Xcode (Product > Build Documentation) and inc
 If you're upgrading from version 0.4.0 or earlier, the main changes are:
 
 1. **ServerDefinition replaces EnvironmentType** - Define your environments in a `ServerDefinition` conforming type
-2. **No more environment parameter** - Remove `in: .production` from all API calls
-3. **Add Server typealias** - Add `typealias Server = YourServer` to your endpoints
+2. **Add Server typealias** - Add `typealias Server = YourServer` to your endpoints
+3. **Environment is per request, not global** - `ApiServer.environment = .staging` is gone. Pass `environment:` to the request methods, or rely on the server's `defaultEnvironment`. This is what allows two clients to use different environments at the same time.
 4. **Swift 6.0 required** - Update your Swift toolchain
 
 See the [Migration Guide](https://github.com/velos/Endpoints/wiki/Migration) for detailed instructions.

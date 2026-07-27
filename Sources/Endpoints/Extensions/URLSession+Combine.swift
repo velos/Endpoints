@@ -100,9 +100,13 @@ public extension URLSession {
     /// - Parameters:
     ///   - endpoint: The request data to insert into the ``Definition``
     /// - Returns: A `Publisher` which fetches the ``Endpoint``'s contents. Any failures when creating the request are sent as errors in the `Publisher`
-    func endpointPublisher<T: Endpoint>(with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Void {
+    func endpointPublisher<T: Endpoint>(
+        with endpoint: T,
+        environment: T.Server.Environments = T.Server.defaultEnvironment,
+        auth: any AuthenticationMethod = T.auth
+    ) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Void {
         Endpoints.endpointPublisher { () throws(T.TaskError) in
-            try await self.response(with: endpoint)
+            try await self.response(with: endpoint, environment: environment, auth: auth)
         }
     }
 
@@ -114,9 +118,13 @@ public extension URLSession {
     /// - Parameters:
     ///   - endpoint: The request data to insert into the ``Definition``
     /// - Returns: A `Publisher` which fetches the ``Endpoint``'s contents. Any failures when creating the request are sent as errors in the `Publisher`
-    func endpointPublisher<T: Endpoint>(with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Data {
+    func endpointPublisher<T: Endpoint>(
+        with endpoint: T,
+        environment: T.Server.Environments = T.Server.defaultEnvironment,
+        auth: any AuthenticationMethod = T.auth
+    ) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Data {
         Endpoints.endpointPublisher { () throws(T.TaskError) in
-            try await self.response(with: endpoint)
+            try await self.response(with: endpoint, environment: environment, auth: auth)
         }
     }
 
@@ -128,9 +136,13 @@ public extension URLSession {
     /// - Parameters:
     ///   - endpoint: The request data to insert into the ``Definition``
     /// - Returns: A `Publisher` which fetches the ``Endpoint``'s contents. Any failures when creating the request are sent as errors in the `Publisher`
-    func endpointPublisher<T: Endpoint>(with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response: Decodable {
+    func endpointPublisher<T: Endpoint>(
+        with endpoint: T,
+        environment: T.Server.Environments = T.Server.defaultEnvironment,
+        auth: any AuthenticationMethod = T.auth
+    ) -> AnyPublisher<T.Response, T.TaskError> where T.Response: Decodable {
         Endpoints.endpointPublisher { () throws(T.TaskError) in
-            try await self.response(with: endpoint)
+            try await self.response(with: endpoint, environment: environment, auth: auth)
         }
     }
 }

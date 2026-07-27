@@ -256,6 +256,87 @@ struct AuthenticatedEndpointTests {
         #expect(sent.first?.value(forHTTPHeaderField: Header.authorization.name) == "Bearer static-key")
     }
 
+    // MARK: - Per-request runtime context
+
+    /// The motivating case: two client objects, each with its own environment and
+    /// credentials, issuing requests for the same endpoint at the same time.
+    @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
+    @Test
+    func concurrentClientsUseTheirOwnEnvironmentAndCredentials() async throws {
+        let successData = try JSONEncoder().encode(AuthTestResponse(value: "ok"))
+
+        let recorder = RequestRecorder()
+        // Registered per path, so both environments' hosts route here.
+        TestURLProtocol.register(path: "/multi/tenant") { request in
+            recorder.record(request)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, successData)
+        }
+        defer { TestURLProtocol.unregister(path: "/multi/tenant") }
+
+        let clientA = (environment: TypicalEnvironments.staging, auth: HeaderKeyAuth(key: "tenant-a"))
+        let clientB = (environment: TypicalEnvironments.production, auth: HeaderKeyAuth(key: "tenant-b"))
+
+        let session = TestURLProtocol.makeSession()
+
+        // Interleave both clients so a shared-state regression would cross the wires.
+        await withTaskGroup(of: Void.self) { group in
+            for _ in 0..<4 {
+                group.addTask {
+                    _ = try? await session.response(
+                        with: MultiTenantEndpoint(),
+                        environment: clientA.environment,
+                        auth: clientA.auth
+                    )
+                }
+                group.addTask {
+                    _ = try? await session.response(
+                        with: MultiTenantEndpoint(),
+                        environment: clientB.environment,
+                        auth: clientB.auth
+                    )
+                }
+            }
+        }
+
+        let sent = recorder.all()
+        #expect(sent.count == 8)
+
+        // Every request pairs the right host with the right credentials.
+        for request in sent {
+            let host = request.url?.host
+            let key = request.value(forHTTPHeaderField: Header.authorization.name)
+            switch key {
+            case "Bearer tenant-a": #expect(host == "staging-api.velosmobile.com")
+            case "Bearer tenant-b": #expect(host == "api.velosmobile.com")
+            default: Issue.record("Unexpected credentials: \(key ?? "none")")
+            }
+        }
+
+        #expect(sent.filter { $0.value(forHTTPHeaderField: Header.authorization.name) == "Bearer tenant-a" }.count == 4)
+        #expect(sent.filter { $0.value(forHTTPHeaderField: Header.authorization.name) == "Bearer tenant-b" }.count == 4)
+    }
+
+    /// Omitting both parameters falls back to what the endpoint declares, so existing
+    /// call sites are unaffected.
+    @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
+    @Test
+    func omittingRuntimeContextUsesTheDeclaredDefaults() async throws {
+        let successData = try JSONEncoder().encode(AuthTestResponse(value: "ok"))
+
+        let recorder = RequestRecorder()
+        TestURLProtocol.register(path: "/auth/inherited") { request in
+            recorder.record(request)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, successData)
+        }
+        defer { TestURLProtocol.unregister(path: "/auth/inherited") }
+
+        _ = try await TestURLProtocol.makeSession().response(with: InheritedAuthEndpoint())
+
+        let request = recorder.all().first
+        #expect(request?.value(forHTTPHeaderField: Header.authorization.name) == "Bearer server-key")
+        #expect(request?.url?.host == "api.velosmobile.com")
+    }
+
     // MARK: - Declaration semantics
 
     @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
@@ -451,6 +532,15 @@ struct ReentrantRefreshEndpoint: Endpoint {
     static var auth: JWTAuth { ReentrantEndpoint.auth }
 
     static let definition: Definition<ReentrantRefreshEndpoint> = Definition(method: .get, path: "auth/reentrant-refresh")
+}
+
+/// Declares no auth of its own: both credentials and environment come from the caller.
+struct MultiTenantEndpoint: Endpoint {
+    typealias Server = TestServer
+    typealias Response = AuthTestResponse
+    typealias ErrorResponse = AuthTestErrorResponse
+
+    static let definition: Definition<MultiTenantEndpoint> = Definition(method: .get, path: "multi/tenant")
 }
 
 struct StaticKeyEndpoint: Endpoint {

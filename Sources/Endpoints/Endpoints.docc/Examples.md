@@ -75,14 +75,15 @@ struct CustomServer: ServerDefinition {
 
 ### Changing Environments
 
-To switch environments at runtime, set the environment on the server type:
+Select the environment when performing a request:
 
 ```swift
-// Switch to staging environment
-ApiServer.environment = .staging
-
-// All subsequent requests will use the staging URL
+let response = try await URLSession.shared.response(with: MyEndpoint(), environment: .staging)
 ```
+
+Because the environment is a per-request value rather than global state, different parts
+of an app — or two clients talking to different deployments — can use different
+environments at the same time.
 
 ---
 

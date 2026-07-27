@@ -339,19 +339,18 @@ struct UserEndpointTests {
 }
 ```
 
-### 4. Reset Environment After Tests
+### 4. Select the Environment Per Request
 
-If your tests change the server environment, reset it afterward:
+The environment is a per-request value, so tests never need to save and restore global
+state — pass the one you want and nothing leaks into other tests:
 
 ```swift
 @Test func testStagingEnvironment() async throws {
-    let originalEnvironment = ApiServer.environment
-    ApiServer.environment = .staging
-    
-    defer {
-        ApiServer.environment = originalEnvironment
-    }
-    
+    let response = try await URLSession.shared.response(
+        with: MyEndpoint(),
+        environment: .staging
+    )
+
     // Test code...
 }
 ```
