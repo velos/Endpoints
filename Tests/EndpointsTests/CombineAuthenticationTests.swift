@@ -10,10 +10,6 @@ import Combine
 @Suite("Combine Authentication", .serialized)
 struct CombineAuthenticationTests {
 
-    private static func url(_ path: String) -> URL {
-        URL(string: "https://api.velosmobile.com\(path)")!
-    }
-
     @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
     @Test
     func publisherAppliesEndpointAuthentication() async throws {
@@ -22,7 +18,7 @@ struct CombineAuthenticationTests {
         let recorder = RequestRecorder()
         TestURLProtocol.register(path: "/combine/keyed") { request in
             recorder.record(request)
-            return (HTTPURLResponse(url: Self.url("/combine/keyed"), statusCode: 200, httpVersion: nil, headerFields: nil)!, successData)
+            return (HTTPURLResponse(url: testURL("/combine/keyed"), statusCode: 200, httpVersion: nil, headerFields: nil)!, successData)
         }
         defer { TestURLProtocol.unregister(path: "/combine/keyed") }
 
@@ -46,8 +42,8 @@ struct CombineAuthenticationTests {
         let successData = try JSONEncoder().encode(AuthTestResponse(value: "ok"))
 
         let responses = ResponseQueue([
-            (HTTPURLResponse(url: Self.url("/combine/jwt"), statusCode: 401, httpVersion: nil, headerFields: nil)!, errorData),
-            (HTTPURLResponse(url: Self.url("/combine/jwt"), statusCode: 200, httpVersion: nil, headerFields: nil)!, successData)
+            (HTTPURLResponse(url: testURL("/combine/jwt"), statusCode: 401, httpVersion: nil, headerFields: nil)!, errorData),
+            (HTTPURLResponse(url: testURL("/combine/jwt"), statusCode: 200, httpVersion: nil, headerFields: nil)!, successData)
         ])
 
         let recorder = RequestRecorder()
@@ -114,35 +110,19 @@ struct CombineAuthenticationTests {
             .sink(receiveCompletion: { _ in }, receiveValue: { _ in })
 
         // Wait until the request is genuinely in flight inside authenticate.
-        await CancellationProbe.shared.waitForStart()
+        await CancellationProbe.started.wait()
 
         cancellable.cancel()
 
-        var observed = false
-        for _ in 0..<40 {
-            if await CancellationProbe.shared.didObserveCancellation {
-                observed = true
-                break
-            }
-            try await Task.sleep(nanoseconds: 50_000_000)
-        }
-
+        let observed = await CancellationProbe.observedCancellation.wait(upTo: 2_000_000_000)
         #expect(observed, "Cancelling the subscription should cancel the underlying task")
     }
 }
 
 // MARK: - Fixtures
 
-struct CombineTestServer: ServerDefinition {
-    var baseUrls: [Environments: URL] {
-        [.production: URL(string: "https://api.velosmobile.com")!]
-    }
-
-    static var defaultEnvironment: Environments { .production }
-}
-
 struct CombineKeyedEndpoint: Endpoint {
-    typealias Server = CombineTestServer
+    typealias Server = TestServer
     typealias Response = AuthTestResponse
     typealias ErrorResponse = AuthTestErrorResponse
 
@@ -151,7 +131,7 @@ struct CombineKeyedEndpoint: Endpoint {
 }
 
 struct CombineJWTEndpoint: Endpoint {
-    typealias Server = CombineTestServer
+    typealias Server = TestServer
     typealias Response = AuthTestResponse
     typealias ErrorResponse = AuthTestErrorResponse
 
@@ -164,7 +144,7 @@ struct CombineJWTEndpoint: Endpoint {
 }
 
 struct CombineUnauthenticatedJWTEndpoint: Endpoint {
-    typealias Server = CombineTestServer
+    typealias Server = TestServer
     typealias Response = AuthTestResponse
     typealias ErrorResponse = AuthTestErrorResponse
 
@@ -176,7 +156,7 @@ struct CombineUnauthenticatedJWTEndpoint: Endpoint {
 }
 
 struct CombineCancelEndpoint: Endpoint {
-    typealias Server = CombineTestServer
+    typealias Server = TestServer
     typealias Response = AuthTestResponse
     typealias ErrorResponse = AuthTestErrorResponse
 
@@ -188,13 +168,13 @@ struct CombineCancelEndpoint: Endpoint {
 /// the cancellation actually reached the task.
 struct ProbeAuth: AuthenticationMethod {
     func authenticate(request: URLRequest) async throws(AuthenticationError) -> URLRequest {
-        await CancellationProbe.shared.markStarted()
+        await CancellationProbe.started.open()
 
         do {
             try await Task.sleep(nanoseconds: 3_000_000_000)
         } catch {
             // Task.sleep throws when the enclosing task is cancelled.
-            await CancellationProbe.shared.markCancelled()
+            await CancellationProbe.observedCancellation.open()
             throw .custom(underlying: error)
         }
 
@@ -202,26 +182,10 @@ struct ProbeAuth: AuthenticationMethod {
     }
 }
 
-actor CancellationProbe {
-    static let shared = CancellationProbe()
-
-    private var started = false
-    private var startWaiters: [CheckedContinuation<Void, Never>] = []
-    private(set) var didObserveCancellation = false
-
-    func markStarted() {
-        started = true
-        startWaiters.forEach { $0.resume() }
-        startWaiters.removeAll()
-    }
-
-    func waitForStart() async {
-        if started { return }
-        await withCheckedContinuation { startWaiters.append($0) }
-    }
-
-    func markCancelled() {
-        didObserveCancellation = true
-    }
+enum CancellationProbe {
+    /// Opens once `authenticate` is suspended and the request is genuinely in flight.
+    static let started = Gate()
+    /// Opens only if the in-flight task actually observes its own cancellation.
+    static let observedCancellation = Gate()
 }
 #endif

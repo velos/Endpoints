@@ -15,15 +15,18 @@ public struct BasicAuth: AuthenticationMethod {
     /// The password.
     public let password: String
 
+    /// The credentials are immutable, so the header value is encoded once.
+    private let headerValue: String
+
     public init(username: String, password: String) {
         self.username = username
         self.password = password
+        self.headerValue = "Basic \(Data("\(username):\(password)".utf8).base64EncodedString())"
     }
 
     public func authenticate(request: URLRequest) async throws(AuthenticationError) -> URLRequest {
         var mutableRequest = request
-        let credentials = Data("\(username):\(password)".utf8).base64EncodedString()
-        mutableRequest.setValue("Basic \(credentials)", forHTTPHeaderField: Header.authorization.name)
+        mutableRequest.setValue(headerValue, forHTTPHeaderField: Header.authorization.name)
         return mutableRequest
     }
 }

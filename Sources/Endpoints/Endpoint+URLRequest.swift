@@ -23,51 +23,43 @@ extension Endpoint {
         components.path = Self.definition.path.path(with: pathComponents)
 
         var urlQueryItems: [URLQueryItem] = []
+        var bodyFormItems: [URLQueryItem] = []
+
         for item in Self.definition.parameters {
 
             let value: Any
             let name: String
+            let isQuery: Bool
             switch item {
             case .query(let queryName, let valuePath):
                 value = parameterComponents[keyPath: valuePath]
                 name = queryName
+                isQuery = true
             case .queryValue(let queryName, let queryValue):
                 value = queryValue
                 name = queryName
-            default:
-                continue
-            }
-
-            guard let queryValue = value as? ParameterRepresentable else {
-                throw EndpointError.invalidQuery(named: name, type: type(of: value))
-            }
-
-            if let encodedValue = queryValue.parameterValue {
-                urlQueryItems.append(URLQueryItem(name: name, value: encodedValue))
-            }
-        }
-
-        var bodyFormItems: [URLQueryItem] = []
-        for item in Self.definition.parameters {
-
-            let value: Any
-            let name: String
-            switch item {
+                isQuery = true
             case .form(let formName, let valuePath):
                 value = parameterComponents[keyPath: valuePath]
                 name = formName
+                isQuery = false
             case .formValue(let formName, let formValue):
                 value = formValue
                 name = formName
-            default:
-                continue
+                isQuery = false
             }
 
-            guard let formValue = value as? ParameterRepresentable else {
-                throw EndpointError.invalidForm(named: name, type: type(of: value))
+            guard let parameterValue = value as? ParameterRepresentable else {
+                throw isQuery
+                    ? EndpointError.invalidQuery(named: name, type: type(of: value))
+                    : EndpointError.invalidForm(named: name, type: type(of: value))
             }
 
-            if let encodedValue = formValue.parameterValue {
+            guard let encodedValue = parameterValue.parameterValue else { continue }
+
+            if isQuery {
+                urlQueryItems.append(URLQueryItem(name: name, value: encodedValue))
+            } else {
                 bodyFormItems.append(URLQueryItem(name: name, value: encodedValue))
             }
         }

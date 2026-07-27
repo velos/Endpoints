@@ -13,10 +13,6 @@ import FoundationNetworking
 @Suite("Authenticated Endpoints", .serialized)
 struct AuthenticatedEndpointTests {
 
-    private static func url(_ path: String) -> URL {
-        URL(string: "https://api.velosmobile.com\(path)")!
-    }
-
     @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
     @Test
     func retriesAfterReauthentication() async throws {
@@ -24,8 +20,8 @@ struct AuthenticatedEndpointTests {
         let successData = try JSONEncoder().encode(AuthTestResponse(value: "ok"))
 
         let responses = ResponseQueue([
-            (HTTPURLResponse(url: Self.url("/auth/retry"), statusCode: 401, httpVersion: nil, headerFields: nil)!, errorData),
-            (HTTPURLResponse(url: Self.url("/auth/retry"), statusCode: 200, httpVersion: nil, headerFields: nil)!, successData)
+            (HTTPURLResponse(url: testURL("/auth/retry"), statusCode: 401, httpVersion: nil, headerFields: nil)!, errorData),
+            (HTTPURLResponse(url: testURL("/auth/retry"), statusCode: 200, httpVersion: nil, headerFields: nil)!, successData)
         ])
 
         TestURLProtocol.register(path: "/auth/retry") { _ in try responses.next() }
@@ -46,8 +42,8 @@ struct AuthenticatedEndpointTests {
         let errorData = try JSONEncoder().encode(AuthTestErrorResponse(message: "unauthorized"))
 
         let responses = ResponseQueue([
-            (HTTPURLResponse(url: Self.url("/auth/exhaustion"), statusCode: 401, httpVersion: nil, headerFields: nil)!, errorData),
-            (HTTPURLResponse(url: Self.url("/auth/exhaustion"), statusCode: 401, httpVersion: nil, headerFields: nil)!, errorData)
+            (HTTPURLResponse(url: testURL("/auth/exhaustion"), statusCode: 401, httpVersion: nil, headerFields: nil)!, errorData),
+            (HTTPURLResponse(url: testURL("/auth/exhaustion"), statusCode: 401, httpVersion: nil, headerFields: nil)!, errorData)
         ])
 
         TestURLProtocol.register(path: "/auth/exhaustion") { _ in try responses.next() }
@@ -76,7 +72,7 @@ struct AuthenticatedEndpointTests {
         let errorData = try JSONEncoder().encode(AuthTestErrorResponse(message: "unauthorized"))
 
         TestURLProtocol.register(path: "/auth/failing-refresh") { _ in
-            (HTTPURLResponse(url: Self.url("/auth/failing-refresh"), statusCode: 401, httpVersion: nil, headerFields: nil)!, errorData)
+            (HTTPURLResponse(url: testURL("/auth/failing-refresh"), statusCode: 401, httpVersion: nil, headerFields: nil)!, errorData)
         }
         defer { TestURLProtocol.unregister(path: "/auth/failing-refresh") }
 
@@ -98,8 +94,8 @@ struct AuthenticatedEndpointTests {
         let successData = try JSONEncoder().encode(AuthTestResponse(value: "ok"))
 
         let responses = ResponseQueue([
-            (HTTPURLResponse(url: Self.url("/auth/jwt"), statusCode: 401, httpVersion: nil, headerFields: nil)!, errorData),
-            (HTTPURLResponse(url: Self.url("/auth/jwt"), statusCode: 200, httpVersion: nil, headerFields: nil)!, successData)
+            (HTTPURLResponse(url: testURL("/auth/jwt"), statusCode: 401, httpVersion: nil, headerFields: nil)!, errorData),
+            (HTTPURLResponse(url: testURL("/auth/jwt"), statusCode: 200, httpVersion: nil, headerFields: nil)!, successData)
         ])
 
         let recorder = RequestRecorder()
@@ -149,7 +145,7 @@ struct AuthenticatedEndpointTests {
         let errorData = try JSONEncoder().encode(AuthTestErrorResponse(message: "unauthorized"))
 
         TestURLProtocol.register(path: "/auth/refresh-failure") { _ in
-            (HTTPURLResponse(url: Self.url("/auth/refresh-failure"), statusCode: 401, httpVersion: nil, headerFields: nil)!, errorData)
+            (HTTPURLResponse(url: testURL("/auth/refresh-failure"), statusCode: 401, httpVersion: nil, headerFields: nil)!, errorData)
         }
         defer { TestURLProtocol.unregister(path: "/auth/refresh-failure") }
 
@@ -178,7 +174,7 @@ struct AuthenticatedEndpointTests {
         let recorder = RequestRecorder()
         TestURLProtocol.register(path: "/auth/proactive") { request in
             recorder.record(request)
-            return (HTTPURLResponse(url: Self.url("/auth/proactive"), statusCode: 200, httpVersion: nil, headerFields: nil)!, successData)
+            return (HTTPURLResponse(url: testURL("/auth/proactive"), statusCode: 200, httpVersion: nil, headerFields: nil)!, successData)
         }
         defer { TestURLProtocol.unregister(path: "/auth/proactive") }
 
@@ -203,7 +199,7 @@ struct AuthenticatedEndpointTests {
         let recorder = RequestRecorder()
         TestURLProtocol.register(path: "/auth/static-key") { request in
             recorder.record(request)
-            return (HTTPURLResponse(url: Self.url("/auth/static-key"), statusCode: 401, httpVersion: nil, headerFields: nil)!, errorData)
+            return (HTTPURLResponse(url: testURL("/auth/static-key"), statusCode: 401, httpVersion: nil, headerFields: nil)!, errorData)
         }
         defer { TestURLProtocol.unregister(path: "/auth/static-key") }
 
@@ -233,7 +229,7 @@ struct AuthenticatedEndpointTests {
         let recorder = RequestRecorder()
         TestURLProtocol.register(path: "/auth/inherited") { request in
             recorder.record(request)
-            return (HTTPURLResponse(url: Self.url("/auth/inherited"), statusCode: 200, httpVersion: nil, headerFields: nil)!, successData)
+            return (HTTPURLResponse(url: testURL("/auth/inherited"), statusCode: 200, httpVersion: nil, headerFields: nil)!, successData)
         }
         defer { TestURLProtocol.unregister(path: "/auth/inherited") }
 
@@ -251,7 +247,7 @@ struct AuthenticatedEndpointTests {
         let recorder = RequestRecorder()
         TestURLProtocol.register(path: "/auth/opted-out") { request in
             recorder.record(request)
-            return (HTTPURLResponse(url: Self.url("/auth/opted-out"), statusCode: 200, httpVersion: nil, headerFields: nil)!, successData)
+            return (HTTPURLResponse(url: testURL("/auth/opted-out"), statusCode: 200, httpVersion: nil, headerFields: nil)!, successData)
         }
         defer { TestURLProtocol.unregister(path: "/auth/opted-out") }
 
@@ -269,7 +265,7 @@ struct AuthenticatedEndpointTests {
         let recorder = RequestRecorder()
         TestURLProtocol.register(path: "/auth/overridden") { request in
             recorder.record(request)
-            return (HTTPURLResponse(url: Self.url("/auth/overridden"), statusCode: 200, httpVersion: nil, headerFields: nil)!, successData)
+            return (HTTPURLResponse(url: testURL("/auth/overridden"), statusCode: 200, httpVersion: nil, headerFields: nil)!, successData)
         }
         defer { TestURLProtocol.unregister(path: "/auth/overridden") }
 
@@ -279,6 +275,7 @@ struct AuthenticatedEndpointTests {
         #expect(recorder.all().first?.value(forHTTPHeaderField: Header.authorization.name) == nil)
     }
 
+    @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
     @Test
     func endpointsOnAServerShareOneAuthInstance() {
         // Identity matters: a shared instance is what lets refreshes coalesce across endpoints.
@@ -288,15 +285,6 @@ struct AuthenticatedEndpointTests {
 }
 
 // MARK: - Servers
-
-/// Unauthenticated, for endpoints that declare their own auth.
-struct AuthTestServer: ServerDefinition {
-    var baseUrls: [Environments: URL] {
-        [.production: URL(string: "https://api.velosmobile.com")!]
-    }
-
-    static var defaultEnvironment: Environments { .production }
-}
 
 /// Declares a server-wide authentication method inherited by its endpoints.
 struct KeyedServer: ServerDefinition {
@@ -323,16 +311,8 @@ struct SharedAuthServer: ServerDefinition {
 
 // MARK: - Endpoints
 
-struct AuthTestResponse: Codable, Sendable {
-    let value: String
-}
-
-struct AuthTestErrorResponse: Codable, Sendable, Equatable {
-    let message: String
-}
-
 struct RetryEndpoint: Endpoint {
-    typealias Server = AuthTestServer
+    typealias Server = TestServer
     typealias Response = AuthTestResponse
     typealias ErrorResponse = AuthTestErrorResponse
 
@@ -341,7 +321,7 @@ struct RetryEndpoint: Endpoint {
 }
 
 struct ExhaustionEndpoint: Endpoint {
-    typealias Server = AuthTestServer
+    typealias Server = TestServer
     typealias Response = AuthTestResponse
     typealias ErrorResponse = AuthTestErrorResponse
 
@@ -350,7 +330,7 @@ struct ExhaustionEndpoint: Endpoint {
 }
 
 struct FailingRefreshEndpoint: Endpoint {
-    typealias Server = AuthTestServer
+    typealias Server = TestServer
     typealias Response = AuthTestResponse
     typealias ErrorResponse = AuthTestErrorResponse
 
@@ -359,7 +339,7 @@ struct FailingRefreshEndpoint: Endpoint {
 }
 
 struct JWTEndpoint: Endpoint {
-    typealias Server = AuthTestServer
+    typealias Server = TestServer
     typealias Response = AuthTestResponse
     typealias ErrorResponse = AuthTestErrorResponse
 
@@ -372,7 +352,7 @@ struct JWTEndpoint: Endpoint {
 }
 
 struct UnauthenticatedJWTEndpoint: Endpoint {
-    typealias Server = AuthTestServer
+    typealias Server = TestServer
     typealias Response = AuthTestResponse
     typealias ErrorResponse = AuthTestErrorResponse
 
@@ -384,7 +364,7 @@ struct UnauthenticatedJWTEndpoint: Endpoint {
 }
 
 struct RefreshFailureEndpoint: Endpoint {
-    typealias Server = AuthTestServer
+    typealias Server = TestServer
     typealias Response = AuthTestResponse
     typealias ErrorResponse = AuthTestErrorResponse
 
@@ -398,7 +378,7 @@ struct RefreshFailureEndpoint: Endpoint {
 }
 
 struct ProactiveEndpoint: Endpoint {
-    typealias Server = AuthTestServer
+    typealias Server = TestServer
     typealias Response = AuthTestResponse
     typealias ErrorResponse = AuthTestErrorResponse
 
@@ -411,7 +391,7 @@ struct ProactiveEndpoint: Endpoint {
 }
 
 struct StaticKeyEndpoint: Endpoint {
-    typealias Server = AuthTestServer
+    typealias Server = TestServer
     typealias Response = AuthTestResponse
     typealias ErrorResponse = AuthTestErrorResponse
 

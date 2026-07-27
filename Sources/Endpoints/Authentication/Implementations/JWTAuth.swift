@@ -174,12 +174,7 @@ public actor JWTAuth: AuthenticationMethod {
     /// The existence check and task creation happen in one synchronous stretch of
     /// actor isolation, so concurrent callers cannot start duplicate refreshes.
     private func refresh(with refreshToken: String) async throws(AuthenticationError) -> TokenPair {
-        let refreshTask: Task<TokenPair, Error>
-        if let pendingRefresh {
-            refreshTask = pendingRefresh
-        } else {
-            refreshTask = startRefresh(refreshToken: refreshToken)
-        }
+        let refreshTask = pendingRefresh ?? startRefresh(refreshToken: refreshToken)
 
         defer {
             if pendingRefresh == refreshTask {
@@ -187,7 +182,13 @@ public actor JWTAuth: AuthenticationMethod {
             }
         }
 
-        return try await awaitRefresh(refreshTask)
+        do {
+            return try await refreshTask.value
+        } catch let error as AuthenticationError {
+            throw error
+        } catch {
+            throw .refreshFailed(underlying: error)
+        }
     }
 
     private func startRefresh(refreshToken: String) -> Task<TokenPair, Error> {
@@ -212,17 +213,6 @@ public actor JWTAuth: AuthenticationMethod {
 
     private nonisolated func headerValue(for accessToken: String) -> String {
         "\(configuration.tokenPrefix) \(accessToken)"
-    }
-
-    /// Awaits a refresh task, mapping its untyped failure back to ``AuthenticationError``.
-    private func awaitRefresh(_ task: Task<TokenPair, Error>) async throws(AuthenticationError) -> TokenPair {
-        do {
-            return try await task.value
-        } catch let error as AuthenticationError {
-            throw error
-        } catch {
-            throw .refreshFailed(underlying: error)
-        }
     }
 
     // MARK: - Public Token Management

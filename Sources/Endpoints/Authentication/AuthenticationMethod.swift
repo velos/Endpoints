@@ -36,7 +36,7 @@ public protocol AuthenticationMethod: Sendable {
     /// How many times a request may be retried after reauthenticating. Defaults to 1.
     ///
     /// Bounds the retry loop so that a server which keeps rejecting credentials cannot
-    /// cause an infinite request/refresh cycle. Negative values are treated as 0.
+    /// cause an infinite request/refresh cycle.
     var maxRetryAttempts: Int { get }
 }
 
@@ -56,4 +56,8 @@ public extension AuthenticationMethod {
 
     /// By default, a request is retried once after reauthenticating.
     var maxRetryAttempts: Int { 1 }
+
+    /// ``maxRetryAttempts`` normalized to a usable count, so that every transport
+    /// applies the same bound without repeating the clamp.
+    var retryAttempts: Int { max(0, maxRetryAttempts) }
 }

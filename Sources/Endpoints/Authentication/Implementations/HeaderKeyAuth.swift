@@ -16,6 +16,9 @@ public struct HeaderKeyAuth: AuthenticationMethod {
     /// Set to nil for no prefix.
     public let prefix: String?
 
+    /// The key and prefix are immutable, so the header value is composed once.
+    private let headerValue: String
+
     /// Creates a header key authentication method.
     ///
     /// - Parameters:
@@ -30,11 +33,11 @@ public struct HeaderKeyAuth: AuthenticationMethod {
         self.key = key
         self.header = header
         self.prefix = prefix
+        self.headerValue = prefix.map { "\($0) \(key)" } ?? key
     }
 
     public func authenticate(request: URLRequest) async throws(AuthenticationError) -> URLRequest {
         var mutableRequest = request
-        let headerValue = prefix.map { "\($0) \(key)" } ?? key
         mutableRequest.setValue(headerValue, forHTTPHeaderField: header.name)
         return mutableRequest
     }

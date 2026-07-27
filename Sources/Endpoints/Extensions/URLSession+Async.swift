@@ -20,33 +20,15 @@ public extension URLSession {
     /// Use this when the response body is expected to be `Void` or empty as you would have in a 204.
     /// - Parameter endpoint: The endpoint instance to be used to make the request
     func response<T: Endpoint>(with endpoint: T) async throws(T.TaskError) where T.Response == Void {
-        #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
-        if let mockResponse: T.Response = try await Mocking.shared.handleMock(for: T.self) {
-            return mockResponse
-        }
-        #endif
-
-        _ = try await performRequest(with: endpoint) { (_) throws(T.TaskError) in () }
+        try await performRequest(with: endpoint) { (_) throws(T.TaskError) in () }
     }
 
     func response<T: Endpoint>(with endpoint: T) async throws(T.TaskError) -> T.Response where T.Response == Data {
-        #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
-        if let mockResponse = try await Mocking.shared.handleMock(for: T.self) {
-            return mockResponse
-        }
-        #endif
-
-        return try await performRequest(with: endpoint) { (data) throws(T.TaskError) in data }
+        try await performRequest(with: endpoint) { (data) throws(T.TaskError) in data }
     }
 
     func response<T: Endpoint>(with endpoint: T) async throws(T.TaskError) -> T.Response where T.Response: Decodable {
-        #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
-        if let mockResponse = try await Mocking.shared.handleMock(for: T.self) {
-            return mockResponse
-        }
-        #endif
-
-        return try await performRequest(with: endpoint) { (data) throws(T.TaskError) in
+        try await performRequest(with: endpoint) { (data) throws(T.TaskError) in
             do {
                 return try T.responseDecoder.decode(T.Response.self, from: data)
             } catch {
@@ -61,17 +43,26 @@ public extension URLSession {
     /// With the default ``NoAuth``, `authenticate` returns the request unchanged and
     /// `shouldReauthenticate` is always false, so this is a single pass through the
     /// unauthenticated request path.
-    private func performRequest<T: Endpoint, R>(
+    ///
+    /// An active mock short-circuits here, ahead of authentication: a mocked request
+    /// never applies credentials and never enters the retry loop.
+    private func performRequest<T: Endpoint>(
         with endpoint: T,
-        transform: (Data) throws(T.TaskError) -> R
-    ) async throws(T.TaskError) -> R {
+        transform: (Data) throws(T.TaskError) -> T.Response
+    ) async throws(T.TaskError) -> T.Response {
+        #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
+        if let mockResponse = try await Mocking.shared.handleMock(for: T.self) {
+            return mockResponse
+        }
+        #endif
+
         let auth = T.auth
-        let maxRetryAttempts = max(0, auth.maxRetryAttempts)
+        // The endpoint is immutable, so the unauthenticated request is identical on
+        // every attempt; only the credentials applied to it change.
+        let request = try createUrlRequest(for: endpoint)
 
         var attempt = 0
         while true {
-            let request = try createUrlRequest(for: endpoint)
-
             let authenticatedRequest: URLRequest
             do {
                 authenticatedRequest = try await auth.authenticate(request: request)
@@ -89,7 +80,7 @@ public extension URLSession {
 
                 return try transform(data)
             } catch {
-                guard attempt < maxRetryAttempts,
+                guard attempt < auth.retryAttempts,
                       auth.shouldReauthenticate(for: error, response: error.httpResponse) else {
                     throw error
                 }
@@ -106,7 +97,7 @@ public extension URLSession {
     }
 
     /// Loads data for the request, mapping `URLSession` failures into the endpoint's ``EndpointTaskError``.
-    internal func loadData<T: Endpoint>(for urlRequest: URLRequest, endpoint: T.Type) async throws(T.TaskError) -> (data: Data, response: URLResponse) {
+    private func loadData<T: Endpoint>(for urlRequest: URLRequest, endpoint: T.Type) async throws(T.TaskError) -> (data: Data, response: URLResponse) {
         do {
             return try await data(for: urlRequest)
         } catch {

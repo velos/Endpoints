@@ -74,11 +74,7 @@ struct Mocking {
     ///   - body: Closure that configures the mock response
     ///   - test: The test code to execute with mocking enabled
     func withMock<T: Endpoint, R: Sendable>(_ ofType: T.Type, _ body: @Sendable @escaping (MockContinuation<T>) async -> Void, test: @escaping () async throws -> R) async rethrows -> R {
-        var mocks = Self.current
-        mocks[ObjectIdentifier(T.self)] = ToReturnWrapper(body)
-        return try await Self.$current.withValue(mocks) {
-            try await test()
-        }
+        try await withMock(registering: { $0.register(T.self, body) }, test: test)
     }
 
     /// Sets up a mock context for multiple endpoint types and executes the test block within it.

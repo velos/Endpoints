@@ -70,12 +70,18 @@ private final class AsyncBridge<Output: Sendable, Failure: Error>: @unchecked Se
 
 @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
 private func endpointPublisher<Output: Sendable, Failure: Error>(
-    performing work: @escaping @Sendable () async -> Result<Output, Failure>
+    performing work: @escaping @Sendable () async throws(Failure) -> Output
 ) -> AnyPublisher<Output, Failure> {
     Deferred { () -> AnyPublisher<Output, Failure> in
         let bridge = AsyncBridge<Output, Failure>()
         return Future<Output, Failure> { promise in
-            bridge.begin(promise: promise, work: work)
+            bridge.begin(promise: promise) {
+                do throws(Failure) {
+                    return .success(try await work())
+                } catch {
+                    return .failure(error)
+                }
+            }
         }
         .handleEvents(receiveCancel: { bridge.cancel() })
         .eraseToAnyPublisher()
@@ -95,13 +101,8 @@ public extension URLSession {
     ///   - endpoint: The request data to insert into the ``Definition``
     /// - Returns: A `Publisher` which fetches the ``Endpoint``'s contents. Any failures when creating the request are sent as errors in the `Publisher`
     func endpointPublisher<T: Endpoint>(with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Void {
-        Endpoints.endpointPublisher {
-            do throws(T.TaskError) {
-                try await self.response(with: endpoint)
-                return .success(())
-            } catch {
-                return .failure(error)
-            }
+        Endpoints.endpointPublisher { () throws(T.TaskError) in
+            try await self.response(with: endpoint)
         }
     }
 
@@ -114,12 +115,8 @@ public extension URLSession {
     ///   - endpoint: The request data to insert into the ``Definition``
     /// - Returns: A `Publisher` which fetches the ``Endpoint``'s contents. Any failures when creating the request are sent as errors in the `Publisher`
     func endpointPublisher<T: Endpoint>(with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Data {
-        Endpoints.endpointPublisher {
-            do throws(T.TaskError) {
-                return .success(try await self.response(with: endpoint))
-            } catch {
-                return .failure(error)
-            }
+        Endpoints.endpointPublisher { () throws(T.TaskError) in
+            try await self.response(with: endpoint)
         }
     }
 
@@ -132,12 +129,8 @@ public extension URLSession {
     ///   - endpoint: The request data to insert into the ``Definition``
     /// - Returns: A `Publisher` which fetches the ``Endpoint``'s contents. Any failures when creating the request are sent as errors in the `Publisher`
     func endpointPublisher<T: Endpoint>(with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response: Decodable {
-        Endpoints.endpointPublisher {
-            do throws(T.TaskError) {
-                return .success(try await self.response(with: endpoint))
-            } catch {
-                return .failure(error)
-            }
+        Endpoints.endpointPublisher { () throws(T.TaskError) in
+            try await self.response(with: endpoint)
         }
     }
 }
