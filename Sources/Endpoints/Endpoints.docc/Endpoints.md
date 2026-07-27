@@ -21,11 +21,22 @@ The purpose of Endpoints is to, in a type-safe way, define how to create a `URLR
 - ``GenericServer``
 - ``TypicalEnvironments``
 
+### Authentication
+
+- ``AuthenticationMethod``
+- ``AuthenticationError``
+- ``NoAuth``
+- ``HeaderKeyAuth``
+- ``BasicAuth``
+- ``CookieAuth``
+- ``JWTAuth``
+
 ### Testing and Mocking
 
 - <doc:Mocking>
 - ``EndpointsMocking``
 - ``withMock(_:_:test:)``
+- ``MockRegistry``
 - ``MockContinuation``
 - ``MockAction``
 

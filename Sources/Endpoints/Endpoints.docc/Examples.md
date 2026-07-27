@@ -59,15 +59,19 @@ struct CustomServer: ServerDefinition {
 
     static var defaultEnvironment: Environments { .debug }
     
-    var requestProcessor: (URLRequest) -> URLRequest {
+    var requestProcessor: @Sendable (URLRequest) -> URLRequest {
         return { request in
             var mutableRequest = request
-            mutableRequest.setValue("Bearer token", forHTTPHeaderField: "Authorization")
+            mutableRequest.setValue(buildNumber, forHTTPHeaderField: "X-Client-Build")
             return mutableRequest
         }
     }
 }
 ```
+
+> Note: `requestProcessor` is for static, synchronous request modification. To attach
+> credentials — especially ones that expire and need refreshing — declare an
+> ``AuthenticationMethod`` with ``ServerDefinition/auth`` instead.
 
 ### Changing Environments
 

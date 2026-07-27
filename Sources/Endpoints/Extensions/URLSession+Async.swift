@@ -18,9 +18,7 @@ public extension URLSession {
     /// Perform the request for the endpoint on the given environment.
     ///
     /// Use this when the response body is expected to be `Void` or empty as you would have in a 204.
-    /// - Parameters:
-    ///   - environment: The environment in which to make the request
-    ///   - endpoint: The endpoint instance to be used to make the request
+    /// - Parameter endpoint: The endpoint instance to be used to make the request
     func response<T: Endpoint>(with endpoint: T) async throws(T.TaskError) where T.Response == Void {
         #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
         if let mockResponse: T.Response = try await Mocking.shared.handleMock(for: T.self) {

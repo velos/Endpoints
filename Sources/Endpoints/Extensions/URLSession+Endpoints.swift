@@ -59,7 +59,6 @@ public extension URLSession {
     /// This function does not expect a result value from the endpoint.
     /// Note: This does not start the request. That must be done with `resume()`.
     /// - Parameters:
-    ///   - environment: An instance conforming to ``EnvironmentType``, which is used to build the full request.
     ///   - endpoint: The request data to use when filling in the ``Definition``
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
     /// - Throws: Throws an ``EndpointTaskError`` of ``EndpointTaskError/endpointError(_:)`` if there is an issue constructing the request.
@@ -99,7 +98,6 @@ public extension URLSession {
     /// This function expects a result value of `Data`.
     /// Note: This does not start the request. That must be done with `resume()`.
     /// - Parameters:
-    ///   - environment: An instance conforming to ``EnvironmentType``, which is used to build the full request.
     ///   - endpoint: The request data to use when filling in the ``Definition``
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
     /// - Throws: Throws an ``EndpointTaskError`` of ``EndpointTaskError/endpointError(_:)`` if there is an issue constructing the request.
@@ -137,7 +135,6 @@ public extension URLSession {
     /// This function expects a result value which is `Decodable`.
     /// Note: This does not start the request. That must be done with `resume()`.
     /// - Parameters:
-    ///   - environment: An instance conforming to ``EnvironmentType``, which is used to build the full request.
     ///   - endpoint: The request data to use when filling in the ``Definition``
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
     /// - Throws: Throws an ``EndpointTaskError`` of ``EndpointTaskError/endpointError(_:)`` if there is an issue constructing the request.
