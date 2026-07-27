@@ -139,7 +139,9 @@ Declare the method as a `static let` so all endpoints on a server share one inst
 
 Servers that declare no `auth` use `NoAuth`, so existing endpoints keep working unchanged.
 
-Authentication requires the async/await API. Because the Combine and closure-based APIs cannot await an asynchronous `authenticate`, they are constrained to unauthenticated endpoints — calling `endpointPublisher` or `endpointTask` with an authenticated endpoint is a compile error rather than a request that silently skips its credentials.
+The async/await and Combine APIs both apply authentication, including refresh and retry. Cancelling a Combine subscription cancels the underlying request.
+
+The closure-based `endpointTask` is the exception: it hands back a `URLSessionDataTask` synchronously, so it cannot await an asynchronous `authenticate` before returning. It is constrained to unauthenticated endpoints — calling it with an authenticated endpoint is a compile error rather than a request that silently skips its credentials. Use `response(with:)` or `endpointPublisher(with:)` for authenticated endpoints.
 
 Built-in authentication methods:
 

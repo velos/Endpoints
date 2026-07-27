@@ -118,44 +118,4 @@ extension Mocking {
     }
 }
 
-#if canImport(Combine)
-@preconcurrency import Combine
-
-extension Mocking {
-    /// Handles a mock request for Combine publishers.
-    /// - Parameter endpointsOfType: The endpoint type being requested
-    /// - Returns: A publisher that emits the mock response or error
-    func handleMockPublisher<T: Endpoint>(for endpointsOfType: T.Type) -> AnyPublisher<T.Response?, T.TaskError> {
-        guard shouldHandleMock(for: T.self) else {
-            return Just(nil)
-                .setFailureType(to: T.TaskError.self)
-                .eraseToAnyPublisher()
-        }
-
-        let subject = CurrentValueSubject<T.Response?, T.TaskError>(nil)
-
-        Task {
-            guard let action = await actionForMock(for: T.self) else {
-                subject.send(nil)
-                return
-            }
-
-            switch action {
-            case .none:
-                subject.send(nil)
-            case .return(let value):
-                subject.send(value)
-            case .fail(let errorResponse):
-                subject.send(completion: .failure(T.TaskError.errorResponse(httpResponse: HTTPURLResponse(), response: errorResponse)))
-            case .throw(let error):
-                subject.send(completion: .failure(error))
-            }
-        }
-
-        return subject
-            .eraseToAnyPublisher()
-    }
-}
-#endif
-
 #endif
