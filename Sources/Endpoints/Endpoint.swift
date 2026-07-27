@@ -127,6 +127,20 @@ public protocol Endpoint: Sendable {
     /// The ``DecoderType`` to use when decoding the response. Defaults to `JSONDecoder`.
     associatedtype ResponseDecoder: DecoderType = JSONDecoder
 
+    /// The ``AuthenticationMethod`` used to authenticate requests for this endpoint.
+    ///
+    /// Defaults to the ``Server``'s authentication method, which itself defaults to ``NoAuth``.
+    /// Override on an individual endpoint to opt out of the server's authentication (for
+    /// example on a login endpoint) or to use a different method entirely:
+    ///
+    /// ```swift
+    /// struct LoginEndpoint: Endpoint {
+    ///     typealias Server = ApiServer
+    ///     static var auth: NoAuth { NoAuth() }
+    /// }
+    /// ```
+    associatedtype Auth: AuthenticationMethod = Server.Auth
+
     /// A ``Definition`` which pieces together all the components defined in the endpoint.
     static var definition: Definition<Self> { get }
 
@@ -151,6 +165,13 @@ public protocol Endpoint: Sendable {
 
     /// The decoder instance to use when decoding the associated ``Endpoint/Response`` type
     static var responseDecoder: ResponseDecoder { get }
+
+    /// The authentication method instance used to authenticate requests for this endpoint.
+    ///
+    /// Defaults to ``ServerDefinition/auth`` so that all endpoints on a server share a
+    /// single instance — important for stateful methods like ``JWTAuth``, where sharing
+    /// is what lets concurrent refreshes coalesce across endpoints.
+    static var auth: Auth { get }
 
     /// A strategy for encoding query parameters. Defaults to `QueryEncodingStrategy.default`
     static var queryEncodingStrategy: QueryEncodingStrategy { get }
@@ -186,6 +207,13 @@ public extension Endpoint where ErrorDecoder == JSONDecoder {
 public extension Endpoint where BodyEncoder == JSONEncoder {
     static var bodyEncoder: BodyEncoder {
         return JSONEncoder()
+    }
+}
+
+public extension Endpoint where Auth == Server.Auth {
+    /// Endpoints inherit their server's authentication method instance by default.
+    static var auth: Auth {
+        return Server.auth
     }
 }
 

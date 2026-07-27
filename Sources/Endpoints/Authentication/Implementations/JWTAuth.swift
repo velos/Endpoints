@@ -12,11 +12,11 @@ import FoundationNetworking
 /// ``Configuration/expiryLeeway`` of expiring — the refresh then happens
 /// *before* the request is sent, avoiding a round trip that would be rejected.
 ///
-/// > Important: The ``RefreshHandler`` must not perform its request through the same
-/// > ``AuthenticatedSession`` (or any session authenticated by this `JWTAuth`): the
-/// > session would wait for the in-flight refresh that is itself waiting on the
-/// > handler, deadlocking the task. Use a plain `URLSession` for the refresh call —
-/// > it authenticates with the refresh token, not the access token.
+/// > Important: The ``RefreshHandler`` must not perform its request with an endpoint
+/// > authenticated by this same `JWTAuth`: the request would wait for the in-flight
+/// > refresh that is itself waiting on the handler, deadlocking the task. Give the
+/// > refresh endpoint `static var auth: NoAuth { NoAuth() }` — it authenticates with
+/// > the refresh token, not the access token.
 public actor JWTAuth: AuthenticationMethod {
 
     // MARK: - Types

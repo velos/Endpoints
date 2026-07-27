@@ -12,7 +12,7 @@ The purpose of Endpoints is to, in a type-safe way, define how to create a `URLR
 
 - **Type-safe endpoint definitions** - Define endpoints with compile-time checking of paths, parameters, and headers
 - **Server definition with multiple environments** - Support for local, development, staging, and production environments with easy switching
-- **Authentication with automatic token refresh** - Attach credentials to requests and transparently refresh and retry on expiry via `AuthenticatedSession`
+- **Authentication with automatic token refresh** - Declare an authentication method per server or per endpoint; credentials are applied, refreshed, and retried transparently
 - **Built-in mocking support** - Comprehensive testing utilities through the `EndpointsMocking` module
 - **Swift 6.0 compatible** - Built with modern Swift concurrency, Sendable support and typed throws
 - **Combine and async/await support** - Use either reactive or async patterns
@@ -95,12 +95,51 @@ do {
 
 ## Authentication
 
-`AuthenticatedSession` wraps a `URLSession` and applies an `AuthenticationMethod` to every request. It mirrors the async `URLSession.response(with:)` API (authentication is async/await-only; the Combine and closure-based APIs do not support it):
+Authentication is declared on the endpoint, the same way decoders are. A server names the `AuthenticationMethod` its endpoints use, and every endpoint inherits it:
 
 ```swift
-let session = AuthenticatedSession(auth: HeaderKeyAuth(key: "my-api-key"))
-let response = try await session.response(with: MyEndpoint())
+struct ApiServer: ServerDefinition {
+    static let auth = HeaderKeyAuth(key: "my-api-key")
+
+    var baseUrls: [Environments: URL] { ... }
+    static var defaultEnvironment: Environments { .production }
+}
+
+struct ProfileEndpoint: Endpoint {
+    typealias Server = ApiServer  // authenticated, nothing else to declare
+
+    static let definition: Definition<ProfileEndpoint> = Definition(method: .get, path: "profile")
+    struct Response: Decodable { let name: String }
+}
 ```
+
+Requests then go through the ordinary `URLSession` API — there is no separate session type, and credentials are applied automatically:
+
+```swift
+let response = try await URLSession.shared.response(with: ProfileEndpoint())
+```
+
+An individual endpoint can override its server's method — to opt out on a login or refresh endpoint, or to use a different scheme entirely:
+
+```swift
+struct LoginEndpoint: Endpoint {
+    typealias Server = ApiServer
+    static var auth: NoAuth { NoAuth() }         // unauthenticated
+    ...
+}
+
+struct MetricsEndpoint: Endpoint {
+    typealias Server = ApiServer
+    static let auth = HeaderKeyAuth(key: clientKey, header: "X-Client-Key", prefix: nil)
+    ...
+}
+```
+
+Declare the method as a `static let` so all endpoints on a server share one instance. That shared instance is what allows a stateful method like `JWTAuth` to coalesce concurrent token refreshes across every endpoint.
+
+Servers that declare no `auth` use `NoAuth`, so existing endpoints keep working unchanged.
+
+Authentication requires the async/await API. Because the Combine and closure-based APIs cannot await an asynchronous `authenticate`, they are constrained to unauthenticated endpoints — calling `endpointPublisher` or `endpointTask` with an authenticated endpoint is a compile error rather than a request that silently skips its credentials.
 
 Built-in authentication methods:
 
@@ -112,32 +151,35 @@ Built-in authentication methods:
 
 ### Token refresh with JWTAuth
 
-`JWTAuth` holds an access/refresh token pair. When a request fails with a status code in `refreshTriggerStatusCodes` (401 by default), the session calls your `refreshHandler` and retries the request with the new tokens. Concurrent refreshes are coalesced into a single operation, and a request that fails with already-replaced tokens will not trigger a redundant refresh — important when your backend rotates single-use refresh tokens.
+`JWTAuth` holds an access/refresh token pair. When a request fails with a status code in `refreshTriggerStatusCodes` (401 by default), your `refreshHandler` is called and the request is retried with the new tokens. Concurrent refreshes are coalesced into a single operation, and a request that fails with already-replaced tokens will not trigger a redundant refresh — important when your backend rotates single-use refresh tokens.
 
 If you know when the access token expires, set `TokenPair.expiresAt`: tokens within `expiryLeeway` (30 seconds by default) of expiring are then refreshed *before* the request is sent, skipping the round trip that would have been rejected. Without `expiresAt`, refresh is purely reactive.
 
-> **Important:** the `refreshHandler` must not perform its request through the same `AuthenticatedSession` (or any session authenticated by the same `JWTAuth`) — the session would wait on the very refresh that is waiting on the handler. Use a plain `URLSession` for the refresh call; it authenticates with the refresh token, not the access token.
-
 ```swift
-let auth = JWTAuth(
-    initialTokens: loadTokensFromKeychain(),
-    refreshHandler: { refreshToken in
-        // Exchange the refresh token for new tokens against your backend.
-        let response = try await URLSession.shared.response(with: RefreshEndpoint(token: refreshToken))
-        return JWTAuth.TokenPair(accessToken: response.access, refreshToken: response.refresh)
-    },
-    onTokensUpdated: { tokens in
-        saveTokensToKeychain(tokens)
-    },
-    onRefreshFailed: { error in
-        await logOut()
-    }
-)
+struct ApiServer: ServerDefinition {
+    static let auth = JWTAuth(
+        initialTokens: loadTokensFromKeychain(),
+        refreshHandler: { refreshToken in
+            // Exchange the refresh token for new tokens against your backend.
+            let response = try await URLSession.shared.response(with: RefreshEndpoint(token: refreshToken))
+            return JWTAuth.TokenPair(accessToken: response.access, refreshToken: response.refresh)
+        },
+        onTokensUpdated: { tokens in
+            saveTokensToKeychain(tokens)
+        },
+        onRefreshFailed: { error in
+            await logOut()
+        }
+    )
 
-let session = AuthenticatedSession(auth: auth)
+    var baseUrls: [Environments: URL] { ... }
+    static var defaultEnvironment: Environments { .production }
+}
 ```
 
-After a login or logout, update the tokens with `await auth.setTokens(_:)` or `await auth.clearTokens()`.
+> **Important:** the refresh endpoint must not be authenticated by the same `JWTAuth` — the request would wait on the very refresh that is waiting on it, deadlocking the task. Give it `static var auth: NoAuth { NoAuth() }`; it authenticates with the refresh token, not the access token.
+
+After a login or logout, update the tokens with `await ApiServer.auth.setTokens(_:)` or `await ApiServer.auth.clearTokens()`.
 
 ### Custom authentication methods
 
@@ -159,11 +201,11 @@ For failures that don't fit the built-in `AuthenticationError` cases (credential
 
 ### Error handling
 
-All failures from `AuthenticatedSession` — including authentication failures — surface as the endpoint's typed `EndpointTaskError`, so a single `catch` covers everything:
+All failures — including authentication failures — surface as the endpoint's typed `EndpointTaskError`, so a single `catch` covers everything:
 
 ```swift
 do {
-    let response = try await session.response(with: MyEndpoint())
+    let response = try await URLSession.shared.response(with: MyEndpoint())
 } catch {
     // error is MyEndpoint.TaskError — no casting needed
     switch error {
@@ -213,9 +255,9 @@ The mocking system supports:
 - Throwing network errors
 - Dynamic response generation
 - Combine publisher mocking
-- Both `URLSession` extensions and `AuthenticatedSession`
+- Authenticated and unauthenticated endpoints alike
 
-Note that mocks bypass authentication entirely: a mocked request never invokes the `AuthenticationMethod`, and mock errors do not trigger the refresh/retry loop. To simulate an authentication failure, throw one directly with `.throw(.authenticationError(.notAuthenticated))`; to test the refresh flow itself, use a `URLProtocol`-based fake transport.
+Note that mocks bypass authentication entirely: a mocked request never invokes the endpoint's `AuthenticationMethod`, and mock errors do not trigger the refresh/retry loop. To simulate an authentication failure, throw one directly with `.throw(.authenticationError(.notAuthenticated))`; to test the refresh flow itself, use a `URLProtocol`-based fake transport.
 
 To find out more about the pieces of the `Endpoint`, check out [Defining a ResponseType](https://github.com/velos/Endpoints/wiki/DefiningResponseType) on the wiki.
 

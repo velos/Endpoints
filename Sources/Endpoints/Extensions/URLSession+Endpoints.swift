@@ -25,9 +25,27 @@ public enum EndpointTaskError<ErrorResponseType: Sendable>: Error, Sendable {
     case urlLoadError(Error)
     case internetConnectionOffline
 
-    /// An authentication operation failed while performing the request
-    /// through an ``AuthenticatedSession``.
+    /// An authentication operation failed while applying or refreshing the
+    /// endpoint's ``Endpoint/Auth`` credentials.
     case authenticationError(AuthenticationError)
+}
+
+public extension EndpointTaskError {
+    /// The HTTP response associated with this error, when the failure came from a
+    /// response the server actually returned.
+    ///
+    /// `nil` for failures that happened before or instead of a response, such as
+    /// request construction, transport errors, and being offline.
+    var httpResponse: HTTPURLResponse? {
+        switch self {
+        case .errorResponse(let httpResponse, _),
+             .unexpectedResponse(let httpResponse),
+             .errorResponseParseError(let httpResponse, _, _):
+            return httpResponse
+        case .endpointError, .responseParseError, .urlLoadError, .internetConnectionOffline, .authenticationError:
+            return nil
+        }
+    }
 }
 
 public extension Endpoint {
@@ -46,7 +64,7 @@ public extension URLSession {
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
     /// - Throws: Throws an ``EndpointTaskError`` of ``EndpointTaskError/endpointError(_:)`` if there is an issue constructing the request.
     /// - Returns: The new session data task.
-    func endpointTask<T: Endpoint>(with endpoint: T, completion: @escaping @Sendable (Result<T.Response, T.TaskError>) -> Void) throws(T.TaskError) -> URLSessionDataTask where T.Response == Void {
+    func endpointTask<T: Endpoint>(with endpoint: T, completion: @escaping @Sendable (Result<T.Response, T.TaskError>) -> Void) throws(T.TaskError) -> URLSessionDataTask where T.Response == Void, T.Auth == NoAuth {
 
         let urlRequest = try createUrlRequest(for: endpoint)
 
@@ -86,7 +104,7 @@ public extension URLSession {
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
     /// - Throws: Throws an ``EndpointTaskError`` of ``EndpointTaskError/endpointError(_:)`` if there is an issue constructing the request.
     /// - Returns: The new session data task.
-    func endpointTask<T: Endpoint>(with endpoint: T, completion: @escaping @Sendable (Result<T.Response, T.TaskError>) -> Void) throws(T.TaskError) -> URLSessionDataTask where T.Response == Data {
+    func endpointTask<T: Endpoint>(with endpoint: T, completion: @escaping @Sendable (Result<T.Response, T.TaskError>) -> Void) throws(T.TaskError) -> URLSessionDataTask where T.Response == Data, T.Auth == NoAuth {
 
         let urlRequest = try createUrlRequest(for: endpoint)
 
@@ -124,7 +142,7 @@ public extension URLSession {
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
     /// - Throws: Throws an ``EndpointTaskError`` of ``EndpointTaskError/endpointError(_:)`` if there is an issue constructing the request.
     /// - Returns: The new session data task.
-    func endpointTask<T: Endpoint>(with endpoint: T, completion: @escaping @Sendable (Result<T.Response, T.TaskError>) -> Void) throws(T.TaskError) -> URLSessionDataTask where T.Response: Decodable {
+    func endpointTask<T: Endpoint>(with endpoint: T, completion: @escaping @Sendable (Result<T.Response, T.TaskError>) -> Void) throws(T.TaskError) -> URLSessionDataTask where T.Response: Decodable, T.Auth == NoAuth {
 
         let urlRequest = try createUrlRequest(for: endpoint)
 

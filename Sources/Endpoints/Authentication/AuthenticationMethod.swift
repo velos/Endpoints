@@ -32,6 +32,12 @@ public protocol AuthenticationMethod: Sendable {
     ///
     /// Implementations should coalesce concurrent calls into a single refresh operation.
     func reauthenticate(after failedRequest: URLRequest) async throws(AuthenticationError)
+
+    /// How many times a request may be retried after reauthenticating. Defaults to 1.
+    ///
+    /// Bounds the retry loop so that a server which keeps rejecting credentials cannot
+    /// cause an infinite request/refresh cycle. Negative values are treated as 0.
+    var maxRetryAttempts: Int { get }
 }
 
 public extension AuthenticationMethod {
@@ -47,4 +53,7 @@ public extension AuthenticationMethod {
     func reauthenticate(after failedRequest: URLRequest) async throws(AuthenticationError) {
         throw AuthenticationError.refreshNotSupported
     }
+
+    /// By default, a request is retried once after reauthenticating.
+    var maxRetryAttempts: Int { 1 }
 }

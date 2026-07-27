@@ -3,38 +3,69 @@ import Foundation
 import Endpoints
 @testable import EndpointsMocking
 
-@Suite("Authenticated Session Mocking")
-struct AuthenticatedSessionMockingTests {
+/// A server whose endpoints are authenticated, to confirm mocking short-circuits
+/// before authentication runs.
+struct MockAuthenticatedServer: ServerDefinition {
+    static let auth = JWTAuth(initialTokens: nil) { refreshToken in
+        JWTAuth.TokenPair(accessToken: "new", refreshToken: refreshToken)
+    }
+
+    var baseUrls: [Environments: URL] {
+        [.production: URL(string: "https://api.velosmobile.com")!]
+    }
+
+    static var defaultEnvironment: Environments { .production }
+}
+
+struct MockAuthenticatedEndpoint: Endpoint {
+    typealias Server = MockAuthenticatedServer
+
+    static let definition: Definition<MockAuthenticatedEndpoint> = Definition(
+        method: .get,
+        path: "authenticated"
+    )
+
+    struct Response: Codable {
+        let value: String
+    }
+}
+
+@Suite("Authenticated Endpoint Mocking")
+struct AuthenticatedEndpointMockingTests {
     @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
     @Test
     func mockedResponseWorks() async throws {
-        let auth = HeaderKeyAuth(key: "test")
-        let session = AuthenticatedSession(auth: auth)
-
         try await withMock(MockSimpleEndpoint.self, action: .return(.init(response1: "mocked"))) {
             let endpoint = MockSimpleEndpoint(pathComponents: .init(name: "a", id: "b"))
-            let response = try await session.response(with: endpoint)
+            let response = try await URLSession.shared.response(with: endpoint)
             #expect(response.response1 == "mocked")
+        }
+    }
+
+    /// The endpoint's auth has no tokens, so a real request would throw
+    /// `.authenticationError(.notAuthenticated)`. Getting a mocked value back proves
+    /// mocking short-circuits ahead of authentication.
+    @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
+    @Test
+    func mockingBypassesAuthentication() async throws {
+        try await withMock(MockAuthenticatedEndpoint.self, action: .return(.init(value: "mocked"))) {
+            let response = try await URLSession.shared.response(with: MockAuthenticatedEndpoint())
+            #expect(response.value == "mocked")
         }
     }
 
     @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
     @Test
-    func multipleEndpointsThroughAuthenticatedSession() async throws {
-        let auth = JWTAuth(initialTokens: .init(accessToken: "access", refreshToken: "refresh")) { refreshToken in
-            JWTAuth.TokenPair(accessToken: "new", refreshToken: refreshToken)
-        }
-        let session = AuthenticatedSession(auth: auth)
-
+    func multipleEndpointsIncludingAuthenticatedOnes() async throws {
         try await withMock { mocks in
             mocks.register(MockSimpleEndpoint.self, action: .return(.init(response1: "profile")))
-            mocks.register(MockSecondEndpoint.self, action: .return(.init(value: 99)))
+            mocks.register(MockAuthenticatedEndpoint.self, action: .return(.init(value: "authed")))
         } test: {
-            let simple = try await session.response(with: MockSimpleEndpoint(pathComponents: .init(name: "a", id: "b")))
+            let simple = try await URLSession.shared.response(with: MockSimpleEndpoint(pathComponents: .init(name: "a", id: "b")))
             #expect(simple.response1 == "profile")
 
-            let second = try await session.response(with: MockSecondEndpoint())
-            #expect(second.value == 99)
+            let authed = try await URLSession.shared.response(with: MockAuthenticatedEndpoint())
+            #expect(authed.value == "authed")
         }
     }
 
@@ -92,11 +123,9 @@ struct AuthenticatedSessionMockingTests {
     @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
     @Test
     func mockedAuthenticationErrorSurfacesTyped() async {
-        let session = AuthenticatedSession(auth: HeaderKeyAuth(key: "test"))
-
         await withMock(MockSimpleEndpoint.self, action: .throw(.authenticationError(.notAuthenticated))) {
             do throws(MockSimpleEndpoint.TaskError) {
-                _ = try await session.response(with: MockSimpleEndpoint(pathComponents: .init(name: "a", id: "b")))
+                _ = try await URLSession.shared.response(with: MockSimpleEndpoint(pathComponents: .init(name: "a", id: "b")))
                 Issue.record("Expected authenticationError to be thrown")
             } catch {
                 guard case .authenticationError(.notAuthenticated) = error else {

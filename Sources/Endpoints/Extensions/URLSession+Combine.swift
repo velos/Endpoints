@@ -19,7 +19,7 @@ public extension URLSession {
     ///   - environment: The environment with which to make the request
     ///   - endpoint: The request data to insert into the ``Definition``
     /// - Returns: A `Publisher` which fetches the ``Endpoint``'s contents. Any failures when creating the request are sent as errors in the `Publisher`
-    func endpointPublisher<T: Endpoint>(with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Void {
+    func endpointPublisher<T: Endpoint>(with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Void, T.Auth == NoAuth {
         let urlRequest: URLRequest
         do {
             urlRequest = try createUrlRequest(for: endpoint)
@@ -68,7 +68,7 @@ public extension URLSession {
     ///   - environment: The environment with which to make the request
     ///   - endpoint: The request data to insert into the ``Definition``
     /// - Returns: A `Publisher` which fetches the ``Endpoint``'s contents. Any failures when creating the request are sent as errors in the `Publisher`
-    func endpointPublisher<T: Endpoint>(with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Data {
+    func endpointPublisher<T: Endpoint>(with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response == Data, T.Auth == NoAuth {
 
         let urlRequest: URLRequest
         do {
@@ -118,7 +118,7 @@ public extension URLSession {
     ///   - environment: The environment with which to make the request
     ///   - endpoint: The request data to insert into the ``Definition``
     /// - Returns: A `Publisher` which fetches the ``Endpoint``'s contents. Any failures when creating the request are sent as errors in the `Publisher`
-    func endpointPublisher<T: Endpoint>(with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response: Decodable {
+    func endpointPublisher<T: Endpoint>(with endpoint: T) -> AnyPublisher<T.Response, T.TaskError> where T.Response: Decodable, T.Auth == NoAuth {
 
         let urlRequest: URLRequest
         do {
