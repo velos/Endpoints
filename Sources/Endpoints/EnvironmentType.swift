@@ -41,7 +41,13 @@ public enum TypicalEnvironments: String, CaseIterable, Sendable {
 /// ```
 public protocol ServerDefinition: Sendable {
     /// The environment type for this server. Defaults to ``TypicalEnvironments``.
-    associatedtype Environments: Hashable = TypicalEnvironments
+    ///
+    /// Must be `Sendable`: the current environment is stored in shared state and may be
+    /// read and switched from any thread via ``environment``.
+    associatedtype Environments: Hashable & Sendable = TypicalEnvironments
+
+    /// The ``AuthenticationMethod`` applied to endpoints on this server. Defaults to ``NoAuth``.
+    associatedtype Auth: AuthenticationMethod = NoAuth
 
     /// Required initializer for creating server instances.
     init()
@@ -50,8 +56,24 @@ public protocol ServerDefinition: Sendable {
     var baseUrls: [Environments: URL] { get }
 
     /// Optional request processor to modify requests before sending.
-    /// Use this to add authentication headers or signatures.
+    ///
+    /// Use this for static, synchronous request modification such as signing. For
+    /// credentials that can expire and be refreshed, use ``auth`` instead.
     var requestProcessor: @Sendable (URLRequest) -> URLRequest { get }
+
+    /// The authentication method instance shared by all endpoints on this server.
+    ///
+    /// Declare this as a `static let` so that stateful methods such as ``JWTAuth``
+    /// share one instance across every endpoint — that shared instance is what allows
+    /// concurrent token refreshes to coalesce.
+    ///
+    /// ```swift
+    /// struct ApiServer: ServerDefinition {
+    ///     static let auth = JWTAuth(initialTokens: loadTokens(), refreshHandler: refresh)
+    ///     ...
+    /// }
+    /// ```
+    static var auth: Auth { get }
 
     /// The default environment to use when none is explicitly set.
     static var defaultEnvironment: Environments { get }
@@ -60,6 +82,11 @@ public protocol ServerDefinition: Sendable {
 public extension ServerDefinition {
     /// Default passthrough request processor that returns the request unchanged.
     var requestProcessor: @Sendable (URLRequest) -> URLRequest { return { $0 } }
+}
+
+public extension ServerDefinition where Auth == NoAuth {
+    /// Servers are unauthenticated unless they declare an authentication method.
+    static var auth: NoAuth { return NoAuth() }
 }
 
 struct ApiServer: ServerDefinition {

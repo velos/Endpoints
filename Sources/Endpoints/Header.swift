@@ -112,8 +112,8 @@ extension Header {
     public static let warning = Header(name: "Warning", category: .general)
 
     public static let keepAlive = Header(name: "Keep-Alive", category: .general)
-    public static let cookie = Header(name: "Cookie", category: .general)
-    public static let setCookie = Header(name: "Set-Cookie", category: .general)
+    public static let cookie = Header(name: "Cookie", category: .request)
+    public static let setCookie = Header(name: "Set-Cookie", category: .response)
     public static let clearSiteData = Header(name: "Clear-Site-Data", category: .general)
 
     // response

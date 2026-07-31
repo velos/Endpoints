@@ -59,26 +59,31 @@ struct CustomServer: ServerDefinition {
 
     static var defaultEnvironment: Environments { .debug }
     
-    var requestProcessor: (URLRequest) -> URLRequest {
+    var requestProcessor: @Sendable (URLRequest) -> URLRequest {
         return { request in
             var mutableRequest = request
-            mutableRequest.setValue("Bearer token", forHTTPHeaderField: "Authorization")
+            mutableRequest.setValue(buildNumber, forHTTPHeaderField: "X-Client-Build")
             return mutableRequest
         }
     }
 }
 ```
 
+> Note: `requestProcessor` is for static, synchronous request modification. To attach
+> credentials — especially ones that expire and need refreshing — declare an
+> ``AuthenticationMethod`` with ``ServerDefinition/auth`` instead.
+
 ### Changing Environments
 
-To switch environments at runtime, set the environment on the server type:
+Select the environment when performing a request:
 
 ```swift
-// Switch to staging environment
-ApiServer.environment = .staging
-
-// All subsequent requests will use the staging URL
+let response = try await URLSession.shared.response(with: MyEndpoint(), environment: .staging)
 ```
+
+Because the environment is a per-request value rather than global state, different parts
+of an app — or two clients talking to different deployments — can use different
+environments at the same time.
 
 ---
 

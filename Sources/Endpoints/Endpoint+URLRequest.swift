@@ -15,64 +15,57 @@ import FoundationNetworking
 extension Endpoint {
 
     /// Generates a `URLRequest` given the associated request value.
-    /// - Parameter environment: The environment in which to create the request
+    /// - Parameter environment: The environment whose base URL the request is built against.
+    ///   Defaults to the server's ``ServerDefinition/defaultEnvironment``.
     /// - Throws: An ``EndpointError`` which describes the error filling in data to the associated ``Definition``.
     /// - Returns: A `URLRequest` ready for requesting with all values from `self` filled in according to the associated ``Endpoint``.
-    public func urlRequest() throws -> URLRequest {
+    public func urlRequest(
+        in environment: Server.Environments = Server.defaultEnvironment
+    ) throws(EndpointError) -> URLRequest {
 
         var components = URLComponents()
         components.path = Self.definition.path.path(with: pathComponents)
 
-        let urlQueryItems: [URLQueryItem] = try Self.definition.parameters.compactMap { item in
+        var urlQueryItems: [URLQueryItem] = []
+        var bodyFormItems: [URLQueryItem] = []
+
+        for item in Self.definition.parameters {
 
             let value: Any
             let name: String
+            let isQuery: Bool
             switch item {
             case .query(let queryName, let valuePath):
                 value = parameterComponents[keyPath: valuePath]
                 name = queryName
+                isQuery = true
             case .queryValue(let queryName, let queryValue):
                 value = queryValue
                 name = queryName
-            default:
-                return nil
-            }
-
-            guard let queryValue = value as? ParameterRepresentable else {
-                throw EndpointError.invalidQuery(named: name, type: type(of: value))
-            }
-
-            if let encodedValue = queryValue.parameterValue {
-                return URLQueryItem(name: name, value: encodedValue)
-            }
-
-            return nil
-        }
-
-        let bodyFormItems: [URLQueryItem] = try Self.definition.parameters.compactMap { item in
-
-            let value: Any
-            let name: String
-            switch item {
+                isQuery = true
             case .form(let formName, let valuePath):
                 value = parameterComponents[keyPath: valuePath]
                 name = formName
+                isQuery = false
             case .formValue(let formName, let formValue):
                 value = formValue
                 name = formName
-            default:
-                return nil
+                isQuery = false
             }
 
-            guard let formValue = value as? ParameterRepresentable else {
-                throw EndpointError.invalidForm(named: name, type: type(of: value))
+            guard let parameterValue = value as? ParameterRepresentable else {
+                throw isQuery
+                    ? EndpointError.invalidQuery(named: name, type: type(of: value))
+                    : EndpointError.invalidForm(named: name, type: type(of: value))
             }
 
-            if let encodedValue = formValue.parameterValue {
-                return URLQueryItem(name: name, value: encodedValue)
-            }
+            guard let encodedValue = parameterValue.parameterValue else { continue }
 
-            return nil
+            if isQuery {
+                urlQueryItems.append(URLQueryItem(name: name, value: encodedValue))
+            } else {
+                bodyFormItems.append(URLQueryItem(name: name, value: encodedValue))
+            }
         }
 
         if !urlQueryItems.isEmpty {
@@ -93,7 +86,7 @@ extension Endpoint {
         }
 
         let server = Self.definition.server
-        let baseUrl = server.baseUrls[type(of: server).environment]
+        let baseUrl = server.baseUrls[environment]
 
         guard let baseUrl else {
             throw EndpointError.misconfiguredServer(server: Self.definition.server)
@@ -106,7 +99,8 @@ extension Endpoint {
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = Self.definition.method.methodString
 
-        let headerItems: [String: String] = try Self.definition.headers.reduce(into: [:]) { allHeaders, field in
+        var headerItems: [String: String] = [:]
+        for field in Self.definition.headers {
             let value: Any
             let name = field.key.name
 
@@ -121,7 +115,7 @@ extension Endpoint {
                 throw EndpointError.invalidHeader(named: name, type: type(of: value))
             }
 
-            allHeaders[name] = headerValue.description
+            headerItems[name] = headerValue.description
         }
 
         for (name, value) in headerItems {
