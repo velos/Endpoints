@@ -24,7 +24,7 @@ import Foundation
 ///
 /// - Parameters:
 ///   - ofType: The endpoint type to mock.
-///   - body: A closure that sets the response on the ``MockContinuation`` it receives.
+///   - body: A closure that sets the response on the `MockContinuation` it receives.
 ///   - test: The code to run with the mock in place.
 /// - Returns: The value `test` returns.
 public func withMock<T: Endpoint, R: Sendable>(_ ofType: T.Type, _ body: @Sendable @escaping (MockContinuation<T>) async -> Void, test: @Sendable @escaping () async throws -> R) async rethrows -> R {
@@ -69,7 +69,7 @@ public func withMock<T: Endpoint, R: Sendable>(_ ofType: T.Type, action: MockAct
 /// ```
 ///
 /// - Parameters:
-///   - registering: A closure that registers mocks on the ``MockRegistry`` it receives.
+///   - registering: A closure that registers mocks on the `MockRegistry` it receives.
 ///   - test: The code to run with the mocks in place.
 /// - Returns: The value `test` returns.
 public func withMock<R: Sendable>(registering: (MockRegistry) -> Void, test: @Sendable @escaping () async throws -> R) async rethrows -> R {

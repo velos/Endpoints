@@ -1,6 +1,8 @@
 # Endpoints
 
-![CI](https://github.com/velos/Endpoints/workflows/CI/badge.svg) ![Documentation](https://github.com/velos/Endpoints/workflows/Documentation/badge.svg)
+![CI](https://github.com/velos/Endpoints/workflows/CI/badge.svg)
+[![Swift versions](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fvelos%2FEndpoints%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/velos/Endpoints)
+[![Platforms](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fvelos%2FEndpoints%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/velos/Endpoints)
 
 Endpoints describes HTTP endpoints as Swift types: the path, method, parameters, headers, body, and response. From that description it builds a `URLRequest` and decodes the response, using plain `URLSession`. It doesn't replace the URL loading system the way Alamofire does, and the requests it builds work with Alamofire if you prefer that.
 
@@ -312,7 +314,7 @@ Endpoint types without a mock make real requests. Mocked requests skip authentic
 
 ## Documentation
 
-The [API documentation](https://velosmobile.com/Endpoints/documentation/endpoints/) is published with each release. You can also build it in Xcode with Product > Build Documentation. The [Examples](Sources/Endpoints/Endpoints.docc/Examples.md) and [Mocking](Sources/Endpoints/Endpoints.docc/Mocking.md) guides are readable on GitHub.
+The [API documentation](https://swiftpackageindex.com/velos/Endpoints/documentation) is hosted on the Swift Package Index and updated with each release, for both `Endpoints` and `EndpointsMocking`. You can also build it in Xcode with Product > Build Documentation. The [Examples](Sources/Endpoints/Endpoints.docc/Examples.md), [Authentication](Sources/Endpoints/Endpoints.docc/Authentication.md), and [Mocking](Sources/Endpoints/Endpoints.docc/Mocking.md) guides are readable on GitHub.
 
 ## Migrating from 0.4
 
