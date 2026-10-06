@@ -19,7 +19,7 @@ Add the package to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/velos/Endpoints.git", from: "0.6.0")
+    .package(url: "https://github.com/velos/Endpoints.git", from: "0.5.1")
 ]
 ```
 
