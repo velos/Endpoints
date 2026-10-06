@@ -1,6 +1,6 @@
 import Foundation
 
-/// An encoder that transforms an ``Encodable`` body into `multipart/form-data`.
+/// An encoder that transforms an `Encodable` body into `multipart/form-data`.
 ///
 /// Use this encoder by overriding ``Endpoint/bodyEncoder`` for endpoints that require multipart payloads.
 public final class MultipartFormEncoder: EncoderType {
@@ -122,7 +122,7 @@ fileprivate protocol MultipartFormJSONProtocol {
     func _encodeJSON(to encoder: _MultipartFormDataEncoder, path: [CodingKey]) throws
 }
 
-/// Wraps an ``Encodable`` value so it is embedded as a JSON part within a multipart payload.
+/// Wraps an `Encodable` value so it is embedded as a JSON part within a multipart payload.
 public struct MultipartFormJSON<Value: Encodable & Sendable>: Encodable, Sendable {
     public let value: Value
     fileprivate let jsonEncoder: JSONEncoder

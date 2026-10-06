@@ -8,51 +8,52 @@
 
 import Foundation
 
-/// An HTTP header name and category
+/// An HTTP header name.
 ///
-/// Custom headers can be included in your ``Definition`` by passing a dictionary of `[Header: HeaderField]` to the headers property. The ``HeaderField`` enum values can include references by key paths to ``Endpoint/HeaderComponents``s or to hard-coded strings:
+/// Pass headers to a ``Definition`` as a dictionary of ``HeaderField`` values. A field
+/// reads a property of the endpoint's ``Endpoint/HeaderComponents``, or sends a fixed
+/// value:
 ///
 /// ```swift
 /// static let definition: Definition<UserEndpoint> = Definition(
 ///     method: .get,
-///     path: "/request",
+///     path: "user",
 ///     headers: [
-///         "X-TYPE": HeaderField.field(path: \UserEndpoint.HeaderValues.type),
-///         "X-VALUE": .fieldValue(value: "value"),
+///         "X-Type": .field(path: \.type),
+///         "X-Value": .fieldValue(value: "value"),
 ///         .keepAlive: .fieldValue(value: "timeout=5, max=1000")
 ///     ]
 /// )
 /// ```
 ///
-/// Custom keys in the headers dictionary can be defined ad-hoc using a String, or by extending the encapsulating type `Header`. Basic named headers, such as `.keepAlive`, `.accept`, etc., are already defined as part of the library.
+/// Write a custom header as a string literal, or add a static property in an extension
+/// of `Header`. Common headers such as ``accept`` and ``keepAlive`` are already defined.
 public struct Header: Hashable, ExpressibleByStringLiteral, Sendable {
 
-    /// The name of the header. Example: "Accept-Language"
+    /// The header name, such as `Accept-Language`.
     public let name: String
 
-    /// The category of the header.
-    /// See: https://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.2
+    /// The header's category, as defined in [RFC 2616](https://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.2).
     public let category: HeaderCategory
 
-    /// Initializes a Header instance with the name and a category.
+    /// Creates a header.
     /// - Parameters:
-    ///   - name: The name of the Header. Example: "Accept-Language"
-    ///   - category: The category of the header. Defaults to `.general`
+    ///   - name: The header name, such as `Accept-Language`.
+    ///   - category: The header's category. Defaults to ``HeaderCategory/general``.
     public init(name: String, category: HeaderCategory = .general) {
         self.name = name
         self.category = category
     }
 
-    /// Initializes a Header instance with the name of the header as a string literal. The category defaults to `.general`
-    /// - Parameter value: The string literal to use as the name of the Header. Example: "X-MY-CUSTOM-HEADER"
+    /// Creates a header from a string literal, in the ``HeaderCategory/general`` category.
+    /// - Parameter value: The header name, such as `X-Request-ID`.
     public init(stringLiteral value: StringLiteralType) {
         self.name = value
         self.category = .general
     }
 }
 
-/// The Header category.
-/// See: https://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.2
+/// A header category, as defined in [RFC 2616](https://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.2).
 public enum HeaderCategory: Sendable {
     case general
     case request

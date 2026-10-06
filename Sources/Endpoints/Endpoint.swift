@@ -1,5 +1,5 @@
 //
-//  Definition.swift
+//  Endpoint.swift
 //  Endpoints
 //
 //  Created by Zac White on 1/26/19.
@@ -12,28 +12,47 @@ import Foundation
 import FoundationNetworking
 #endif
 
+/// An error building a `URLRequest` from an ``Endpoint``.
 public enum EndpointError: Error, Sendable {
+    /// The path and query didn't form a valid URL relative to the base URL.
     case invalid(components: URLComponents, relativeTo: URL)
+    /// A query parameter's value doesn't conform to ``ParameterRepresentable``.
     case invalidQuery(named: String, type: Any.Type)
+    /// A form parameter's value doesn't conform to ``ParameterRepresentable``.
     case invalidForm(named: String, type: Any.Type)
+    /// A header's value doesn't conform to `CustomStringConvertible`.
     case invalidHeader(named: String, type: Any.Type)
+    /// The body encoder threw this error.
     case invalidBody(Error)
+    /// The server has no base URL for the requested environment.
     case misconfiguredServer(server: any ServerDefinition)
 }
 
+/// A query or form parameter in a ``Definition``.
+///
+/// `T` is the endpoint's ``Endpoint/ParameterComponents`` type.
 public enum Parameter<T>: Sendable {
+    /// A form body parameter read from a property of the parameter components.
     case form(String, path: PartialKeyPath<T> & Sendable)
+    /// A form body parameter with a fixed value.
     case formValue(String, value: PathRepresentable)
+    /// A query parameter read from a property of the parameter components.
     case query(String, path: PartialKeyPath<T> & Sendable)
+    /// A query parameter with a fixed value.
     case queryValue(String, value: PathRepresentable)
 }
 
+/// The value of a header in a ``Definition``.
+///
+/// `T` is the endpoint's ``Endpoint/HeaderComponents`` type.
 public enum HeaderField<T>: Sendable {
+    /// A value read from a property of the header components.
     case field(path: PartialKeyPath<T> & Sendable)
+    /// A fixed value.
     case fieldValue(value: CustomStringConvertible & Sendable)
 }
 
-/// A placeholder type for representing empty encodable or decodable Body values and ErrorResponse values.
+/// An empty value, used as the default ``Endpoint/Body`` and ``Endpoint/ErrorResponse``.
 public struct EmptyCodable: Codable, Sendable { }
 
 public protocol EncoderType {
@@ -61,32 +80,32 @@ public protocol Endpoint: Sendable {
 
     associatedtype Server: ServerDefinition = GenericServer
 
-    /// The response type received from the server.
+    /// The type of a successful response.
     ///
-    /// This conveys type information which helpers, such as the built-in ``Foundation/URLSession`` extensions,
-    /// can use to know how to handle particular types. For instance, if this type conforms to `Decodable`, then a JSON decoder is used
-    /// on the data coming from the server. If it's typealiased to `Void`, then the extension can know to ignore the response. If it's `Data`, then it can deliver the
-    /// response data unmodified.
+    /// The `URLSession` methods decode a `Decodable` type with ``responseDecoder``,
+    /// return the body unchanged for `Data`, and ignore the body for `Void`.
     associatedtype Response: Sendable
 
-    /// The type representing the `Decodable` error response from the server. Defaults to an empty `Decodable` struct, ``EmptyCodable``.
+    /// The type of an error response body. Defaults to ``EmptyCodable``.
     ///
-    /// This can be useful if your server returns a different JSON structure when there's an error versus a success. Often in a project, this can be defined globally
-    /// and `typealias` can be used to associate this global type on all ``Endpoint``s.
+    /// A response with a status code outside 200–299 is decoded as this type with
+    /// ``errorDecoder`` and thrown as ``EndpointTaskError/errorResponse(httpResponse:response:)``.
+    /// If your endpoints share an error format, define the type once and refer to it
+    /// with a `typealias` on each endpoint.
     associatedtype ErrorResponse: Decodable & Sendable = EmptyCodable
 
-    /// The body type conforming to `Encodable`. Defaults to ``EmptyCodable``.
+    /// The type of the request body, encoded with ``bodyEncoder``. Defaults to ``EmptyCodable``, which sends no body.
     associatedtype Body: Encodable = EmptyCodable
 
-    /// The values needed to fill the ``Definition``'s path.
+    /// The values that fill in the ``Definition``'s path. Defaults to `Void`.
     ///
-    /// If a ``Endpoint/PathComponents`` type is associated, properties of that type can be utilized in the `path` of the ``Endpoint`` using a path string interpolation syntax:
+    /// Refer to its properties in the path with `\(path:)` interpolation:
     ///
     /// ```swift
-    /// struct DeleteEndpoint: Endpoint {
-    ///     static let definition: Definition<DeleteEndpoint> = Definition(
+    /// struct DeleteEventEndpoint: Endpoint {
+    ///     static let definition: Definition<DeleteEventEndpoint> = Definition(
     ///         method: .delete,
-    ///         path: "calendar/v3/calendars/\(path: \.calendarId)/events\(path: \.eventId)"
+    ///         path: "calendars/\(path: \.calendarId)/events/\(path: \.eventId)"
     ///     )
     ///
     ///     typealias Response = Void
@@ -101,37 +120,29 @@ public protocol Endpoint: Sendable {
     /// ```
     associatedtype PathComponents: Sendable = Void
 
-    /// The values needed to fill the ``Definition``'s parameters.
+    /// The values that fill in the ``Definition``'s query and form parameters. Defaults to `Void`.
     ///
-    /// A ``Endpoint/ParameterComponents`` type, in a similar way to ``Endpoint/PathComponents``, holds properties that can be referenced in the ``Endpoint`` via ``Parameter`` values  in order to define form parameters used in the body or query parameters attached to the URL. The enum type is defined as:
-    ///
-    /// ```swift
-    /// public enum Parameter<T> {
-    ///     case form(String, path: PartialKeyPath<T>)
-    ///     case formValue(String, value: PathRepresentable)
-    ///     case query(String, path: PartialKeyPath<T>)
-    ///     case queryValue(String, value: PathRepresentable)
-    /// }
-    /// ```
-    ///
-    /// With this enum, either hard-coded values can be injected into the ``Endpoint`` (with ``Parameter/formValue(_:value:)`` or ``Parameter/queryValue(_:value:)``) or key paths can define which reference properties in the ``Endpoint/ParameterComponents`` associated type to define a form or query parameter that is needed at the time of the request.
+    /// ``Parameter/query(_:path:)`` and ``Parameter/form(_:path:)`` read a property of
+    /// this type. ``Parameter/queryValue(_:value:)`` and ``Parameter/formValue(_:value:)``
+    /// send a fixed value instead. Properties must conform to ``ParameterRepresentable``,
+    /// and `nil` values are left out of the request.
     associatedtype ParameterComponents: Sendable = Void
 
-    /// The values needed to fill the ``Definition``'s headers.
+    /// The values that fill in the ``Definition``'s headers. Defaults to `Void`.
     associatedtype HeaderComponents: Sendable = Void
 
     /// The ``EncoderType`` to use when encoding the body of the request. Defaults to `JSONEncoder`.
     associatedtype BodyEncoder: EncoderType = JSONEncoder
-    /// The ``DecoderType`` to use when decoding the body of the request. Defaults to `JSONDecoder`.
+    /// The ``DecoderType`` to use when decoding ``ErrorResponse``. Defaults to `JSONDecoder`.
     associatedtype ErrorDecoder: DecoderType = JSONDecoder
     /// The ``DecoderType`` to use when decoding the response. Defaults to `JSONDecoder`.
     associatedtype ResponseDecoder: DecoderType = JSONDecoder
 
     /// The ``AuthenticationMethod`` used to authenticate requests for this endpoint.
     ///
-    /// Defaults to the ``Server``'s authentication method, which itself defaults to ``NoAuth``.
-    /// Override on an individual endpoint to opt out of the server's authentication (for
-    /// example on a login endpoint) or to use a different method entirely:
+    /// Defaults to the server's method, which defaults to ``NoAuth``. Override it to opt
+    /// out of the server's authentication, as on a login endpoint, or to use a different
+    /// method:
     ///
     /// ```swift
     /// struct LoginEndpoint: Endpoint {
@@ -144,36 +155,35 @@ public protocol Endpoint: Sendable {
     /// A ``Definition`` which pieces together all the components defined in the endpoint.
     static var definition: Definition<Self> { get }
 
-    /// The instance of the associated `Body` type. Must be `Encodable`.
+    /// The request body.
     var body: Body { get }
 
-    /// The instance of the associated ``Endpoint/PathComponents`` type. Used for filling in request data into the path template of the endpoint.
-    /// If none are necessary, this can be `Void`
+    /// The values that fill in the path.
     var pathComponents: PathComponents { get }
 
-    /// The instance of the associated ``Endpoint/ParameterComponents`` type. Used for filling in request data into the query and form parameters of the endpoint.
+    /// The values that fill in the query and form parameters.
     var parameterComponents: ParameterComponents { get }
 
-    /// The instance of the associated ``Endpoint/HeaderComponents`` type. Used for filling in request data into the headers of the endpoint.
+    /// The values that fill in the headers.
     var headerComponents: HeaderComponents { get }
 
-    /// The decoder instance to use when decoding the associated ``Endpoint/Body`` type
+    /// The encoder for ``Body``.
     static var bodyEncoder: BodyEncoder { get }
 
-    /// The decoder instance to use when decoding the associated ``Endpoint/ErrorResponse`` type
+    /// The decoder for ``ErrorResponse``.
     static var errorDecoder: ErrorDecoder { get }
 
-    /// The decoder instance to use when decoding the associated ``Endpoint/Response`` type
+    /// The decoder for ``Response``.
     static var responseDecoder: ResponseDecoder { get }
 
-    /// The authentication method instance used to authenticate requests for this endpoint.
+    /// The authentication method that authenticates requests for this endpoint.
     ///
-    /// Defaults to ``ServerDefinition/auth`` so that all endpoints on a server share a
-    /// single instance — important for stateful methods like ``JWTAuth``, where sharing
-    /// is what lets concurrent refreshes coalesce across endpoints.
+    /// Defaults to ``ServerDefinition/auth``, so all endpoints on a server share one
+    /// instance. A stateful method such as ``JWTAuth`` needs that shared instance to keep
+    /// its tokens and to combine concurrent refreshes. Declare an override with `static let`.
     static var auth: Auth { get }
 
-    /// A strategy for encoding query parameters. Defaults to `QueryEncodingStrategy.default`
+    /// How query parameters are percent-encoded. Defaults to ``QueryEncodingStrategy/default``.
     static var queryEncodingStrategy: QueryEncodingStrategy { get }
 }
 
@@ -223,31 +233,35 @@ public extension Endpoint {
     }
 }
 
+/// How an endpoint percent-encodes its query parameters.
 public enum QueryEncodingStrategy {
+    /// The encoding `URLComponents` applies to `queryItems`.
     case `default`
+    /// Encodes each query item with a closure that returns the percent-encoded name and
+    /// value. Returning `nil`, or a `nil` value, leaves the item out.
     case custom((URLQueryItem) -> (String, String?)?)
 }
 
 public struct Definition<T: Endpoint>: Sendable {
 
-    /// The server this endpoints will use
+    /// The server whose base URLs the endpoint's requests are built against.
     public let server: T.Server
-    /// The HTTP method of the ``Endpoint``
+    /// The HTTP method.
     public let method: Method
-    /// A template including all elements that appear in the path
+    /// The path, relative to the server's base URL.
     public let path: PathTemplate<T.PathComponents>
-    /// The parameters (form and query) that are included in the ``Definition``
+    /// The query and form parameters.
     public let parameters: [Parameter<T.ParameterComponents>]
-    /// The headers that are included in the ``Definition``
+    /// The headers.
     public let headers: [Header: HeaderField<T.HeaderComponents>]
 
-    /// Initializes a ``Definition`` with the given properties, defining all dynamic pieces as type-safe parameters.
+    /// Creates a definition.
     /// - Parameters:
-    ///   - server: The server to use for this endpoint. Defaults to a new instance of T.Server.
-    ///   - method: The HTTP method to use when fetching the owning ``Endpoint``
-    ///   - path: The path template representing the path and all path-related parameters
-    ///   - parameters: The parameters passed to the endpoint. Either through query or form body.
-    ///   - headers: The headers associated with this request
+    ///   - server: The server to build requests against. Defaults to `T.Server()`.
+    ///   - method: The HTTP method.
+    ///   - path: The path, relative to the server's base URL.
+    ///   - parameters: The query and form parameters.
+    ///   - headers: The headers.
     public init(server: T.Server = T.Server(),
                 method: Method,
                 path: PathTemplate<T.PathComponents>,

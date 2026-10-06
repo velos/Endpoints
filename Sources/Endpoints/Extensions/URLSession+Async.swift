@@ -15,11 +15,12 @@ import FoundationNetworking
 @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
 public extension URLSession {
 
-    /// Perform the request for the endpoint.
+    /// Sends the endpoint's request and ignores the response body.
     ///
-    /// Use this when the response body is expected to be `Void` or empty as you would have in a 204.
+    /// The endpoint's credentials are applied, and the request is retried after a
+    /// refresh when the authentication method asks for one.
     /// - Parameters:
-    ///   - endpoint: The endpoint instance to be used to make the request
+    ///   - endpoint: The endpoint to request.
     ///   - environment: The environment to resolve the base URL against. Defaults to the
     ///     server's ``ServerDefinition/defaultEnvironment``.
     ///   - auth: The credentials to authenticate with. Defaults to the endpoint's
@@ -32,11 +33,16 @@ public extension URLSession {
         try await performRequest(with: endpoint, environment: environment, auth: auth) { (_) throws(T.TaskError) in () }
     }
 
-    /// Perform the request for the endpoint, returning the raw response body.
+    /// Sends the endpoint's request and returns the response body without decoding it.
+    ///
+    /// The endpoint's credentials are applied, and the request is retried after a
+    /// refresh when the authentication method asks for one.
     /// - Parameters:
-    ///   - endpoint: The endpoint instance to be used to make the request
-    ///   - environment: The environment to resolve the base URL against.
-    ///   - auth: The credentials to authenticate with.
+    ///   - endpoint: The endpoint to request.
+    ///   - environment: The environment to resolve the base URL against. Defaults to the
+    ///     server's ``ServerDefinition/defaultEnvironment``.
+    ///   - auth: The credentials to authenticate with. Defaults to the endpoint's
+    ///     declared ``Endpoint/auth``.
     func response<T: Endpoint>(
         with endpoint: T,
         environment: T.Server.Environments = T.Server.defaultEnvironment,
@@ -45,11 +51,16 @@ public extension URLSession {
         try await performRequest(with: endpoint, environment: environment, auth: auth) { (data) throws(T.TaskError) in data }
     }
 
-    /// Perform the request for the endpoint, decoding the response body.
+    /// Sends the endpoint's request and decodes the response with its ``Endpoint/responseDecoder``.
+    ///
+    /// The endpoint's credentials are applied, and the request is retried after a
+    /// refresh when the authentication method asks for one.
     /// - Parameters:
-    ///   - endpoint: The endpoint instance to be used to make the request
-    ///   - environment: The environment to resolve the base URL against.
-    ///   - auth: The credentials to authenticate with.
+    ///   - endpoint: The endpoint to request.
+    ///   - environment: The environment to resolve the base URL against. Defaults to the
+    ///     server's ``ServerDefinition/defaultEnvironment``.
+    ///   - auth: The credentials to authenticate with. Defaults to the endpoint's
+    ///     declared ``Endpoint/auth``.
     func response<T: Endpoint>(
         with endpoint: T,
         environment: T.Server.Environments = T.Server.defaultEnvironment,
@@ -71,8 +82,8 @@ public extension URLSession {
     /// `shouldReauthenticate` is always false, so this is a single pass through the
     /// unauthenticated request path.
     ///
-    /// An active mock short-circuits here, ahead of authentication: a mocked request
-    /// never applies credentials and never enters the retry loop.
+    /// An active mock returns here, before authentication. A mocked request never
+    /// applies credentials and never enters the retry loop.
     private func performRequest<T: Endpoint>(
         with endpoint: T,
         environment: T.Server.Environments,

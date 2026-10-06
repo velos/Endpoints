@@ -4,60 +4,58 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// A protocol that defines how to authenticate requests and handle token refresh.
+/// Adds credentials to requests, and optionally refreshes them after a rejected response.
 public protocol AuthenticationMethod: Sendable {
 
-    /// Applies authentication credentials to a request.
+    /// Returns the request with credentials added.
     ///
-    /// - Parameter request: The URLRequest to authenticate.
-    /// - Returns: The authenticated URLRequest.
-    /// - Throws: ``AuthenticationError/notAuthenticated`` if no valid credentials are available.
+    /// Called before every attempt, including retries.
+    /// - Parameter request: The request to authenticate.
+    /// - Returns: The authenticated request.
+    /// - Throws: ``AuthenticationError/notAuthenticated`` if there are no credentials.
     func authenticate(request: URLRequest) async throws(AuthenticationError) -> URLRequest
 
-    /// Determines whether a failed request should trigger reauthentication.
+    /// Returns whether a failed request should be retried after ``reauthenticate(after:)``.
     ///
+    /// Defaults to `false`.
     /// - Parameters:
-    ///   - error: The error that occurred.
-    ///   - response: The HTTP response, if available.
-    /// - Returns: `true` if reauthentication should be attempted.
+    ///   - error: The error the request failed with.
+    ///   - response: The HTTP response, if the server returned one.
+    /// - Returns: `true` to refresh the credentials and retry.
     func shouldReauthenticate(for error: any Error, response: HTTPURLResponse?) -> Bool
 
-    /// Performs reauthentication (e.g., token refresh).
+    /// Refreshes the credentials after a failed request.
     ///
-    /// - Parameter failedRequest: The authenticated request that failed, as returned by
-    ///   ``authenticate(request:)``. Implementations that rotate credentials should compare
-    ///   the failed request's credentials against their current ones and skip refreshing
-    ///   when they no longer match — the request failed with credentials that have already
-    ///   been replaced, so refreshing again would needlessly consume a refresh token.
+    /// Combine concurrent calls into one refresh. If the failed request's credentials no
+    /// longer match the current ones, another request already refreshed them, so return
+    /// without refreshing again. Refreshing twice can waste a single-use refresh token.
     ///
-    /// Implementations should coalesce concurrent calls into a single refresh operation.
+    /// Throws ``AuthenticationError/refreshNotSupported`` by default.
+    /// - Parameter failedRequest: The failed request, as returned by ``authenticate(request:)``.
     func reauthenticate(after failedRequest: URLRequest) async throws(AuthenticationError)
 
-    /// How many times a request may be retried after reauthenticating. Defaults to 1.
+    /// How many times a request can be retried after reauthenticating. Defaults to 1.
     ///
-    /// Bounds the retry loop so that a server which keeps rejecting credentials cannot
-    /// cause an infinite request/refresh cycle.
+    /// This limit stops a server that keeps rejecting credentials from causing an
+    /// endless cycle of requests and refreshes.
     var maxRetryAttempts: Int { get }
 }
 
 public extension AuthenticationMethod {
 
-    /// By default, failed requests never trigger reauthentication.
-    /// Override for credentials that can be refreshed.
+    /// Returns `false`, so failed requests are never retried.
     func shouldReauthenticate(for error: any Error, response: HTTPURLResponse?) -> Bool {
         false
     }
 
-    /// By default, refresh is unsupported.
-    /// Override for credentials that can be refreshed.
+    /// Throws ``AuthenticationError/refreshNotSupported``.
     func reauthenticate(after failedRequest: URLRequest) async throws(AuthenticationError) {
         throw AuthenticationError.refreshNotSupported
     }
 
-    /// By default, a request is retried once after reauthenticating.
+    /// Retries a request once.
     var maxRetryAttempts: Int { 1 }
 
-    /// ``maxRetryAttempts`` normalized to a usable count, so that every transport
-    /// applies the same bound without repeating the clamp.
+    /// ``maxRetryAttempts``, with negative values treated as 0.
     var retryAttempts: Int { max(0, maxRetryAttempts) }
 }

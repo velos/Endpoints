@@ -4,27 +4,26 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// Authentication using a static header key.
+/// Sends a static key in a header, such as an API key.
 public struct HeaderKeyAuth: AuthenticationMethod {
-    /// The key value.
+    /// The key.
     public let key: String
 
-    /// The HTTP header to use. Defaults to `.authorization`.
+    /// The header the key is sent in.
     public let header: Header
 
-    /// Optional prefix before the key (e.g., "Bearer", "ApiKey").
-    /// Set to nil for no prefix.
+    /// The text before the key, such as `Bearer`. When `nil`, the key is sent alone.
     public let prefix: String?
 
     /// The key and prefix are immutable, so the header value is composed once.
     private let headerValue: String
 
-    /// Creates a header key authentication method.
+    /// Creates a method that sends `key` in `header`.
     ///
     /// - Parameters:
-    ///   - key: The key value.
-    ///   - header: The HTTP header to use. Defaults to `.authorization`.
-    ///   - prefix: Optional prefix (e.g., "Bearer"). Defaults to "Bearer".
+    ///   - key: The key.
+    ///   - header: The header to send it in. Defaults to `Authorization`.
+    ///   - prefix: The text before the key. Defaults to `Bearer`. Pass `nil` to send the key alone.
     public init(
         key: String,
         header: Header = .authorization,

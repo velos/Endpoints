@@ -13,7 +13,7 @@ import Combine
 
 /// Bridges a single-value async operation into Combine.
 ///
-/// Holds the in-flight `Task` so that cancelling the subscription cancels the work, and
+/// Holds the in-flight `Task` so that canceling the subscription cancels the work, and
 /// carries the `Future` promise across the concurrency boundary under a lock. Combine's
 /// promise type is not `Sendable`, which is why this is `@unchecked` rather than a plain
 /// value type.
@@ -23,7 +23,7 @@ private final class AsyncBridge<Output: Sendable, Failure: Error>: @unchecked Se
     private var task: Task<Void, Never>?
 
     /// Starts `work`, delivering its result to `promise` unless the subscription is
-    /// cancelled first.
+    /// canceled first.
     func begin(
         promise: @escaping (Result<Output, Failure>) -> Void,
         work: @escaping @Sendable () async -> Result<Output, Failure>
@@ -38,7 +38,7 @@ private final class AsyncBridge<Output: Sendable, Failure: Error>: @unchecked Se
 
         lock.lock()
         if self.promise == nil {
-            // Cancelled between starting and storing the task.
+            // Canceled between starting and storing the task.
             lock.unlock()
             task.cancel()
         } else {
@@ -92,14 +92,18 @@ private func endpointPublisher<Output: Sendable, Failure: Error>(
 @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 12, *)
 public extension URLSession {
 
-    /// Creates a publisher and starts the request for the given ``Definition``. This function does not expect a result value from the endpoint.
+    /// Creates a publisher that sends the endpoint's request and ignores the response body.
     ///
-    /// The endpoint's ``Endpoint/Auth`` is applied to the request, and a failed request is
-    /// retried after reauthentication when the method asks for it. Cancelling the
-    /// subscription cancels the underlying request.
+    /// The request is sent when the publisher is subscribed to. The endpoint's credentials
+    /// are applied, and the request is retried after a refresh when the authentication
+    /// method asks for one. Canceling the subscription cancels the request.
     /// - Parameters:
-    ///   - endpoint: The request data to insert into the ``Definition``
-    /// - Returns: A `Publisher` which fetches the ``Endpoint``'s contents. Any failures when creating the request are sent as errors in the `Publisher`
+    ///   - endpoint: The endpoint to request.
+    ///   - environment: The environment to resolve the base URL against. Defaults to the
+    ///     server's ``ServerDefinition/defaultEnvironment``.
+    ///   - auth: The credentials to authenticate with. Defaults to the endpoint's
+    ///     declared ``Endpoint/auth``.
+    /// - Returns: A publisher that emits one value or fails with the endpoint's `TaskError`.
     func endpointPublisher<T: Endpoint>(
         with endpoint: T,
         environment: T.Server.Environments = T.Server.defaultEnvironment,
@@ -110,14 +114,18 @@ public extension URLSession {
         }
     }
 
-    /// Creates a publisher and starts the request for the given ``Definition``. This function expects a result value of `Data`.
+    /// Creates a publisher that sends the endpoint's request and returns the response body without decoding it.
     ///
-    /// The endpoint's ``Endpoint/Auth`` is applied to the request, and a failed request is
-    /// retried after reauthentication when the method asks for it. Cancelling the
-    /// subscription cancels the underlying request.
+    /// The request is sent when the publisher is subscribed to. The endpoint's credentials
+    /// are applied, and the request is retried after a refresh when the authentication
+    /// method asks for one. Canceling the subscription cancels the request.
     /// - Parameters:
-    ///   - endpoint: The request data to insert into the ``Definition``
-    /// - Returns: A `Publisher` which fetches the ``Endpoint``'s contents. Any failures when creating the request are sent as errors in the `Publisher`
+    ///   - endpoint: The endpoint to request.
+    ///   - environment: The environment to resolve the base URL against. Defaults to the
+    ///     server's ``ServerDefinition/defaultEnvironment``.
+    ///   - auth: The credentials to authenticate with. Defaults to the endpoint's
+    ///     declared ``Endpoint/auth``.
+    /// - Returns: A publisher that emits one value or fails with the endpoint's `TaskError`.
     func endpointPublisher<T: Endpoint>(
         with endpoint: T,
         environment: T.Server.Environments = T.Server.defaultEnvironment,
@@ -128,14 +136,18 @@ public extension URLSession {
         }
     }
 
-    /// Creates a publisher and starts the request for the given ``Definition``. This function expects a result value which is `Decodable`.
+    /// Creates a publisher that sends the endpoint's request and decodes the response with its ``Endpoint/responseDecoder``.
     ///
-    /// The endpoint's ``Endpoint/Auth`` is applied to the request, and a failed request is
-    /// retried after reauthentication when the method asks for it. Cancelling the
-    /// subscription cancels the underlying request.
+    /// The request is sent when the publisher is subscribed to. The endpoint's credentials
+    /// are applied, and the request is retried after a refresh when the authentication
+    /// method asks for one. Canceling the subscription cancels the request.
     /// - Parameters:
-    ///   - endpoint: The request data to insert into the ``Definition``
-    /// - Returns: A `Publisher` which fetches the ``Endpoint``'s contents. Any failures when creating the request are sent as errors in the `Publisher`
+    ///   - endpoint: The endpoint to request.
+    ///   - environment: The environment to resolve the base URL against. Defaults to the
+    ///     server's ``ServerDefinition/defaultEnvironment``.
+    ///   - auth: The credentials to authenticate with. Defaults to the endpoint's
+    ///     declared ``Endpoint/auth``.
+    /// - Returns: A publisher that emits one value or fails with the endpoint's `TaskError`.
     func endpointPublisher<T: Endpoint>(
         with endpoint: T,
         environment: T.Server.Environments = T.Server.defaultEnvironment,

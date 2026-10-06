@@ -8,15 +8,15 @@
 
 import Foundation
 
-/// A type that can be converted for use on the value of a Parameter
+/// A type that can be sent as a query or form parameter value.
 public protocol ParameterRepresentable {
-    /// Returns a path safe version for use in query parameters
+    /// The value to send, or `nil` to leave the parameter out.
     var parameterValue: String? { get }
 }
 
 extension String: ParameterRepresentable {
 
-    /// Returns `self` as the parameter representable version.
+    /// Returns the string.
     public var parameterValue: String? {
         return self
     }
@@ -24,7 +24,7 @@ extension String: ParameterRepresentable {
 
 extension Double: ParameterRepresentable {
 
-    /// Returns a string representation of the `Double` value.
+    /// Returns the value as a string.
     public var parameterValue: String? {
         return "\(self)"
     }
@@ -32,7 +32,7 @@ extension Double: ParameterRepresentable {
 
 extension Int: ParameterRepresentable {
 
-    /// Returns a string representation of the `Int` value.
+    /// Returns the value as a string.
     public var parameterValue: String? {
         return "\(self)"
     }
@@ -40,7 +40,7 @@ extension Int: ParameterRepresentable {
 
 extension Bool: ParameterRepresentable {
 
-    /// Returns "true" and "false" based on the value of `self`.
+    /// Returns `"true"` or `"false"`.
     public var parameterValue: String? {
         return self ? "true" : "false"
     }
@@ -48,7 +48,7 @@ extension Bool: ParameterRepresentable {
 
 extension Date: ParameterRepresentable {
 
-    /// Returns an ISO8601 formatted string for the value of `self`.
+    /// Returns the date in ISO 8601 format.
     public var parameterValue: String? {
         return ISO8601DateFormatter.string(from: self,
                                            timeZone: Calendar.current.timeZone,
@@ -58,7 +58,7 @@ extension Date: ParameterRepresentable {
 
 extension TimeZone: ParameterRepresentable {
 
-    /// Returns the `identifier` string of this `TimeZone`.
+    /// Returns the time zone's identifier.
     public var parameterValue: String? {
         return self.identifier
     }

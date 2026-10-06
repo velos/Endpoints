@@ -14,12 +14,15 @@ import FoundationNetworking
 
 public extension Definition {
 
-    /// Converts data, response and error into a Result type by processing data and throwing errors based on response codes and response data.
+    /// Converts the result of a data task into the response body or the endpoint's `TaskError`.
+    ///
+    /// A 2xx response returns its body, and a 204 returns empty data. Any other status
+    /// code is decoded as the endpoint's ``Endpoint/ErrorResponse``.
     /// - Parameters:
-    ///   - data: The raw data fetched in the response
-    ///   - response: The response object
-    ///   - error: Any error encountered by the fetch
-    /// - Returns: A Result value with either the Data or the T.TaskError
+    ///   - data: The response body.
+    ///   - response: The response.
+    ///   - error: The error the data task reported, if any.
+    /// - Returns: The response body, or the error to throw.
     func response(data: Data?, response: URLResponse?, error: Error?) -> Result<Data, T.TaskError> {
         if let error = error {
             guard (error as NSError).code != URLError.Code.notConnectedToInternet.rawValue else {

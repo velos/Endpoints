@@ -2,27 +2,28 @@ import Foundation
 
 /// Errors that can occur during authentication operations.
 public enum AuthenticationError: Error, Sendable {
-    /// No valid credentials are available to authenticate the request.
+    /// There are no credentials to authenticate the request with.
     case notAuthenticated
 
-    /// No refresh token is available to perform token refresh.
+    /// There is no refresh token to refresh with.
     case noRefreshToken
 
-    /// The token refresh operation failed.
+    /// The refresh failed with the underlying error.
     case refreshFailed(underlying: Error)
 
-    /// The authentication method does not support refresh.
+    /// The authentication method can't refresh its credentials.
     case refreshNotSupported
 
-    /// An implementation-specific authentication failure.
-    ///
-    /// Use this from custom ``AuthenticationMethod`` implementations for failures
-    /// that don't fit the other cases (e.g. credential storage or signing errors).
+    /// A failure in a custom ``AuthenticationMethod`` that doesn't match another case,
+    /// such as a keychain or signing error.
     case custom(underlying: Error)
 }
 
-/// Thrown when a request authenticated by a ``JWTAuth`` is made from inside that same
-/// instance's refresh handler, which would otherwise deadlock.
+/// The underlying error when a ``JWTAuth`` refresh handler makes a request through
+/// that same `JWTAuth`.
+///
+/// The request would wait for the refresh, which is waiting for the request, so it
+/// fails instead. Give the refresh endpoint ``NoAuth``.
 public struct RefreshReentrancyError: Error, CustomStringConvertible {
     let authType: Any.Type
 

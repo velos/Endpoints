@@ -4,7 +4,7 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// Authentication using a static HTTP cookie.
+/// Sends a static cookie.
 public struct CookieAuth: AuthenticationMethod {
     /// The cookie name.
     public let name: String
@@ -12,8 +12,10 @@ public struct CookieAuth: AuthenticationMethod {
     /// The cookie value.
     public let value: String
 
-    /// Whether to merge with cookies already on the request. Defaults to true.
-    /// An existing cookie with the same name is replaced.
+    /// Whether to keep cookies already on the request. Defaults to `true`.
+    ///
+    /// When `true`, an existing cookie with the same name is replaced and the others are
+    /// kept. When `false`, the cookie replaces all existing cookies.
     public let appendToExisting: Bool
 
     public init(

@@ -5,13 +5,13 @@ import Foundation
 /// Debug-only check that an endpoint's ``Endpoint/auth`` yields one shared instance.
 ///
 /// Stateful methods such as ``JWTAuth`` keep their tokens and in-flight refresh on the
-/// instance, so they only work when every request sees the *same* one. Declaring
-/// `static let auth = JWTAuth(...)` does that; a computed `static var auth: JWTAuth
-/// { JWTAuth(...) }` silently hands out a fresh actor per access, which loses tokens
-/// and turns refresh coalescing into a refresh storm — with no error to point at.
+/// instance, so every request has to see the same one. `static let auth = JWTAuth(...)`
+/// does that. A computed `static var auth: JWTAuth { JWTAuth(...) }` creates a new
+/// actor on every access, which loses tokens and starts a separate refresh per request,
+/// without any error.
 ///
-/// This catches that during development. It runs once per endpoint type and compiles
-/// out of release builds entirely.
+/// This check catches that during development. It runs once per endpoint type and
+/// isn't compiled into release builds.
 enum AuthenticationStability {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var verified: Set<ObjectIdentifier> = []
@@ -38,8 +38,8 @@ enum AuthenticationStability {
             first === second,
             """
             \(T.self).auth returns a new \(T.Auth.self) on each access. Declare it as a \
-            `static let` so every request shares one instance — a stateful authentication \
-            method cannot retain credentials or coalesce refreshes otherwise.
+            `static let` so every request shares one instance. A stateful authentication \
+            method can't keep credentials or combine refreshes otherwise.
             """
         )
     }
