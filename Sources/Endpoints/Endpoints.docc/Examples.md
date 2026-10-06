@@ -85,6 +85,70 @@ Because the environment is a per-request value rather than global state, differe
 of an app — or two clients talking to different deployments — can use different
 environments at the same time.
 
+### Authentication
+
+A server names the ``AuthenticationMethod`` its endpoints share, and every endpoint on it
+inherits that method. Declare it as a `static let` so all endpoints use one instance —
+for a stateful method such as ``JWTAuth`` that shared instance is what lets concurrent
+token refreshes coalesce:
+
+```swift
+struct ApiServer: ServerDefinition {
+    static let auth = JWTAuth(
+        initialTokens: loadTokensFromKeychain(),
+        refreshHandler: { refreshToken in
+            let response = try await URLSession.shared.response(with: RefreshEndpoint(token: refreshToken))
+            return JWTAuth.TokenPair(accessToken: response.access, refreshToken: response.refresh)
+        },
+        onTokensUpdated: { tokens in saveTokensToKeychain(tokens) },
+        onRefreshFailed: { _ in await logOut() }
+    )
+
+    var baseUrls: [Environments: URL] { ... }
+    static var defaultEnvironment: Environments { .production }
+}
+```
+
+An individual endpoint can override its server's method. The refresh endpoint above must
+do so: it authenticates with the refresh token, and a request authenticated by the same
+`JWTAuth` would wait on the refresh that is waiting on it.
+
+```swift
+struct RefreshEndpoint: Endpoint {
+    typealias Server = ApiServer
+    static var auth: NoAuth { NoAuth() }
+    ...
+}
+```
+
+Requests then go through the ordinary `URLSession` API; credentials are applied, refreshed
+and retried automatically:
+
+```swift
+let profile = try await URLSession.shared.response(with: ProfileEndpoint())
+```
+
+### Environment and Credentials Per Request
+
+Credentials are usually bound to one environment — a token issued by staging is not valid
+against production — so an app that talks to several environments or accounts at once
+should pass both per request rather than share one server-wide instance:
+
+```swift
+struct Client {
+    let environment: ApiServer.Environments
+    let auth: JWTAuth   // one instance per client, so its refreshes coalesce
+
+    func profile() async throws -> ProfileEndpoint.Response {
+        try await URLSession.shared.response(with: ProfileEndpoint(), environment: environment, auth: auth)
+    }
+}
+```
+
+Both parameters default to what the endpoint declares, so the common single-environment
+case needs neither. A server whose credentials always arrive this way need not declare
+``ServerDefinition/auth`` at all.
+
 ---
 
 ## Endpoint Examples

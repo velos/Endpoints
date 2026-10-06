@@ -1,5 +1,5 @@
 //
-//  Definition.swift
+//  Endpoint.swift
 //  Endpoints
 //
 //  Created by Zac White on 1/26/19.

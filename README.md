@@ -109,6 +109,8 @@ struct WavelikeClient {
 
 The same parameters are available on `endpointPublisher(with:)`. `endpointTask(with:)` accepts `environment:` but remains restricted to unauthenticated endpoints, since it returns a `URLSessionDataTask` synchronously and cannot await authentication.
 
+Credentials are usually bound to one environment: a token issued by staging is not valid against production. A server-wide `static let auth` therefore suits apps that talk to a single environment at a time. If your app switches environments per request, pass the matching credentials alongside — keep one `JWTAuth` per environment or per account, as in the client above — rather than sharing one instance across environments. A server whose credentials always arrive per request need not declare `auth` at all; it defaults to `NoAuth`, and the `auth:` parameter accepts any `AuthenticationMethod`.
+
 ### Async/Await
 
 ```swift
@@ -208,7 +210,9 @@ struct ApiServer: ServerDefinition {
 
 > **Important:** the refresh endpoint must not be authenticated by the same `JWTAuth` — the request would wait on the very refresh that is waiting on it. Give it `static var auth: NoAuth { NoAuth() }`; it authenticates with the refresh token, not the access token. If you do hit this, the request fails with a `RefreshReentrancyError` explaining the fix rather than hanging.
 
-After a login or logout, update the tokens with `await ApiServer.auth.setTokens(_:)` or `await ApiServer.auth.clearTokens()`.
+After a login or logout, update the tokens with `await ApiServer.auth.setTokens(_:)` or `await ApiServer.auth.clearTokens()`. Either call supersedes a refresh that is still in flight: its result is discarded rather than committed, so a refresh that started just before a logout cannot sign the user back in, and requests that were waiting on it proceed with the new tokens (or fail with `.notAuthenticated` after a logout). `onTokensUpdated` is not called for a superseded refresh, but a call that has already started cannot be revoked; if your store must never hold tokens after a logout, have it reject writes from a session that has since been signed out.
+
+Use `JWTAuth.Configuration` to send the token in a different header or without a prefix, for example `.init(header: "X-Access-Token", tokenPrefix: "")`.
 
 ### Custom authentication methods
 

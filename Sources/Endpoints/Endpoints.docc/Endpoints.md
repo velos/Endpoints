@@ -11,8 +11,8 @@ The purpose of Endpoints is to, in a type-safe way, define how to create a `URLR
 ### Essentials
 
 - ``Endpoint``
-- ``ServerDefinition``
 - ``Definition``
+- ``ServerDefinition``
 - <doc:Examples>
 
 ### Server Configuration
@@ -21,28 +21,36 @@ The purpose of Endpoints is to, in a type-safe way, define how to create a `URLR
 - ``GenericServer``
 - ``TypicalEnvironments``
 
+### Request Components
+
+- ``Method``
+- ``PathTemplate``
+- ``Parameter``
+- ``Header``
+- ``HeaderField``
+- ``ParameterRepresentable``
+- ``MultipartFormEncoder``
+
 ### Authentication
 
 - ``AuthenticationMethod``
 - ``AuthenticationError``
+- ``RefreshReentrancyError``
 - ``NoAuth``
 - ``HeaderKeyAuth``
 - ``BasicAuth``
 - ``CookieAuth``
 - ``JWTAuth``
 
+### Making Requests
+
+- ``Foundation/URLSession``
+- ``EndpointTaskError``
+- ``EndpointError``
+
 ### Testing and Mocking
 
 - <doc:Mocking>
-- ``EndpointsMocking``
-- ``withMock(_:_:test:)``
 - ``MockRegistry``
 - ``MockContinuation``
 - ``MockAction``
-
-### Making Requests
-
-#### Combine
-
-- ``Foundation/URLSession``
-- ``Endpoint/Response``

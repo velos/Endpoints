@@ -35,8 +35,10 @@ public extension URLSession {
     /// Perform the request for the endpoint, returning the raw response body.
     /// - Parameters:
     ///   - endpoint: The endpoint instance to be used to make the request
-    ///   - environment: The environment to resolve the base URL against.
-    ///   - auth: The credentials to authenticate with.
+    ///   - environment: The environment to resolve the base URL against. Defaults to the
+    ///     server's ``ServerDefinition/defaultEnvironment``.
+    ///   - auth: The credentials to authenticate with. Defaults to the endpoint's
+    ///     declared ``Endpoint/auth``.
     func response<T: Endpoint>(
         with endpoint: T,
         environment: T.Server.Environments = T.Server.defaultEnvironment,
@@ -48,8 +50,10 @@ public extension URLSession {
     /// Perform the request for the endpoint, decoding the response body.
     /// - Parameters:
     ///   - endpoint: The endpoint instance to be used to make the request
-    ///   - environment: The environment to resolve the base URL against.
-    ///   - auth: The credentials to authenticate with.
+    ///   - environment: The environment to resolve the base URL against. Defaults to the
+    ///     server's ``ServerDefinition/defaultEnvironment``.
+    ///   - auth: The credentials to authenticate with. Defaults to the endpoint's
+    ///     declared ``Endpoint/auth``.
     func response<T: Endpoint>(
         with endpoint: T,
         environment: T.Server.Environments = T.Server.defaultEnvironment,

@@ -99,6 +99,10 @@ public extension URLSession {
     /// subscription cancels the underlying request.
     /// - Parameters:
     ///   - endpoint: The request data to insert into the ``Definition``
+    ///   - environment: The environment to resolve the base URL against. Defaults to the
+    ///     server's ``ServerDefinition/defaultEnvironment``.
+    ///   - auth: The credentials to authenticate with. Defaults to the endpoint's
+    ///     declared ``Endpoint/auth``.
     /// - Returns: A `Publisher` which fetches the ``Endpoint``'s contents. Any failures when creating the request are sent as errors in the `Publisher`
     func endpointPublisher<T: Endpoint>(
         with endpoint: T,
@@ -117,6 +121,10 @@ public extension URLSession {
     /// subscription cancels the underlying request.
     /// - Parameters:
     ///   - endpoint: The request data to insert into the ``Definition``
+    ///   - environment: The environment to resolve the base URL against. Defaults to the
+    ///     server's ``ServerDefinition/defaultEnvironment``.
+    ///   - auth: The credentials to authenticate with. Defaults to the endpoint's
+    ///     declared ``Endpoint/auth``.
     /// - Returns: A `Publisher` which fetches the ``Endpoint``'s contents. Any failures when creating the request are sent as errors in the `Publisher`
     func endpointPublisher<T: Endpoint>(
         with endpoint: T,
@@ -135,6 +143,10 @@ public extension URLSession {
     /// subscription cancels the underlying request.
     /// - Parameters:
     ///   - endpoint: The request data to insert into the ``Definition``
+    ///   - environment: The environment to resolve the base URL against. Defaults to the
+    ///     server's ``ServerDefinition/defaultEnvironment``.
+    ///   - auth: The credentials to authenticate with. Defaults to the endpoint's
+    ///     declared ``Endpoint/auth``.
     /// - Returns: A `Publisher` which fetches the ``Endpoint``'s contents. Any failures when creating the request are sent as errors in the `Publisher`
     func endpointPublisher<T: Endpoint>(
         with endpoint: T,

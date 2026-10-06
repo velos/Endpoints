@@ -60,6 +60,8 @@ public extension URLSession {
     /// Note: This does not start the request. That must be done with `resume()`.
     /// - Parameters:
     ///   - endpoint: The request data to use when filling in the ``Definition``
+    ///   - environment: The environment to resolve the base URL against. Defaults to the
+    ///     server's ``ServerDefinition/defaultEnvironment``.
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
     /// - Throws: Throws an ``EndpointTaskError`` of ``EndpointTaskError/endpointError(_:)`` if there is an issue constructing the request.
     /// - Returns: The new session data task.
@@ -99,6 +101,8 @@ public extension URLSession {
     /// Note: This does not start the request. That must be done with `resume()`.
     /// - Parameters:
     ///   - endpoint: The request data to use when filling in the ``Definition``
+    ///   - environment: The environment to resolve the base URL against. Defaults to the
+    ///     server's ``ServerDefinition/defaultEnvironment``.
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
     /// - Throws: Throws an ``EndpointTaskError`` of ``EndpointTaskError/endpointError(_:)`` if there is an issue constructing the request.
     /// - Returns: The new session data task.
@@ -136,6 +140,8 @@ public extension URLSession {
     /// Note: This does not start the request. That must be done with `resume()`.
     /// - Parameters:
     ///   - endpoint: The request data to use when filling in the ``Definition``
+    ///   - environment: The environment to resolve the base URL against. Defaults to the
+    ///     server's ``ServerDefinition/defaultEnvironment``.
     ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
     /// - Throws: Throws an ``EndpointTaskError`` of ``EndpointTaskError/endpointError(_:)`` if there is an issue constructing the request.
     /// - Returns: The new session data task.

@@ -116,26 +116,33 @@ withMock(MyEndpoint.self, action: .none)
 
 ## Advanced Mocking
 
-### Dynamic Responses Based on Request
+### Dynamic Responses
 
-The continuation closure receives the endpoint instance, allowing dynamic responses:
+The mock closure runs once per request, so it can vary its response over time. The
+continuation does not receive the endpoint instance, so decide based on state you
+control rather than on the request's components. Because the closure is `@Sendable`,
+keep that state in an actor:
 
 ```swift
+actor ResponseSequence {
+    private var names = ["Administrator", "Regular User"]
+
+    func next() -> String {
+        names.isEmpty ? "Guest" : names.removeFirst()
+    }
+}
+
 @Test func testDynamicResponse() async throws {
+    let sequence = ResponseSequence()
+
     try await withMock(MyEndpoint.self) { continuation in
-        // Access the endpoint being requested
-        let endpoint = continuation.endpoint
-        
-        // Return different responses based on the request
-        if endpoint.pathComponents.userId == "admin" {
-            continuation.resume(returning: .init(userId: "admin", name: "Administrator"))
-        } else {
-            continuation.resume(returning: .init(userId: "user", name: "Regular User"))
-        }
+        continuation.resume(returning: .init(userId: "1", name: await sequence.next()))
     } test: {
-        let adminEndpoint = MyEndpoint(pathComponents: .init(userId: "admin"))
-        let adminResponse = try await URLSession.shared.response(with: adminEndpoint)
-        #expect(adminResponse.name == "Administrator")
+        let first = try await URLSession.shared.response(with: MyEndpoint(pathComponents: .init(userId: "1")))
+        let second = try await URLSession.shared.response(with: MyEndpoint(pathComponents: .init(userId: "2")))
+
+        #expect(first.name == "Administrator")
+        #expect(second.name == "Regular User")
     }
 }
 ```
@@ -173,21 +180,46 @@ The mock applies to all requests of the specified endpoint type within the test 
 
 ```swift
 @Test func testMultipleRequests() async throws {
-    var callCount = 0
-    
+    let calls = CallCounter()
+
     try await withMock(MyEndpoint.self) { continuation in
-        callCount += 1
-        continuation.resume(returning: .init(userId: "\(callCount)", name: "User \(callCount)"))
+        let count = await calls.increment()
+        continuation.resume(returning: .init(userId: "\(count)", name: "User \(count)"))
     } test: {
-        let endpoint1 = MyEndpoint(pathComponents: .init(userId: "1"))
-        let response1 = try await URLSession.shared.response(with: endpoint1)
-        
-        let endpoint2 = MyEndpoint(pathComponents: .init(userId: "2"))
-        let response2 = try await URLSession.shared.response(with: endpoint2)
-        
-        #expect(callCount == 2)
+        let response1 = try await URLSession.shared.response(with: MyEndpoint(pathComponents: .init(userId: "1")))
+        let response2 = try await URLSession.shared.response(with: MyEndpoint(pathComponents: .init(userId: "2")))
+
+        #expect(await calls.value == 2)
         #expect(response1.name == "User 1")
         #expect(response2.name == "User 2")
+    }
+}
+
+actor CallCounter {
+    private(set) var value = 0
+
+    func increment() -> Int {
+        value += 1
+        return value
+    }
+}
+```
+
+### Mocking Several Endpoints at Once
+
+When a flow touches more than one endpoint, register them together instead of nesting
+`withMock` calls. Endpoint types without a registered mock pass through to the real
+transport, nested scopes merge, and an inner mock for the same endpoint type shadows
+the outer one for the duration of its scope:
+
+```swift
+@Test func testProfileAfterRefresh() async throws {
+    try await withMock { mocks in
+        mocks.register(RefreshEndpoint.self, action: .return(.init(access: "new", refresh: "next")))
+        mocks.register(ProfileEndpoint.self, action: .return(.init(name: "Zac")))
+    } test: {
+        let profile = try await URLSession.shared.response(with: ProfileEndpoint())
+        #expect(profile.name == "Zac")
     }
 }
 ```
@@ -203,6 +235,7 @@ import EndpointsMocking
 @preconcurrency import Combine
 
 @Suite("Combine Mocking")
+@available(iOS 15, macOS 12, tvOS 15, watchOS 8, *)
 struct CombineMockingTests {
     
     @Test func testCombinePublisher() async throws {
@@ -218,13 +251,15 @@ struct CombineMockingTests {
     }
 }
 
-// Helper to await publisher values
-@available(iOS 15.0, *)
-extension AnyPublisher where Output: Sendable {
-    var awaitFirst: Output {
-        get async throws {
-            try await self.first().asyncThrowing()
+// Helper to await the first value of a publisher.
+// `Publisher.values` needs iOS 15 / macOS 12, so annotate it for older deployment targets.
+@available(iOS 15, macOS 12, tvOS 15, watchOS 8, *)
+extension Publisher where Output: Sendable {
+    func awaitFirst() async throws -> Output {
+        for try await value in values {
+            return value
         }
+        throw CancellationError()
     }
 }
 ```
@@ -288,17 +323,12 @@ extension AnyPublisher where Output: Sendable {
 
 ## Best Practices
 
-### 1. Use Type-Specific Mocks
+### 1. Mock at the Endpoint Type
 
-Always specify the endpoint type explicitly to ensure type safety:
-
-```swift
-// Good
-withMock(MySpecificEndpoint.self) { ... }
-
-// Avoid (if possible)
-withMock(endpoint) { ... }
-```
+Mocks are keyed by endpoint type, so one `withMock(MyEndpoint.self)` covers every
+request of that type inside the block regardless of the instance's path, query, or body
+values. Keep endpoint types focused so a mock does not have to answer for unrelated
+requests.
 
 ### 2. Organize Mock Data
 
@@ -355,19 +385,38 @@ state — pass the one you want and nothing leaks into other tests:
 }
 ```
 
+## Authentication and Mocks
+
+A mocked request short-circuits before authentication: the endpoint's
+``AuthenticationMethod`` is never invoked, no credentials are applied, and a mock error
+does not enter the refresh/retry loop. To simulate an authentication failure, throw one
+directly:
+
+```swift
+try await withMock(ProfileEndpoint.self, action: .throw(.authenticationError(.notAuthenticated))) {
+    await #expect(throws: ProfileEndpoint.TaskError.self) {
+        try await URLSession.shared.response(with: ProfileEndpoint())
+    }
+}
+```
+
+To exercise the refresh flow itself — credentials applied, a 401, a refresh, a retry —
+use a `URLProtocol`-based fake transport on a dedicated `URLSession` instead of a mock.
+
 ## Limitations
 
-- Mocking only works in DEBUG builds (disabled in release builds)
-- Mocking applies to all instances of an endpoint type within the test block
-- You cannot selectively mock some requests and not others within the same block
+- Mocking only works in DEBUG builds and on Apple platforms; the `EndpointsMocking`
+  module is not built on Linux.
+- A mock applies to every request of its endpoint type within the block. To vary the
+  response between requests, use a dynamic mock as shown above.
+- Mocks bypass authentication entirely (see above).
 
-## Migration from Old Mocking
+## How It Works
 
-If you were previously using a different mocking approach, the new `withMock` API offers several advantages:
-
-1. **No URLSession swizzling needed** - Clean, Swift-native approach
-2. **Type-safe** - Mock responses are checked at compile time
-3. **Async-native** - Built for Swift's async/await
-4. **Combine support** - Works with both async and Combine APIs
-
-Replace manual URLProtocol mocking or stubbing with `withMock` for cleaner, more maintainable tests.
+`withMock` stores the registered mocks in task-local state, so they are visible to
+every request made from within the `test` closure — including from child tasks — and
+invisible to anything running concurrently outside it. The async/await and Combine
+request methods consult that state before building a request. The closure-based
+`endpointTask` cannot, because it returns a `URLSessionDataTask` synchronously; for that
+path the library swizzles `URLSessionTask.resume()` in DEBUG builds so the task delivers
+the mock instead of hitting the network.

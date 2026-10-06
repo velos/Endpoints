@@ -53,6 +53,7 @@ public actor JWTAuth: AuthenticationMethod {
         public let header: Header
 
         /// Prefix before the token (e.g., "Bearer"). Defaults to "Bearer".
+        /// An empty string sends the bare token, for headers such as `X-Access-Token`.
         public let tokenPrefix: String
 
         /// HTTP status codes that should trigger a token refresh. Defaults to [401].
@@ -86,6 +87,13 @@ public actor JWTAuth: AuthenticationMethod {
     public typealias RefreshHandler = @Sendable (String) async throws -> TokenPair
 
     /// Closure type for handling token updates (e.g., persisting to Keychain).
+    ///
+    /// Called once per successful refresh, before the new tokens are used. A refresh
+    /// superseded by ``JWTAuth/setTokens(_:)`` or ``JWTAuth/clearTokens()`` before its
+    /// handler returns never calls this. A call that has already started cannot be
+    /// revoked, though: if a logout lands while it is still persisting, the write can
+    /// complete after the logout. If that matters, have the store reject writes from a
+    /// session that has since been signed out.
     public typealias TokenUpdateHandler = @Sendable (TokenPair) async -> Void
 
     /// Closure type for handling refresh failures (e.g., logout).
@@ -138,15 +146,12 @@ public actor JWTAuth: AuthenticationMethod {
 
         if let tokens = currentTokens,
            pendingRefresh != nil || tokens.isExpiring(within: configuration.expiryLeeway) {
-            do {
-                // Join an in-flight refresh, or proactively refresh an expiring token
-                // rather than sending a request that is likely to be rejected.
-                currentTokens = try await refresh(with: tokens.refreshToken)
-            } catch {
-                // The refresh failed. Keep the existing (possibly expired) tokens and
-                // send the request anyway; if it is rejected, the failure surfaces
-                // through shouldReauthenticate/reauthenticate.
-            }
+            // Join an in-flight refresh, or proactively refresh an expiring token
+            // rather than sending a request that is likely to be rejected. If the
+            // refresh fails, keep the existing (possibly expired) tokens and send the
+            // request anyway; a rejection then surfaces through
+            // shouldReauthenticate/reauthenticate.
+            try? await refresh(with: tokens.refreshToken)
         }
 
         guard let accessToken = currentTokens?.accessToken else {
@@ -178,16 +183,22 @@ public actor JWTAuth: AuthenticationMethod {
             throw AuthenticationError.noRefreshToken
         }
 
-        currentTokens = try await refresh(with: refreshToken)
+        try await refresh(with: refreshToken)
     }
 
     // MARK: - Refresh
 
-    /// Joins the in-flight refresh if one exists, otherwise starts a new one.
+    /// Joins the in-flight refresh if one exists, otherwise starts a new one, and
+    /// commits the resulting tokens.
     ///
     /// The existence check and task creation happen in one synchronous stretch of
     /// actor isolation, so concurrent callers cannot start duplicate refreshes.
-    private func refresh(with refreshToken: String) async throws(AuthenticationError) -> TokenPair {
+    ///
+    /// A refresh superseded by ``setTokens(_:)`` or ``clearTokens()`` is discarded
+    /// rather than committed: the caller's tokens are the newer intent, and a logout
+    /// must not be undone by a refresh that was already underway. Superseded refreshes
+    /// return normally so the request proceeds with whatever tokens are current.
+    private func refresh(with refreshToken: String) async throws(AuthenticationError) {
         let refreshTask = pendingRefresh ?? startRefresh(refreshToken: refreshToken)
 
         defer {
@@ -196,13 +207,25 @@ public actor JWTAuth: AuthenticationMethod {
             }
         }
 
+        let newTokens: TokenPair
         do {
-            return try await refreshTask.value
+            newTokens = try await refreshTask.value
+        } catch is CancellationError {
+            return
         } catch let error as AuthenticationError {
             throw error
         } catch {
             throw .refreshFailed(underlying: error)
         }
+
+        // Commit only while this refresh is still the pending one. Every caller that
+        // joined it resumes here, one at a time; the first commits and (via the defer)
+        // clears `pendingRefresh`, so later callers leave the tokens alone. That also
+        // covers supersession: setTokens/clearTokens clear `pendingRefresh`, so a
+        // refresh they replaced is never committed — even by a caller that resumes
+        // after a logout which landed between two callers resuming.
+        guard pendingRefresh == refreshTask else { return }
+        currentTokens = newTokens
     }
 
     private func startRefresh(refreshToken: String) -> Task<TokenPair, Error> {
@@ -213,20 +236,28 @@ public actor JWTAuth: AuthenticationMethod {
         let identity = ObjectIdentifier(self)
 
         let refreshTask = Task<TokenPair, Error> {
+            let newTokens: TokenPair
             do {
                 // Marks this instance as refreshing for the duration of the handler, so a
                 // request that reenters authenticate from inside it can be detected.
-                let newTokens = try await Self.$refreshingInstances.withValue(
+                newTokens = try await Self.$refreshingInstances.withValue(
                     Self.refreshingInstances.union([identity])
                 ) {
                     try await refreshHandler(refreshToken)
                 }
-                await onTokensUpdated?(newTokens)
-                return newTokens
             } catch {
+                // A superseded refresh is not a failure: the tokens were replaced or
+                // cleared deliberately, so don't report it (and don't trigger a logout).
+                try Task.checkCancellation()
                 await onRefreshFailed?(error)
                 throw AuthenticationError.refreshFailed(underlying: error)
             }
+
+            // Don't persist tokens that setTokens/clearTokens already replaced while
+            // the handler was running.
+            try Task.checkCancellation()
+            await onTokensUpdated?(newTokens)
+            return newTokens
         }
 
         pendingRefresh = refreshTask
@@ -234,17 +265,28 @@ public actor JWTAuth: AuthenticationMethod {
     }
 
     private nonisolated func headerValue(for accessToken: String) -> String {
-        "\(configuration.tokenPrefix) \(accessToken)"
+        configuration.tokenPrefix.isEmpty ? accessToken : "\(configuration.tokenPrefix) \(accessToken)"
     }
 
     // MARK: - Public Token Management
 
+    /// Replaces the current tokens, for example after a login.
+    ///
+    /// Any refresh in flight is superseded: its result is discarded rather than
+    /// committed, and requests waiting on it proceed with these tokens.
     public func setTokens(_ tokens: TokenPair) {
         currentTokens = tokens
         pendingRefresh?.cancel()
         pendingRefresh = nil
     }
 
+    /// Removes the current tokens, for example after a logout.
+    ///
+    /// Any refresh in flight is superseded: its result is discarded rather than
+    /// committed, so a refresh that was already underway cannot silently sign the
+    /// user back in. Requests waiting on it fail with
+    /// ``AuthenticationError/notAuthenticated``. See ``TokenUpdateHandler`` for the
+    /// one case where a persistence callback can still finish after this returns.
     public func clearTokens() {
         currentTokens = nil
         pendingRefresh?.cancel()

@@ -2,14 +2,159 @@
 //  Server.swift
 //  Endpoints
 //
-//  Created by Zac White on 11/27/24.
+//  Created by Zac White on 1/26/19.
+//  Copyright © 2019 Velos Mobile LLC. All rights reserved.
 //
 
 import Foundation
 
-// The environment a request is built against is supplied per request — see
-// ``Endpoint/urlRequest(in:)`` and the `environment:` parameter on the `URLSession`
-// request methods — rather than stored in process-wide mutable state. That is what
-// lets two clients talk to different environments at the same time.
-//
-// ``ServerDefinition/defaultEnvironment`` provides the default for those parameters.
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+
+/// Standard environment types used by most servers.
+///
+/// Use these as a starting point, or define your own environment enum.
+public enum TypicalEnvironments: String, CaseIterable, Sendable {
+    case local
+    case development
+    case staging
+    case production
+}
+
+/// Defines the server configuration for endpoints.
+///
+/// Conform to this protocol to create a server definition that specifies
+/// base URLs for different environments, the authentication method its endpoints
+/// share, and request processing behavior.
+///
+/// The environment a request is built against is supplied per request — see
+/// ``Endpoint/urlRequest(in:)`` and the `environment:` parameter on the `URLSession`
+/// request methods — rather than stored in process-wide mutable state, which is what
+/// lets two clients talk to different environments at the same time.
+/// ``defaultEnvironment`` provides the default for those parameters.
+///
+/// Credentials are usually bound to one environment: a token issued by staging is not
+/// valid against production. A server-wide ``auth`` therefore suits apps that talk to
+/// a single environment at a time. An app that switches environments per request
+/// should pass matching credentials with the `auth:` parameter, and may leave the
+/// server's ``auth`` undeclared.
+///
+/// ```swift
+/// struct ApiServer: ServerDefinition {
+///     var baseUrls: [Environments: URL] {
+///         return [
+///             .staging: URL(string: "https://staging-api.example.com")!,
+///             .production: URL(string: "https://api.example.com")!
+///         ]
+///     }
+///
+///     static var defaultEnvironment: Environments { .production }
+/// }
+/// ```
+public protocol ServerDefinition: Sendable {
+    /// The environment type for this server. Defaults to ``TypicalEnvironments``.
+    ///
+    /// Must be `Sendable`: environments are passed per request and may cross task
+    /// boundaries.
+    associatedtype Environments: Hashable & Sendable = TypicalEnvironments
+
+    /// The ``AuthenticationMethod`` applied to endpoints on this server. Defaults to ``NoAuth``.
+    associatedtype Auth: AuthenticationMethod = NoAuth
+
+    /// Required initializer for creating server instances.
+    init()
+
+    /// Maps environments to their base URLs.
+    var baseUrls: [Environments: URL] { get }
+
+    /// Optional request processor to modify requests before sending.
+    ///
+    /// Use this for static, synchronous request modification such as signing. For
+    /// credentials that can expire and be refreshed, use ``auth`` instead.
+    var requestProcessor: @Sendable (URLRequest) -> URLRequest { get }
+
+    /// The authentication method instance shared by all endpoints on this server.
+    ///
+    /// Declare this as a `static let` so that stateful methods such as ``JWTAuth``
+    /// share one instance across every endpoint — that shared instance is what allows
+    /// concurrent token refreshes to coalesce.
+    ///
+    /// ```swift
+    /// struct ApiServer: ServerDefinition {
+    ///     static let auth = JWTAuth(initialTokens: loadTokens(), refreshHandler: refresh)
+    ///     ...
+    /// }
+    /// ```
+    static var auth: Auth { get }
+
+    /// The default environment to use when none is explicitly set.
+    static var defaultEnvironment: Environments { get }
+}
+
+public extension ServerDefinition {
+    /// Default passthrough request processor that returns the request unchanged.
+    var requestProcessor: @Sendable (URLRequest) -> URLRequest { return { $0 } }
+}
+
+public extension ServerDefinition where Auth == NoAuth {
+    /// Servers are unauthenticated unless they declare an authentication method.
+    static var auth: NoAuth { return NoAuth() }
+}
+
+/// A generic server implementation that can be used as a default for simple endpoints.
+/// Supports multiple environments (development, staging, production) with configurable base URLs.
+public struct GenericServer: ServerDefinition {
+    public let baseUrls: [Environments: URL]
+    public let requestProcessor: @Sendable (URLRequest) -> URLRequest
+
+    /// Creates a GenericServer with the given base URLs for different environments.
+    /// - Parameters:
+    ///   - local: URL for local development (optional)
+    ///   - development: URL for development environment (optional)
+    ///   - staging: URL for staging environment (optional)
+    ///   - production: URL for production environment (optional)
+    ///   - requestProcessor: Optional request processor for modifying requests (default: passthrough)
+    public init(
+        local: URL? = nil,
+        development: URL? = nil,
+        staging: URL? = nil,
+        production: URL? = nil,
+        requestProcessor: @Sendable @escaping (URLRequest) -> URLRequest = { $0 }
+    ) {
+        var urls: [Environments: URL] = [:]
+        if let local { urls[.local] = local }
+        if let development { urls[.development] = development }
+        if let staging { urls[.staging] = staging }
+        if let production { urls[.production] = production }
+        self.baseUrls = urls
+        self.requestProcessor = requestProcessor
+    }
+
+    /// Creates a GenericServer with a single base URL used for all environments.
+    /// - Parameters:
+    ///   - baseUrl: The base URL to use for all environments
+    ///   - requestProcessor: Optional request processor for modifying requests (default: passthrough)
+    public init(baseUrl: URL, requestProcessor: @Sendable @escaping (URLRequest) -> URLRequest = { $0 }) {
+        self.baseUrls = [
+            .local: baseUrl,
+            .development: baseUrl,
+            .staging: baseUrl,
+            .production: baseUrl
+        ]
+        self.requestProcessor = requestProcessor
+    }
+
+    /// Required parameterless initializer for ServerDefinition conformance.
+    ///
+    /// Creates a GenericServer with no base URLs configured, so every request built
+    /// against it fails with ``EndpointError/misconfiguredServer(server:)``. Pass a
+    /// configured instance to ``Definition/init(server:method:path:parameters:headers:)``
+    /// instead.
+    public init() {
+        self.baseUrls = [:]
+        self.requestProcessor = { @Sendable in $0 }
+    }
+
+    public static var defaultEnvironment: Environments { .production }
+}
