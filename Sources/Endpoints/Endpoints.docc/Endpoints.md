@@ -1,38 +1,74 @@
 # ``Endpoints``
 
-Endpoints is a small library for creating statically and strongly-typed definitions of endpoints with paths, methods, inputs and outputs.
+Describe HTTP endpoints as Swift types, and send them with `URLSession`.
 
 ## Overview
 
-The purpose of Endpoints is to, in a type-safe way, define how to create a `URLRequest` from typed properties and, additionally, define how a response for the request should be handled. The library not only includes the ability to create these requests in a type-safe way, but also includes helpers to perform the requests using ``Foundation/URLSession``. Endpoints does not try to wrap the URL loading system to provide features on top of it like Alamofire. Instead, Endpoints focuses on defining endpoints and associated data to produce a request as a URLRequest object to be plugged into vanilla ``Foundation/URLSession``s. However, this library could be used in conjunction with Alamofire if desired.
+An ``Endpoint`` describes a request: its server, method, path, parameters, headers, body, and response type. Endpoints builds a `URLRequest` from it and decodes the response, using plain `URLSession` rather than its own networking layer.
+
+```swift
+struct ProfileEndpoint: Endpoint {
+    typealias Server = ApiServer
+
+    static let definition: Definition<ProfileEndpoint> = Definition(
+        method: .get,
+        path: "users/\(path: \.userId)/profile"
+    )
+
+    struct Response: Decodable {
+        let name: String
+    }
+
+    struct PathComponents {
+        let userId: String
+    }
+
+    let pathComponents: PathComponents
+}
+
+let profile = try await URLSession.shared.response(with: ProfileEndpoint(pathComponents: .init(userId: "42")))
+```
+
+Start with <doc:Examples> for servers, environments, and common request shapes. Then read <doc:Authentication> to attach credentials, and <doc:Mocking> to test.
 
 ## Topics
 
 ### Essentials
 
+- <doc:Examples>
 - ``Endpoint``
 - ``Definition``
 - ``ServerDefinition``
-- <doc:Examples>
 
-### Server Configuration
+### Servers and Environments
 
-- ``ServerDefinition``
 - ``GenericServer``
 - ``TypicalEnvironments``
 
-### Request Components
+### Building Requests
 
 - ``Method``
 - ``PathTemplate``
+- ``PathRepresentable``
 - ``Parameter``
+- ``ParameterRepresentable``
+- ``QueryEncodingStrategy``
 - ``Header``
 - ``HeaderField``
-- ``ParameterRepresentable``
+- ``HeaderCategory``
+
+### Encoding and Decoding
+
+- ``EncoderType``
+- ``DecoderType``
+- ``EmptyCodable``
 - ``MultipartFormEncoder``
+- ``MultipartFormFile``
+- ``MultipartFormJSON``
 
 ### Authentication
 
+- <doc:Authentication>
 - ``AuthenticationMethod``
 - ``AuthenticationError``
 - ``RefreshReentrancyError``
@@ -42,13 +78,13 @@ The purpose of Endpoints is to, in a type-safe way, define how to create a `URLR
 - ``CookieAuth``
 - ``JWTAuth``
 
-### Making Requests
+### Sending Requests and Handling Errors
 
 - ``Foundation/URLSession``
 - ``EndpointTaskError``
 - ``EndpointError``
 
-### Testing and Mocking
+### Testing
 
 - <doc:Mocking>
 - ``MockRegistry``

@@ -8,75 +8,70 @@
 import Foundation
 @testable import Endpoints
 
-/// Executes a test block with mocking enabled for the specified endpoint type.
+/// Runs `test` with requests of an endpoint type answered by a closure.
 ///
-/// Use this function to intercept network requests and provide mock responses instead of
-/// making actual network calls. The mock applies to all requests of the specified endpoint
-/// type within the test block.
+/// `body` runs once per request of `ofType` made inside `test`, including from child
+/// tasks. Requests of other endpoint types make real requests.
 ///
 /// ```swift
 /// try await withMock(MyEndpoint.self) { continuation in
-///     continuation.resume(returning: .init(userId: "123", name: "Test"))
+///     continuation.resume(returning: .init(name: "Zac"))
 /// } test: {
 ///     let response = try await URLSession.shared.response(with: MyEndpoint())
-///     #expect(response.userId == "123")
+///     #expect(response.name == "Zac")
 /// }
 /// ```
 ///
 /// - Parameters:
-///   - ofType: The endpoint type to mock
-///   - body: A closure that receives a ``MockContinuation`` to configure the mock response
-///   - test: The test code that will execute with mocking enabled
-/// - Returns: The value returned by the test block
+///   - ofType: The endpoint type to mock.
+///   - body: A closure that sets the response on the ``MockContinuation`` it receives.
+///   - test: The code to run with the mock in place.
+/// - Returns: The value `test` returns.
 public func withMock<T: Endpoint, R: Sendable>(_ ofType: T.Type, _ body: @Sendable @escaping (MockContinuation<T>) async -> Void, test: @Sendable @escaping () async throws -> R) async rethrows -> R {
     return try await Mocking.shared.withMock(T.self, body, test: test)
 }
 
-/// Executes a test block with a pre-configured mock action.
-///
-/// This is a convenience variant that accepts a ``MockAction`` directly instead of a closure.
-/// Use this for simple cases where you don't need dynamic response generation.
+/// Runs `test` with every request of an endpoint type answered by `action`.
 ///
 /// ```swift
-/// try await withMock(MyEndpoint.self, action: .return(.init(userId: "123", name: "Test"))) {
+/// try await withMock(MyEndpoint.self, action: .return(.init(name: "Zac"))) {
 ///     let response = try await URLSession.shared.response(with: MyEndpoint())
-///     #expect(response.name == "Test")
+///     #expect(response.name == "Zac")
 /// }
 /// ```
 ///
 /// - Parameters:
-///   - ofType: The endpoint type to mock
-///   - action: The mock action to perform (return, fail, throw, or none)
-///   - test: The test code that will execute with mocking enabled
-/// - Returns: The value returned by the test block
+///   - ofType: The endpoint type to mock.
+///   - action: How the requests respond.
+///   - test: The code to run with the mock in place.
+/// - Returns: The value `test` returns.
 public func withMock<T: Endpoint, R: Sendable>(_ ofType: T.Type, action: MockAction<T.Response, T.ErrorResponse>, test: @Sendable @escaping () async throws -> R) async rethrows -> R {
     return try await Mocking.shared.withMock(T.self, { continuation in
         continuation.resume(with: action)
     }, test: test)
 }
 
-/// Executes a test block with mocks registered for multiple endpoint types.
+/// Runs `test` with mocks for several endpoint types.
 ///
-/// Use this instead of nesting `withMock` calls when a flow touches several endpoints —
-/// for example an authenticated request whose token-refresh handler calls a second
-/// endpoint. Endpoint types without a registered mock pass through to the real
-/// transport, and nested mock scopes merge with (and shadow same-type mocks from)
-/// enclosing scopes.
+/// Use this instead of nesting `withMock` calls when a flow uses several endpoints,
+/// such as a request whose token refresh calls a second endpoint. Endpoint types
+/// without a mock make real requests. Nested scopes combine, and an inner mock for the
+/// same endpoint type replaces the outer one until the inner scope ends.
 ///
 /// ```swift
 /// try await withMock { mocks in
 ///     mocks.register(RefreshEndpoint.self, action: .return(.init(access: "new", refresh: "next")))
 ///     mocks.register(ProfileEndpoint.self, action: .return(.init(name: "Zac")))
 /// } test: {
-///     let profile = try await session.response(with: ProfileEndpoint())
+///     let profile = try await URLSession.shared.response(with: ProfileEndpoint())
 ///     #expect(profile.name == "Zac")
 /// }
 /// ```
 ///
 /// - Parameters:
-///   - registering: A closure that registers mocks per endpoint type on the provided ``MockRegistry``
-///   - test: The test code that will execute with mocking enabled
-/// - Returns: The value returned by the test block
+///   - registering: A closure that registers mocks on the ``MockRegistry`` it receives.
+///   - test: The code to run with the mocks in place.
+/// - Returns: The value `test` returns.
 public func withMock<R: Sendable>(registering: (MockRegistry) -> Void, test: @Sendable @escaping () async throws -> R) async rethrows -> R {
     return try await Mocking.shared.withMock(registering: registering, test: test)
 }

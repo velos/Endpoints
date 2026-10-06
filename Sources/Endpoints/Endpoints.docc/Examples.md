@@ -1,18 +1,15 @@
 # Examples
 
-## Defining a Server
+Define servers and endpoints for common request shapes.
 
-Before creating endpoints, you first need to define a server that conforms to ``ServerDefinition``. This replaces the old `EnvironmentType` approach and provides a more integrated way to manage environments.
+## Servers
 
-### Basic Server Definition
+A ``ServerDefinition`` lists a base URL for each environment and names the default:
 
 ```swift
-import Endpoints
-import Foundation
-
 struct ApiServer: ServerDefinition {
     var baseUrls: [Environments: URL] {
-        return [
+        [
             .local: URL(string: "https://local-api.example.com")!,
             .staging: URL(string: "https://staging-api.example.com")!,
             .production: URL(string: "https://api.example.com")!
@@ -23,466 +20,359 @@ struct ApiServer: ServerDefinition {
 }
 ```
 
-### Using GenericServer
+### Custom environments
 
-For simple use cases, you can use the built-in ``GenericServer``:
-
-```swift
-let server = GenericServer(
-    local: URL(string: "https://localhost:8080"),
-    staging: URL(string: "https://staging-api.example.com"),
-    production: URL(string: "https://api.example.com")
-)
-```
-
-### Custom Environments
-
-You can define custom environment types beyond the standard ``TypicalEnvironments``:
+`Environments` defaults to ``TypicalEnvironments``. Any `Hashable & Sendable` type works:
 
 ```swift
-enum CustomEnvironments: String, CaseIterable, Sendable {
-    case debug
-    case testing
-    case production
+enum Region: Hashable, Sendable {
+    case us
+    case eu
 }
 
-struct CustomServer: ServerDefinition {
-    typealias Environments = CustomEnvironments
-    
+struct RegionalServer: ServerDefinition {
+    typealias Environments = Region
+
     var baseUrls: [Environments: URL] {
-        return [
-            .debug: URL(string: "https://debug-api.example.com")!,
-            .testing: URL(string: "https://test-api.example.com")!,
-            .production: URL(string: "https://api.example.com")!
+        [
+            .us: URL(string: "https://us.api.example.com")!,
+            .eu: URL(string: "https://eu.api.example.com")!
         ]
     }
 
-    static var defaultEnvironment: Environments { .debug }
-    
+    static var defaultEnvironment: Environments { .us }
+}
+```
+
+### Choosing an environment
+
+Each request takes an `environment:` argument, which defaults to the server's ``ServerDefinition/defaultEnvironment``:
+
+```swift
+let response = try await URLSession.shared.response(with: MyEndpoint(), environment: .staging)
+let request = try MyEndpoint().urlRequest(in: .staging)
+```
+
+The environment belongs to the request, not to global state, so concurrent requests can use different environments.
+
+### Processing requests
+
+``ServerDefinition/requestProcessor`` runs synchronously on every request after it is built. Use it for static changes:
+
+```swift
+struct ApiServer: ServerDefinition {
+    // baseUrls and defaultEnvironment as above
+
     var requestProcessor: @Sendable (URLRequest) -> URLRequest {
-        return { request in
-            var mutableRequest = request
-            mutableRequest.setValue(buildNumber, forHTTPHeaderField: "X-Client-Build")
-            return mutableRequest
+        { request in
+            var request = request
+            request.setValue(AppInfo.buildNumber, forHTTPHeaderField: "X-Client-Build")
+            return request
         }
     }
 }
 ```
 
-> Note: `requestProcessor` is for static, synchronous request modification. To attach
-> credentials — especially ones that expire and need refreshing — declare an
-> ``AuthenticationMethod`` with ``ServerDefinition/auth`` instead.
+For credentials, use ``ServerDefinition/auth`` instead. See <doc:Authentication>.
 
-### Changing Environments
+### Using GenericServer
 
-Select the environment when performing a request:
+An endpoint that doesn't name a server uses ``GenericServer``. Pass a configured instance to its ``Definition``:
 
 ```swift
-let response = try await URLSession.shared.response(with: MyEndpoint(), environment: .staging)
-```
-
-Because the environment is a per-request value rather than global state, different parts
-of an app — or two clients talking to different deployments — can use different
-environments at the same time.
-
-### Authentication
-
-A server names the ``AuthenticationMethod`` its endpoints share, and every endpoint on it
-inherits that method. Declare it as a `static let` so all endpoints use one instance —
-for a stateful method such as ``JWTAuth`` that shared instance is what lets concurrent
-token refreshes coalesce:
-
-```swift
-struct ApiServer: ServerDefinition {
-    static let auth = JWTAuth(
-        initialTokens: loadTokensFromKeychain(),
-        refreshHandler: { refreshToken in
-            let response = try await URLSession.shared.response(with: RefreshEndpoint(token: refreshToken))
-            return JWTAuth.TokenPair(accessToken: response.access, refreshToken: response.refresh)
-        },
-        onTokensUpdated: { tokens in saveTokensToKeychain(tokens) },
-        onRefreshFailed: { _ in await logOut() }
-    )
-
-    var baseUrls: [Environments: URL] { ... }
-    static var defaultEnvironment: Environments { .production }
-}
-```
-
-An individual endpoint can override its server's method. The refresh endpoint above must
-do so: it authenticates with the refresh token, and a request authenticated by the same
-`JWTAuth` would wait on the refresh that is waiting on it.
-
-```swift
-struct RefreshEndpoint: Endpoint {
-    typealias Server = ApiServer
-    static var auth: NoAuth { NoAuth() }
-    ...
-}
-```
-
-Requests then go through the ordinary `URLSession` API; credentials are applied, refreshed
-and retried automatically:
-
-```swift
-let profile = try await URLSession.shared.response(with: ProfileEndpoint())
-```
-
-### Environment and Credentials Per Request
-
-Credentials are usually bound to one environment — a token issued by staging is not valid
-against production — so an app that talks to several environments or accounts at once
-should pass both per request rather than share one server-wide instance:
-
-```swift
-struct Client {
-    let environment: ApiServer.Environments
-    let auth: JWTAuth   // one instance per client, so its refreshes coalesce
-
-    func profile() async throws -> ProfileEndpoint.Response {
-        try await URLSession.shared.response(with: ProfileEndpoint(), environment: environment, auth: auth)
-    }
-}
-```
-
-Both parameters default to what the endpoint declares, so the common single-environment
-case needs neither. A server whose credentials always arrive this way need not declare
-``ServerDefinition/auth`` at all.
-
----
-
-## Endpoint Examples
-
-### GET Request
-
-#### Endpoint and Definition
-```swift
-struct MyEndpoint: Endpoint {
-    typealias Server = ApiServer
-    
-    static let definition: Definition<MyEndpoint> = Definition(
+struct StatusEndpoint: Endpoint {
+    static let definition: Definition<StatusEndpoint> = Definition(
+        server: GenericServer(baseUrl: URL(string: "https://status.example.com")!),
         method: .get,
-        path: "path/to/resource"
+        path: "status"
     )
 
     struct Response: Decodable {
-        let resourceId: String
-        let resourceName: String
+        let healthy: Bool
     }
 }
 ```
 
-#### Usage
-```swift
-URLSession.shared.endpointPublisher(with: MyEndpoint())
-    .sink { completion in
-        guard case .failure(let error) = completion else { return }
-        // handle error
-    } receiveValue: { (response: MyEndpoint.Response) in
-        // handle MyEndpoint.Response
-    }
-    .store(in: &cancellables)
-```
+A `GenericServer()` with no URLs fails every request with ``EndpointError/misconfiguredServer(server:)``.
 
-### GET Request with ``Endpoint/PathComponents``
+## Endpoints
 
-#### Endpoint and Definition
+Each example shows the endpoint and a call to it. Every example works with the Combine method `endpointPublisher(with:)` too.
+
+### GET with a decoded response
+
 ```swift
-struct MyEndpoint: Endpoint {
+struct ArticlesEndpoint: Endpoint {
     typealias Server = ApiServer
-    
-    static let definition: Definition<MyEndpoint> = Definition(
+
+    static let definition: Definition<ArticlesEndpoint> = Definition(
         method: .get,
-        path: "user/\(path: \.userId)/resource"
+        path: "articles"
     )
 
     struct Response: Decodable {
-        let value: String
+        let articles: [Article]
+    }
+}
+
+let response = try await URLSession.shared.response(with: ArticlesEndpoint())
+```
+
+### Path components
+
+Interpolate key paths into the path with `\(path:)`. Slashes are added between components as needed:
+
+```swift
+struct EventEndpoint: Endpoint {
+    typealias Server = ApiServer
+
+    static let definition: Definition<EventEndpoint> = Definition(
+        method: .get,
+        path: "calendars/\(path: \.calendarId)/events/\(path: \.eventId)"
+    )
+
+    struct Response: Decodable {
+        let title: String
     }
 
     struct PathComponents {
-        let userId: String
+        let calendarId: String
+        let eventId: Int
     }
 
     let pathComponents: PathComponents
 }
+
+let event = try await URLSession.shared.response(
+    with: EventEndpoint(pathComponents: .init(calendarId: "work", eventId: 42))
+)
 ```
 
-#### Usage
+### Query parameters
+
+`.query` reads a value from ``Endpoint/ParameterComponents``, and `.queryValue` sends a fixed value. `nil` values are left out:
+
 ```swift
-URLSession.shared.endpointPublisher(with: MyEndpoint(pathComponents: .init(userId: "42")))
-    .sink { completion in
-        guard case .failure(let error) = completion else { return }
-        // handle error
-    } receiveValue: { (response: MyEndpoint.Response) in
-        // handle MyEndpoint.Response
-    }
-    .store(in: &cancellables)
-```
-
-### GET Request with ``Endpoint/HeaderComponents``
-
-#### Endpoint and Definition
-```swift
-extension Header {
-    static let myCustomHeader = Header(name: "X-CUSTOM")
-    static let myOtherCustomHeader = Header(name: "X-OTHER-CUSTOM")
-    static let myHardCodedHeader = Header(name: "X-HARD-CODED")
-}
-
-struct MyEndpoint: Endpoint {
+struct SearchEndpoint: Endpoint {
     typealias Server = ApiServer
-    
-    static let definition: Definition<MyEndpoint> = Definition(
+
+    static let definition: Definition<SearchEndpoint> = Definition(
         method: .get,
-        path: "path/to/resource",
-        headers: [
-            .myCustomHeader: .field(path: \MyEndpoint.HeaderValues.headerString),
-            .myOtherCustomHeader: .field(path: \MyEndpoint.HeaderValues.headerInt),
-            .myHardCodedHeader: .fieldValue(value: "value")
+        path: "search",
+        parameters: [
+            .query("q", path: \.query),
+            .query("page", path: \.page),
+            .queryValue("format", value: "compact")
         ]
     )
 
     struct Response: Decodable {
-        let value: String
+        let results: [String]
     }
 
-    struct HeaderValues {
-        let headerString: String
-        let headerInt: Int
+    struct ParameterComponents {
+        let query: String
+        let page: Int?
     }
 
-    let headerValues: HeaderValues
+    let parameterComponents: ParameterComponents
+}
+
+// https://api.example.com/search?q=swift&format=compact
+let results = try await URLSession.shared.response(
+    with: SearchEndpoint(parameterComponents: .init(query: "swift", page: nil))
+)
+```
+
+Supported value types are `String`, `Int`, `Double`, `Bool`, `Date` (ISO 8601), `TimeZone`, and optionals of these. Conform other types to ``ParameterRepresentable``.
+
+To control percent-encoding, set ``Endpoint/queryEncodingStrategy``. This one also encodes `+`, which some servers read as a space:
+
+```swift
+static var queryEncodingStrategy: QueryEncodingStrategy {
+    .custom { item in
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "+")
+        return (item.name, item.value?.addingPercentEncoding(withAllowedCharacters: allowed))
+    }
 }
 ```
 
-#### Usage
-```swift
-URLSession.shared.endpointPublisher(with: MyEndpoint(headerValues: .init(headerString: "headerValue", headerInt: 42)))
-    .sink { completion in
-        guard case .failure(let error) = completion else { return }
-        // handle error
-    } receiveValue: { (response: MyEndpoint.Response) in
-        // handle MyEndpoint.Response
-    }
-    .store(in: &cancellables)
-```
+### Form parameters
 
-### POST Request with ``Endpoint/Body``
+`.form` and `.formValue` send an `application/x-www-form-urlencoded` body:
 
-#### Endpoint and Definition
 ```swift
-struct MyEndpoint: Endpoint {
+struct TokenEndpoint: Endpoint {
     typealias Server = ApiServer
-    
-    static let definition: Definition<MyEndpoint> = Definition(
+
+    static let definition: Definition<TokenEndpoint> = Definition(
         method: .post,
-        path: "path/to/resource"
+        path: "oauth/token",
+        parameters: [
+            .form("username", path: \.username),
+            .form("password", path: \.password),
+            .formValue("grant_type", value: "password")
+        ]
     )
 
     struct Response: Decodable {
-        let value: String
+        let accessToken: String
     }
 
+    struct ParameterComponents {
+        let username: String
+        let password: String
+    }
+
+    let parameterComponents: ParameterComponents
+}
+```
+
+### Headers
+
+`.field` reads a value from ``Endpoint/HeaderComponents``, and `.fieldValue` sends a fixed value. Define your own ``Header`` names by extending the type, or use a string literal:
+
+```swift
+extension Header {
+    static let requestId = Header(name: "X-Request-ID")
+}
+
+struct ReportEndpoint: Endpoint {
+    typealias Server = ApiServer
+
+    static let definition: Definition<ReportEndpoint> = Definition(
+        method: .get,
+        path: "report",
+        headers: [
+            .requestId: .field(path: \.requestId),
+            .accept: .fieldValue(value: "application/json"),
+            "X-Client": .fieldValue(value: "ios")
+        ]
+    )
+
+    struct Response: Decodable {
+        let total: Int
+    }
+
+    struct HeaderComponents {
+        let requestId: String
+    }
+
+    let headerComponents: HeaderComponents
+}
+```
+
+### JSON body
+
+A ``Endpoint/Body`` is encoded with `JSONEncoder`, and `Content-Type` is set to `application/json`:
+
+```swift
+struct CreateArticleEndpoint: Endpoint {
+    typealias Server = ApiServer
+
+    static let definition: Definition<CreateArticleEndpoint> = Definition(
+        method: .post,
+        path: "articles"
+    )
+
     struct Body: Encodable {
-        let bodyName: String
+        let title: String
+        let text: String
+    }
+
+    struct Response: Decodable {
+        let id: String
     }
 
     let body: Body
 }
+
+let created = try await URLSession.shared.response(
+    with: CreateArticleEndpoint(body: .init(title: "Hello", text: "..."))
+)
 ```
 
-#### Usage
-```swift
-URLSession.shared.endpointPublisher(with: MyEndpoint(body: .init(bodyName: "value")))
-    .sink { completion in
-        guard case .failure(let error) = completion else { return }
-        // handle error
-    } receiveValue: { (response: MyEndpoint.Response) in
-        // handle MyEndpoint.Response
-    }
-    .store(in: &cancellables)
-```
+### Multipart upload
 
-### POST Request with form ``Endpoint/ParameterComponents``
+Set ``Endpoint/bodyEncoder`` to ``MultipartFormEncoder``. Each property of the body becomes a part. Use ``MultipartFormFile`` for files and ``MultipartFormJSON`` for a part that holds JSON:
 
-#### Endpoint and Definition
 ```swift
-struct MyEndpoint: Endpoint {
+struct UploadEndpoint: Endpoint {
     typealias Server = ApiServer
-    
-    static let definition: Definition<MyEndpoint> = Definition(
+
+    static let definition: Definition<UploadEndpoint> = Definition(
         method: .post,
-        path: "path/to/resource",
-        parameters: [
-            .form("keyString", path: \MyEndpoint.ParameterComponents.keyString),
-            .form("keyInt", path: \MyEndpoint.ParameterComponents.keyInt),
-            .formValue("key", value: "hard-coded")
-        ]
+        path: "uploads"
     )
 
-    struct Response: Decodable {
-        let resourceId: String
-        let resourceName: String
+    struct Body: Encodable {
+        let caption: String
+        let photo: MultipartFormFile
+        let metadata: MultipartFormJSON<Metadata>
     }
 
-    struct Parameters {
-        let keyString: String
-        let keyInt: Int
+    struct Metadata: Encodable, Sendable {
+        let albumId: String
     }
-
-    let parameters: Parameters
-}
-```
-
-#### Usage
-```swift
-URLSession.shared.endpointPublisher(with: MyEndpoint(parameters: .init(keyString: "value", keyInt: 42)))
-    .sink { completion in
-        guard case .failure(let error) = completion else { return }
-        // handle error
-    } receiveValue: { (response: MyEndpoint.Response) in
-        // handle MyEndpoint.Response
-    }
-    .store(in: &cancellables)
-```
-
-### POST Request with query ``Endpoint/ParameterComponents``
-
-#### Endpoint and Definition
-```swift
-struct MyEndpoint: Endpoint {
-    typealias Server = ApiServer
-    
-    static let definition: Definition<MyEndpoint> = Definition(
-        method: .post,
-        path: "path/to/resource",
-        parameters: [
-            .query("keyString", path: \MyEndpoint.ParameterComponents.keyString),
-            .query("keyInt", path: \MyEndpoint.ParameterComponents.keyInt),
-            .queryValue("key", value: "hard-coded")
-        ]
-    )
 
     struct Response: Decodable {
-        let resourceId: String
-        let resourceName: String
+        let fileId: String
     }
 
-    struct Parameters {
-        let keyString: String
-        let keyInt: Int
-    }
+    static var bodyEncoder: MultipartFormEncoder { MultipartFormEncoder() }
 
-    let parameters: Parameters
+    let body: Body
 }
+
+let upload = UploadEndpoint(body: .init(
+    caption: "Profile photo",
+    photo: MultipartFormFile(data: imageData, fileName: "photo.jpg", contentType: "image/jpeg"),
+    metadata: MultipartFormJSON(.init(albumId: "a1"))
+))
+let response = try await URLSession.shared.response(with: upload)
 ```
 
-#### Usage
+### Empty or raw responses
+
+Use `Void` when the response has no body you need, such as a 204:
+
 ```swift
-URLSession.shared.endpointPublisher(with: MyEndpoint(parameters: .init(keyString: "value", keyInt: 42)))
-    .sink { completion in
-        guard case .failure(let error) = completion else { return }
-        // handle error
-    } receiveValue: { (response: MyEndpoint.Response) in
-        // handle MyEndpoint.Response
-    }
-    .store(in: &cancellables)
-```
-
-#### Output URL
-
-```
-https://production.mydomain.com/path/to/resource?keyString=value&keyInt=42&key=hard-coded
-```
-
-### DELETE Request with Void ``Endpoint/Response``
-
-#### Endpoint and Definition
-```swift
-struct MyEndpoint: Endpoint {
+struct DeleteArticleEndpoint: Endpoint {
     typealias Server = ApiServer
-    
-    static let definition: Definition<MyEndpoint> = Definition(
+
+    static let definition: Definition<DeleteArticleEndpoint> = Definition(
         method: .delete,
-        path: "path/to/resource"
+        path: "articles/\(path: \.id)"
     )
 
     typealias Response = Void
+
+    struct PathComponents {
+        let id: String
+    }
+
+    let pathComponents: PathComponents
 }
+
+try await URLSession.shared.response(with: DeleteArticleEndpoint(pathComponents: .init(id: "a1")))
 ```
 
-#### Usage
+Use `Data` to receive the body without decoding it.
+
+### Custom decoders and encoders
+
+Override ``Endpoint/responseDecoder``, ``Endpoint/errorDecoder``, or ``Endpoint/bodyEncoder``:
+
 ```swift
-URLSession.shared.endpointPublisher(with: MyEndpoint())
-    .sink { completion in
-        guard case .failure(let error) = completion else { return }
-        // handle error
-    } receiveValue: { (response: Void) in
-        // handle success with ignored response
-    }
-    .store(in: &cancellables)
-```
-
-### GET Request with custom ``Endpoint/ResponseDecoder``
-
-#### Endpoint and Definition
-```swift
-struct MyEndpoint: Endpoint {
-    typealias Server = ApiServer
-    
-    static let definition: Definition<MyEndpoint> = Definition(
-        method: .get,
-        path: "path/to/resource"
-    )
-
-    struct Response: Decodable {
-        let resourceId: String
-        let resourceName: String
-    }
+struct ProfileEndpoint: Endpoint {
+    // ...
 
     static let responseDecoder: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         return decoder
     }()
-}
-```
-
-#### Usage
-```swift
-URLSession.shared.endpointPublisher(with: MyEndpoint())
-    .sink { completion in
-        guard case .failure(let error) = completion else { return }
-        // handle error
-    } receiveValue: { (response: MyEndpoint.Response) in
-        // handle MyEndpoint.Response and has been decoded
-        // with the custom responseDecoder
-    }
-    .store(in: &cancellables)
-```
-
-### POST Request with custom ``Endpoint/BodyEncoder``
-
-#### Endpoint and Definition
-```swift
-struct MyEndpoint: Endpoint {
-    typealias Server = ApiServer
-    
-    static let definition: Definition<MyEndpoint> = Definition(
-        method: .post,
-        path: "path/to/resource"
-    )
-
-    struct Response: Decodable {
-        let value: String
-    }
-
-    struct Body: Encodable {
-        let bodyValue: String
-    }
-
-    let body: Body
 
     static let bodyEncoder: JSONEncoder = {
         let encoder = JSONEncoder()
@@ -492,158 +382,50 @@ struct MyEndpoint: Endpoint {
 }
 ```
 
-#### Usage
-```swift
-URLSession.shared.endpointPublisher(with: MyEndpoint(body: .init(bodyValue: "value")))
-    .sink { completion in
-        guard case .failure(let error) = completion else { return }
-        // handle error
-    } receiveValue: { (response: MyEndpoint.Response) in
-        // handle MyEndpoint.Response
-    }
-    .store(in: &cancellables)
-```
+Any type that conforms to ``DecoderType`` or ``EncoderType`` works.
 
-### GET Request with custom ``Endpoint/ErrorResponse``
+### Typed error responses
 
-#### Endpoint and Definition
+When a server returns a structured body for errors, set ``Endpoint/ErrorResponse``. Non-2xx responses are decoded as that type and thrown as ``EndpointTaskError/errorResponse(httpResponse:response:)``:
+
 ```swift
-struct ServerError: Decodable {
+struct ServerError: Decodable, Sendable {
     let code: Int
     let message: String
 }
 
-struct MyEndpoint: Endpoint {
+struct ArticleEndpoint: Endpoint {
     typealias Server = ApiServer
-    
-    static let definition: Definition<MyEndpoint> = Definition(
-        method: .get,
-        path: "path/to/resource"
-    )
-
     typealias ErrorResponse = ServerError
-
-    struct Response: Decodable {
-        let responseValue: String
-    }
-}
-```
-
-#### Usage
-```swift
-URLSession.shared.endpointPublisher(with: MyEndpoint())
-    .sink { completion in
-        guard case .failure(let error) = completion else { return }
-        switch error {
-            case .errorResponse(let code, let error):
-                // handle error, which is typed to ErrorResponse
-            default:
-                break
-        }
-    } receiveValue: { (response: MyEndpoint.Response) in
-        // handle MyEndpoint.Response
-    }
-    .store(in: &cancellables)
-```
-
-### GET Request with custom ``Endpoint/ErrorResponse`` and ``Endpoint/ErrorDecoder``
-
-#### Endpoint and Definition
-```swift
-struct ServerError: Decodable {
-    let code: Int
-    let message: String
+    // ...
 }
 
-struct MyEndpoint: Endpoint {
-    typealias Server = ApiServer
-    
-    static let definition: Definition<MyEndpoint> = Definition(
-        method: .get,
-        path: "path/to/resource"
-    )
-
-    typealias ErrorResponse = ServerError
-
-    struct Response: Decodable {
-        let responseValue: String
-    }
-
-    static let errorDecoder: JSONDecoder = {
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return decoder
-    }()
-}
-```
-
-#### Usage
-```swift
-URLSession.shared.endpointPublisher(with: MyEndpoint())
-    .sink { completion in
-        guard case .failure(let error) = completion else { return }
-        switch error {
-            case .errorResponse(let code, let error):
-                // handle error, which is typed to ErrorResponse and
-                // has been decoded with the custom errorDecoder
-            default:
-                break
-        }
-    } receiveValue: { (response: MyEndpoint.Response) in
-        // handle MyEndpoint.Response
-    }
-    .store(in: &cancellables)
-```
-
-### Async/Await Usage
-
-All endpoints can also be used with Swift's async/await:
-
-```swift
 do {
-    let response = try await URLSession.shared.response(with: MyEndpoint())
-    // handle response
+    let article = try await URLSession.shared.response(with: ArticleEndpoint())
 } catch {
-    // handle error
+    // error is ArticleEndpoint.TaskError
+    if case .errorResponse(let httpResponse, let serverError) = error {
+        print(httpResponse.statusCode, serverError.message)
+    }
 }
 ```
 
-### Multipart Form Upload
+If many endpoints share one error type, define a `typealias` once and reuse it.
 
-For file uploads using multipart/form-data:
+### Completion handlers
+
+For unauthenticated endpoints, `endpointTask(with:completion:)` creates a data task without starting it:
 
 ```swift
-struct UploadEndpoint: Endpoint {
-    typealias Server = ApiServer
-    
-    static let definition: Definition<UploadEndpoint> = Definition(
-        method: .post,
-        path: "upload"
-    )
-
-    struct Response: Decodable {
-        let fileId: String
+let task = try URLSession.shared.endpointTask(with: ArticlesEndpoint()) { result in
+    switch result {
+    case .success(let response):
+        // handle response
+    case .failure(let error):
+        // handle ArticlesEndpoint.TaskError
     }
-
-    struct Body: MultipartFormEncodable {
-        let file: MultipartFile
-        let description: String
-    }
-
-    let body: Body
 }
-
-// Usage
-let file = MultipartFile(
-    filename: "photo.jpg",
-    contentType: "image/jpeg",
-    data: imageData
-)
-
-let endpoint = UploadEndpoint(body: .init(
-    file: file,
-    description: "Profile photo"
-))
-
-let response = try await URLSession.shared.response(with: endpoint)
+task.resume()
 ```
+
+It throws if the request can't be built, and it doesn't accept authenticated endpoints. Use `response(with:)` or `endpointPublisher(with:)` for those.

@@ -4,9 +4,9 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// Authentication using HTTP Basic credentials ([RFC 7617](https://www.rfc-editor.org/rfc/rfc7617)).
+/// Sends HTTP Basic credentials ([RFC 7617](https://www.rfc-editor.org/rfc/rfc7617)).
 ///
-/// Sends `Authorization: Basic <base64(username:password)>` with the credentials
+/// Sends `Authorization: Basic <base64(username:password)>`, with the credentials
 /// encoded as UTF-8.
 public struct BasicAuth: AuthenticationMethod {
     /// The username. Must not contain a colon (RFC 7617, section 2).

@@ -24,21 +24,19 @@ public enum TypicalEnvironments: String, CaseIterable, Sendable {
 
 /// Defines the server configuration for endpoints.
 ///
-/// Conform to this protocol to create a server definition that specifies
-/// base URLs for different environments, the authentication method its endpoints
-/// share, and request processing behavior.
+/// A server lists a base URL for each environment, the authentication method its
+/// endpoints share, and an optional request processor.
 ///
-/// The environment a request is built against is supplied per request — see
-/// ``Endpoint/urlRequest(in:)`` and the `environment:` parameter on the `URLSession`
-/// request methods — rather than stored in process-wide mutable state, which is what
-/// lets two clients talk to different environments at the same time.
-/// ``defaultEnvironment`` provides the default for those parameters.
+/// Each request chooses its environment with the `environment:` argument of the
+/// `URLSession` methods or ``Endpoint/urlRequest(in:)``. The environment isn't global
+/// state, so concurrent requests can use different environments.
+/// ``defaultEnvironment`` is used when a request doesn't choose one.
 ///
-/// Credentials are usually bound to one environment: a token issued by staging is not
-/// valid against production. A server-wide ``auth`` therefore suits apps that talk to
-/// a single environment at a time. An app that switches environments per request
-/// should pass matching credentials with the `auth:` parameter, and may leave the
-/// server's ``auth`` undeclared.
+/// Credentials usually belong to one environment: a token issued by staging isn't
+/// valid against production. A server-wide ``auth`` fits an app that talks to one
+/// environment at a time. An app that switches environments should pass matching
+/// credentials with each request's `auth:` argument, and doesn't need to declare
+/// ``auth``.
 ///
 /// ```swift
 /// struct ApiServer: ServerDefinition {
@@ -53,32 +51,30 @@ public enum TypicalEnvironments: String, CaseIterable, Sendable {
 /// }
 /// ```
 public protocol ServerDefinition: Sendable {
-    /// The environment type for this server. Defaults to ``TypicalEnvironments``.
-    ///
-    /// Must be `Sendable`: environments are passed per request and may cross task
-    /// boundaries.
+    /// The server's environments. Defaults to ``TypicalEnvironments``.
     associatedtype Environments: Hashable & Sendable = TypicalEnvironments
 
-    /// The ``AuthenticationMethod`` applied to endpoints on this server. Defaults to ``NoAuth``.
+    /// The type of ``auth``. Defaults to ``NoAuth``.
     associatedtype Auth: AuthenticationMethod = NoAuth
 
-    /// Required initializer for creating server instances.
+    /// Creates the server. ``Definition`` uses this when an endpoint doesn't pass a server.
     init()
 
-    /// Maps environments to their base URLs.
+    /// The base URL for each environment. A request for an environment with no entry
+    /// fails with ``EndpointError/misconfiguredServer(server:)``.
     var baseUrls: [Environments: URL] { get }
 
-    /// Optional request processor to modify requests before sending.
+    /// Changes each request after it is built. Defaults to returning the request unchanged.
     ///
-    /// Use this for static, synchronous request modification such as signing. For
-    /// credentials that can expire and be refreshed, use ``auth`` instead.
+    /// Use it for static changes, such as adding a build-number header. Use ``auth``
+    /// for credentials.
     var requestProcessor: @Sendable (URLRequest) -> URLRequest { get }
 
-    /// The authentication method instance shared by all endpoints on this server.
+    /// The authentication method shared by all endpoints on this server.
     ///
-    /// Declare this as a `static let` so that stateful methods such as ``JWTAuth``
-    /// share one instance across every endpoint — that shared instance is what allows
-    /// concurrent token refreshes to coalesce.
+    /// Declare it with `static let`, so every endpoint uses the same instance. A stateful
+    /// method such as ``JWTAuth`` needs that to keep its tokens and to combine concurrent
+    /// refreshes.
     ///
     /// ```swift
     /// struct ApiServer: ServerDefinition {
@@ -88,12 +84,12 @@ public protocol ServerDefinition: Sendable {
     /// ```
     static var auth: Auth { get }
 
-    /// The default environment to use when none is explicitly set.
+    /// The environment a request uses when it doesn't choose one.
     static var defaultEnvironment: Environments { get }
 }
 
 public extension ServerDefinition {
-    /// Default passthrough request processor that returns the request unchanged.
+    /// Returns the request unchanged.
     var requestProcessor: @Sendable (URLRequest) -> URLRequest { return { $0 } }
 }
 
@@ -102,19 +98,21 @@ public extension ServerDefinition where Auth == NoAuth {
     static var auth: NoAuth { return NoAuth() }
 }
 
-/// A generic server implementation that can be used as a default for simple endpoints.
-/// Supports multiple environments (development, staging, production) with configurable base URLs.
+/// A server configured with base URLs at runtime.
+///
+/// Endpoints that don't name a server use this type. Pass a configured instance to
+/// ``Definition/init(server:method:path:parameters:headers:)``.
 public struct GenericServer: ServerDefinition {
     public let baseUrls: [Environments: URL]
     public let requestProcessor: @Sendable (URLRequest) -> URLRequest
 
-    /// Creates a GenericServer with the given base URLs for different environments.
+    /// Creates a server with a base URL for each environment you pass.
     /// - Parameters:
-    ///   - local: URL for local development (optional)
-    ///   - development: URL for development environment (optional)
-    ///   - staging: URL for staging environment (optional)
-    ///   - production: URL for production environment (optional)
-    ///   - requestProcessor: Optional request processor for modifying requests (default: passthrough)
+    ///   - local: The base URL for ``TypicalEnvironments/local``.
+    ///   - development: The base URL for ``TypicalEnvironments/development``.
+    ///   - staging: The base URL for ``TypicalEnvironments/staging``.
+    ///   - production: The base URL for ``TypicalEnvironments/production``.
+    ///   - requestProcessor: Changes each request after it is built.
     public init(
         local: URL? = nil,
         development: URL? = nil,
@@ -131,10 +129,10 @@ public struct GenericServer: ServerDefinition {
         self.requestProcessor = requestProcessor
     }
 
-    /// Creates a GenericServer with a single base URL used for all environments.
+    /// Creates a server that uses one base URL for every environment.
     /// - Parameters:
-    ///   - baseUrl: The base URL to use for all environments
-    ///   - requestProcessor: Optional request processor for modifying requests (default: passthrough)
+    ///   - baseUrl: The base URL.
+    ///   - requestProcessor: Changes each request after it is built.
     public init(baseUrl: URL, requestProcessor: @Sendable @escaping (URLRequest) -> URLRequest = { $0 }) {
         self.baseUrls = [
             .local: baseUrl,
@@ -145,12 +143,10 @@ public struct GenericServer: ServerDefinition {
         self.requestProcessor = requestProcessor
     }
 
-    /// Required parameterless initializer for ServerDefinition conformance.
+    /// Creates a server with no base URLs.
     ///
-    /// Creates a GenericServer with no base URLs configured, so every request built
-    /// against it fails with ``EndpointError/misconfiguredServer(server:)``. Pass a
-    /// configured instance to ``Definition/init(server:method:path:parameters:headers:)``
-    /// instead.
+    /// Every request built against it fails with
+    /// ``EndpointError/misconfiguredServer(server:)``. Use one of the other initializers.
     public init() {
         self.baseUrls = [:]
         self.requestProcessor = { @Sendable in $0 }

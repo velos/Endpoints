@@ -12,17 +12,26 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// A error when creating or requesting an Endpoint
+/// An error building, sending, or decoding an endpoint's request.
 public enum EndpointTaskError<ErrorResponseType: Sendable>: Error, Sendable {
+    /// The request couldn't be built.
     case endpointError(EndpointError)
+    /// A successful response's body couldn't be decoded as the endpoint's ``Endpoint/Response``.
     case responseParseError(data: Data, error: Error)
 
+    /// The response had no body, and its status code wasn't 204.
     case unexpectedResponse(httpResponse: HTTPURLResponse)
 
+    /// The server returned an error status code, and its body was decoded as the
+    /// endpoint's ``Endpoint/ErrorResponse``.
     case errorResponse(httpResponse: HTTPURLResponse, response: ErrorResponseType)
+    /// The server returned an error status code, and its body couldn't be decoded as
+    /// the endpoint's ``Endpoint/ErrorResponse``.
     case errorResponseParseError(httpResponse: HTTPURLResponse, data: Data, error: Error)
 
+    /// `URLSession` failed to load the request.
     case urlLoadError(Error)
+    /// The device isn't connected to the internet.
     case internetConnectionOffline
 
     /// An authentication operation failed while applying or refreshing the
@@ -31,11 +40,10 @@ public enum EndpointTaskError<ErrorResponseType: Sendable>: Error, Sendable {
 }
 
 public extension EndpointTaskError {
-    /// The HTTP response associated with this error, when the failure came from a
-    /// response the server actually returned.
+    /// The HTTP response the server returned, if the error came from one.
     ///
-    /// `nil` for failures that happened before or instead of a response, such as
-    /// request construction, transport errors, and being offline.
+    /// `nil` when the request failed before a response arrived, such as when it couldn't
+    /// be built, the connection failed, or the device was offline.
     var httpResponse: HTTPURLResponse? {
         switch self {
         case .errorResponse(let httpResponse, _),
@@ -49,22 +57,24 @@ public extension EndpointTaskError {
 }
 
 public extension Endpoint {
-    /// Shorthand for an ``EndpointTaskError`` with the request's generic ``Endpoint/ErrorResponse``
+    /// The ``EndpointTaskError`` thrown by this endpoint's requests.
     typealias TaskError = EndpointTaskError<ErrorResponse>
 }
 
 public extension URLSession {
 
-    /// Creates a session data task using the ``Definition`` associated with the passed in request on the passed in environment.
-    /// This function does not expect a result value from the endpoint.
-    /// Note: This does not start the request. That must be done with `resume()`.
+    /// Creates a data task for an endpoint whose response body is ignored.
+    ///
+    /// Only accepts endpoints whose ``Endpoint/auth`` is ``NoAuth``, because the task is
+    /// returned before an asynchronous authentication method could run. Use
+    /// `response(with:environment:auth:)` for authenticated endpoints.
     /// - Parameters:
-    ///   - endpoint: The request data to use when filling in the ``Definition``
+    ///   - endpoint: The endpoint to request.
     ///   - environment: The environment to resolve the base URL against. Defaults to the
     ///     server's ``ServerDefinition/defaultEnvironment``.
-    ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
-    /// - Throws: Throws an ``EndpointTaskError`` of ``EndpointTaskError/endpointError(_:)`` if there is an issue constructing the request.
-    /// - Returns: The new session data task.
+    ///   - completion: Called with the result on the session's delegate queue.
+    /// - Throws: ``EndpointTaskError/endpointError(_:)`` if the request can't be built.
+    /// - Returns: A data task. Call `resume()` to start it.
     func endpointTask<T: Endpoint>(with endpoint: T, environment: T.Server.Environments = T.Server.defaultEnvironment, completion: @escaping @Sendable (Result<T.Response, T.TaskError>) -> Void) throws(T.TaskError) -> URLSessionDataTask where T.Response == Void, T.Auth == NoAuth {
 
         let urlRequest = try createUrlRequest(for: endpoint, in: environment)
@@ -96,16 +106,18 @@ public extension URLSession {
         return task
     }
 
-    /// Creates a session data task using the ``Definition`` associated with the passed in request on the passed in environment.
-    /// This function expects a result value of `Data`.
-    /// Note: This does not start the request. That must be done with `resume()`.
+    /// Creates a data task for an endpoint that returns the raw response body.
+    ///
+    /// Only accepts endpoints whose ``Endpoint/auth`` is ``NoAuth``, because the task is
+    /// returned before an asynchronous authentication method could run. Use
+    /// `response(with:environment:auth:)` for authenticated endpoints.
     /// - Parameters:
-    ///   - endpoint: The request data to use when filling in the ``Definition``
+    ///   - endpoint: The endpoint to request.
     ///   - environment: The environment to resolve the base URL against. Defaults to the
     ///     server's ``ServerDefinition/defaultEnvironment``.
-    ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
-    /// - Throws: Throws an ``EndpointTaskError`` of ``EndpointTaskError/endpointError(_:)`` if there is an issue constructing the request.
-    /// - Returns: The new session data task.
+    ///   - completion: Called with the result on the session's delegate queue.
+    /// - Throws: ``EndpointTaskError/endpointError(_:)`` if the request can't be built.
+    /// - Returns: A data task. Call `resume()` to start it.
     func endpointTask<T: Endpoint>(with endpoint: T, environment: T.Server.Environments = T.Server.defaultEnvironment, completion: @escaping @Sendable (Result<T.Response, T.TaskError>) -> Void) throws(T.TaskError) -> URLSessionDataTask where T.Response == Data, T.Auth == NoAuth {
 
         let urlRequest = try createUrlRequest(for: endpoint, in: environment)
@@ -135,16 +147,18 @@ public extension URLSession {
         return task
     }
 
-    /// Creates a session data task using the ``Definition`` associated with the passed in request on the passed in environment.
-    /// This function expects a result value which is `Decodable`.
-    /// Note: This does not start the request. That must be done with `resume()`.
+    /// Creates a data task for an endpoint whose response is decoded.
+    ///
+    /// Only accepts endpoints whose ``Endpoint/auth`` is ``NoAuth``, because the task is
+    /// returned before an asynchronous authentication method could run. Use
+    /// `response(with:environment:auth:)` for authenticated endpoints.
     /// - Parameters:
-    ///   - endpoint: The request data to use when filling in the ``Definition``
+    ///   - endpoint: The endpoint to request.
     ///   - environment: The environment to resolve the base URL against. Defaults to the
     ///     server's ``ServerDefinition/defaultEnvironment``.
-    ///   - completion: The completion handler to call when the load request is complete. This handler is executed on the delegate queue.
-    /// - Throws: Throws an ``EndpointTaskError`` of ``EndpointTaskError/endpointError(_:)`` if there is an issue constructing the request.
-    /// - Returns: The new session data task.
+    ///   - completion: Called with the result on the session's delegate queue.
+    /// - Throws: ``EndpointTaskError/endpointError(_:)`` if the request can't be built.
+    /// - Returns: A data task. Call `resume()` to start it.
     func endpointTask<T: Endpoint>(with endpoint: T, environment: T.Server.Environments = T.Server.defaultEnvironment, completion: @escaping @Sendable (Result<T.Response, T.TaskError>) -> Void) throws(T.TaskError) -> URLSessionDataTask where T.Response: Decodable, T.Auth == NoAuth {
 
         let urlRequest = try createUrlRequest(for: endpoint, in: environment)

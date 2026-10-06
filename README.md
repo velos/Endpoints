@@ -2,28 +2,42 @@
 
 ![CI](https://github.com/velos/Endpoints/workflows/CI/badge.svg) ![Documentation](https://github.com/velos/Endpoints/workflows/Documentation/badge.svg)
 
-Endpoints is a small library for creating statically and strongly-typed definitions of endpoints with paths, methods, inputs and outputs.
+Endpoints describes HTTP endpoints as Swift types: the path, method, parameters, headers, body, and response. From that description it builds a `URLRequest` and decodes the response, using plain `URLSession`. It doesn't replace the URL loading system the way Alamofire does, and the requests it builds work with Alamofire if you prefer that.
 
-## Purpose
+- **Typed endpoints.** Paths, query and form parameters, and headers are checked at compile time.
+- **Servers and environments.** Each server lists a base URL per environment, and every request can pick its environment.
+- **Authentication.** Declare an authentication method per server or per endpoint. Credentials are applied to each request, and refreshable tokens are refreshed and the request retried when needed.
+- **Mocking.** The `EndpointsMocking` module replaces responses per endpoint type in tests.
+- **Swift 6.** Built for strict concurrency, with `Sendable` types and typed throws.
+- **async/await and Combine.** Plus a completion-handler API for unauthenticated endpoints.
 
-The purpose of Endpoints is to, in a type-safe way, define how to create a `URLRequest` from typed properties and, additionally, define how a response for the request should be handled. The library not only includes the ability to create these requests in a type-safe way, but also includes helpers to perform the requests using `URLSession`. Endpoints does not try to wrap the URL loading system to provide features on top of it like Alamofire. Instead, Endpoints focuses on defining endpoints and associated data to produce a request as a `URLRequest` object to be plugged into vanilla `URLSession`s. However, this library could be used in conjunction with Alamofire if desired.
+## Installation
 
-## Features
+Add the package to your `Package.swift`:
 
-- **Type-safe endpoint definitions** - Define endpoints with compile-time checking of paths, parameters, and headers
-- **Server definition with multiple environments** - Support for local, development, staging, and production environments with easy switching
-- **Authentication with automatic token refresh** - Declare an authentication method per server or per endpoint; credentials are applied, refreshed, and retried transparently
-- **Built-in mocking support** - Comprehensive testing utilities through the `EndpointsMocking` module
-- **Swift 6.0 compatible** - Built with modern Swift concurrency, Sendable support and typed throws
-- **Combine and async/await support** - Use either reactive or async patterns
+```swift
+dependencies: [
+    .package(url: "https://github.com/velos/Endpoints.git", from: "0.5.0")
+]
+```
+
+Add `Endpoints` to your app target, and `EndpointsMocking` to your test target:
+
+```swift
+.testTarget(
+    name: "YourAppTests",
+    dependencies: [
+        .product(name: "Endpoints", package: "Endpoints"),
+        .product(name: "EndpointsMocking", package: "Endpoints")
+    ]
+)
+```
 
 ## Getting Started
 
-The basic process for defining an Endpoint starts with defining a value conforming to `Endpoint`. With the `Endpoint` protocol, you are encapsulating the definition of the endpoint, all the properties that are plugged into the definition and the types for parsing the response. Within the `Endpoint`, the `definition` static var serves as an immutable definition of the server's endpoint and how the variable pieces of the `Endpoint` should fit together when making the full request.
+### Define a server
 
-### Defining a Server
-
-First, define a server that conforms to `ServerDefinition`. This encapsulates your base URLs for different environments:
+A server lists its base URL for each environment and names the environment requests use by default:
 
 ```swift
 import Endpoints
@@ -31,7 +45,7 @@ import Foundation
 
 struct ApiServer: ServerDefinition {
     var baseUrls: [Environments: URL] {
-        return [
+        [
             .local: URL(string: "https://local-api.example.com")!,
             .staging: URL(string: "https://staging-api.example.com")!,
             .production: URL(string: "https://api.example.com")!
@@ -42,89 +56,88 @@ struct ApiServer: ServerDefinition {
 }
 ```
 
-To get started, first create a type (struct or class) conforming to `Endpoint`. There are only two required elements to conform: defining the `Response` and creating the `Definition`.
+`Environments` defaults to `TypicalEnvironments` (`local`, `development`, `staging`, `production`). To use your own cases, declare `typealias Environments = MyEnvironments` with any `Hashable & Sendable` type.
 
-`Endpoints` and `Definitions` now include server information, eliminating the need to pass environments at call time. Servers can implement a `requestProcessor`, a final synchronous hook after `URLRequest` creation for static request modification such as signing. For credentials that can expire and be refreshed, use [Authentication](#authentication) instead.
+### Define an endpoint
 
-### Basic Endpoint Example
+An endpoint names its server, its `Definition`, and its `Response` type:
 
-```Swift
-struct MyEndpoint: Endpoint {
+```swift
+struct ProfileEndpoint: Endpoint {
     typealias Server = ApiServer
-    
-    static let definition: Definition<MyEndpoint> = Definition(
+
+    static let definition: Definition<ProfileEndpoint> = Definition(
         method: .get,
-        path: "path/to/resource"
+        path: "users/\(path: \.userId)/profile",
+        parameters: [
+            .query("fields", path: \.fields)
+        ]
     )
 
     struct Response: Decodable {
-        let resourceId: String
-        let resourceName: String
+        let name: String
+        let email: String
     }
+
+    struct PathComponents {
+        let userId: String
+    }
+
+    struct ParameterComponents {
+        let fields: String?
+    }
+
+    let pathComponents: PathComponents
+    let parameterComponents: ParameterComponents
 }
 ```
 
-This includes a `Response` associated type (can be typealiased to a more complex existing type) which defines how the response will come back from the request. The server is specified via `typealias Server = ApiServer`.
+A `Decodable` response is decoded with `JSONDecoder` by default. Use `Data` to receive the raw body, or `Void` to ignore it. `nil` query and form values are left out of the request. See the [Examples](Sources/Endpoints/Endpoints.docc/Examples.md) guide for headers, request bodies, form parameters, multipart uploads, custom encoders and decoders, and typed error responses.
 
-Then usage can employ the `URLSession` extensions:
+### Make a request
 
-#### Usage
-```Swift
-URLSession.shared.endpointPublisher(with: MyEndpoint())
+```swift
+let endpoint = ProfileEndpoint(
+    pathComponents: .init(userId: "42"),
+    parameterComponents: .init(fields: nil)
+)
+
+let profile = try await URLSession.shared.response(with: endpoint)
+```
+
+With Combine:
+
+```swift
+URLSession.shared.endpointPublisher(with: endpoint)
     .sink { completion in
-        guard case .failure(let error) = completion else { return }
-        // handle error
-    } receiveValue: { (response: MyEndpoint.Response) in
-        // handle MyEndpoint.Response
+        if case .failure(let error) = completion {
+            // handle ProfileEndpoint.TaskError
+        }
+    } receiveValue: { profile in
+        // handle ProfileEndpoint.Response
     }
     .store(in: &cancellables)
 ```
 
-Notice that the common case requires no environment or credentials at the call site — both default to what the server and endpoint declare.
+Canceling the subscription cancels the request. For unauthenticated endpoints, `endpointTask(with:completion:)` returns a `URLSessionDataTask` that you start with `resume()`.
 
-### Runtime context: environment and credentials
+To build the request without sending it, call `endpoint.urlRequest()`.
 
-When a request needs different context than the declarations provide — most often because your app talks to more than one deployment or account at once — pass it per request:
+## Environments
 
-```swift
-let response = try await URLSession.shared.response(
-    with: ProfileEndpoint(),
-    environment: client.environment,
-    auth: client.auth
-)
-```
-
-Both parameters default to the endpoint's declarations, so this is opt-in and existing call sites are unaffected. Because they are per-request values rather than global state, two clients with different environments *and* different credentials can issue requests concurrently without interfering:
+Every request method takes an `environment:` argument, which defaults to the server's `defaultEnvironment`:
 
 ```swift
-struct WavelikeClient {
-    let environment: ApiServer.Environments
-    let auth: JWTAuth   // one instance per client, so its refreshes coalesce
-
-    func profile() async throws -> ProfileEndpoint.Response {
-        try await URLSession.shared.response(with: ProfileEndpoint(), environment: environment, auth: auth)
-    }
-}
+let profile = try await URLSession.shared.response(with: endpoint, environment: .staging)
 ```
 
-The same parameters are available on `endpointPublisher(with:)`. `endpointTask(with:)` accepts `environment:` but remains restricted to unauthenticated endpoints, since it returns a `URLSessionDataTask` synchronously and cannot await authentication.
+The environment is a per-request value, not global state, so different parts of an app can use different environments at the same time.
 
-Credentials are usually bound to one environment: a token issued by staging is not valid against production. A server-wide `static let auth` therefore suits apps that talk to a single environment at a time. If your app switches environments per request, pass the matching credentials alongside — keep one `JWTAuth` per environment or per account, as in the client above — rather than sharing one instance across environments. A server whose credentials always arrive per request need not declare `auth` at all; it defaults to `NoAuth`, and the `auth:` parameter accepts any `AuthenticationMethod`.
-
-### Async/Await
-
-```swift
-do {
-    let response = try await URLSession.shared.response(with: MyEndpoint())
-    // handle response
-} catch {
-    // handle error
-}
-```
+A server can also provide a `requestProcessor`, a synchronous hook that runs on every request after it is built. Use it for static changes such as adding a build-number header. Use authentication for credentials.
 
 ## Authentication
 
-Authentication is declared on the endpoint, the same way decoders are. A server names the `AuthenticationMethod` its endpoints use, and every endpoint inherits it:
+A server declares the authentication method its endpoints use, and every endpoint on that server inherits it:
 
 ```swift
 struct ApiServer: ServerDefinition {
@@ -133,27 +146,16 @@ struct ApiServer: ServerDefinition {
     var baseUrls: [Environments: URL] { ... }
     static var defaultEnvironment: Environments { .production }
 }
-
-struct ProfileEndpoint: Endpoint {
-    typealias Server = ApiServer  // authenticated, nothing else to declare
-
-    static let definition: Definition<ProfileEndpoint> = Definition(method: .get, path: "profile")
-    struct Response: Decodable { let name: String }
-}
 ```
 
-Requests then go through the ordinary `URLSession` API — there is no separate session type, and credentials are applied automatically:
+Requests then use the same `URLSession` methods, and credentials are applied automatically. A server that declares no `auth` uses `NoAuth`.
 
-```swift
-let response = try await URLSession.shared.response(with: ProfileEndpoint())
-```
-
-An individual endpoint can override its server's method — to opt out on a login or refresh endpoint, or to use a different scheme entirely:
+An endpoint can override its server's method, either to opt out or to use a different scheme:
 
 ```swift
 struct LoginEndpoint: Endpoint {
     typealias Server = ApiServer
-    static var auth: NoAuth { NoAuth() }         // unauthenticated
+    static var auth: NoAuth { NoAuth() }
     ...
 }
 
@@ -164,34 +166,31 @@ struct MetricsEndpoint: Endpoint {
 }
 ```
 
-Declare the method as a `static let` so all endpoints on a server share one instance. That shared instance is what allows a stateful method like `JWTAuth` to coalesce concurrent token refreshes across every endpoint — a computed `static var` would hand out a fresh instance per request, losing tokens. Debug builds assert if that happens, so the mistake surfaces in development rather than as mysterious re-authentication in production.
+Declare authentication methods with `static let`, so every request shares one instance. A stateful method like `JWTAuth` keeps its tokens on that instance and relies on it to combine concurrent refreshes. A computed `static var` creates a new instance on every request and loses the tokens. Debug builds assert when this happens.
 
-Servers that declare no `auth` use `NoAuth`, so existing endpoints keep working unchanged.
+The async/await and Combine APIs apply authentication, including refresh and retry. `endpointTask(with:completion:)` returns its task synchronously, so it can't wait for authentication. It only accepts endpoints whose `auth` is `NoAuth`, and using it with an authenticated endpoint is a compile error.
 
-The async/await and Combine APIs both apply authentication, including refresh and retry. Cancelling a Combine subscription cancels the underlying request.
+### Built-in methods
 
-The closure-based `endpointTask` is the exception: it hands back a `URLSessionDataTask` synchronously, so it cannot await an asynchronous `authenticate` before returning. It is constrained to unauthenticated endpoints — calling it with an authenticated endpoint is a compile error rather than a request that silently skips its credentials. Use `response(with:)` or `endpointPublisher(with:)` for authenticated endpoints.
+| Method | Sends |
+|---|---|
+| `HeaderKeyAuth` | A static key in a header. Defaults to `Authorization: Bearer <key>`. Pass `header:` and `prefix: nil` for headers like `X-API-Key: <key>`. |
+| `BasicAuth` | HTTP Basic credentials ([RFC 7617](https://www.rfc-editor.org/rfc/rfc7617)), UTF-8 encoded. |
+| `CookieAuth` | A static cookie, merged with any cookies already on the request. |
+| `JWTAuth` | An access token, refreshed with a refresh token when it expires or is rejected. |
+| `NoAuth` | Nothing. The request passes through unchanged. |
 
-Built-in authentication methods:
+### Refreshing tokens with JWTAuth
 
-- `HeaderKeyAuth` - A static key in a header, with an optional prefix. Defaults to `Authorization: Bearer <key>`; use `HeaderKeyAuth(key: "secret", header: "X-API-Key", prefix: nil)` for custom API-key headers.
-- `BasicAuth` - HTTP Basic credentials (RFC 7617), UTF-8 encoded.
-- `CookieAuth` - A static cookie, merged with any cookies already on the request.
-- `JWTAuth` - Access/refresh token pairs with automatic refresh (see below).
-- `NoAuth` - Passes requests through unchanged. Useful as a generic placeholder.
+`JWTAuth` holds an access token and a refresh token. When a response has a status code in `refreshTriggerStatusCodes` (401 by default), it calls your `refreshHandler` and retries the request with the new tokens. Concurrent requests that need a refresh share one call to the handler. A request rejected with tokens that have already been replaced doesn't trigger another refresh, which matters when your backend issues single-use refresh tokens.
 
-### Token refresh with JWTAuth
-
-`JWTAuth` holds an access/refresh token pair. When a request fails with a status code in `refreshTriggerStatusCodes` (401 by default), your `refreshHandler` is called and the request is retried with the new tokens. Concurrent refreshes are coalesced into a single operation, and a request that fails with already-replaced tokens will not trigger a redundant refresh — important when your backend rotates single-use refresh tokens.
-
-If you know when the access token expires, set `TokenPair.expiresAt`: tokens within `expiryLeeway` (30 seconds by default) of expiring are then refreshed *before* the request is sent, skipping the round trip that would have been rejected. Without `expiresAt`, refresh is purely reactive.
+If you know when the access token expires, set `TokenPair.expiresAt`. A token within `expiryLeeway` (30 seconds by default) of expiring is then refreshed before the request is sent, which saves a rejected round trip.
 
 ```swift
 struct ApiServer: ServerDefinition {
     static let auth = JWTAuth(
         initialTokens: loadTokensFromKeychain(),
         refreshHandler: { refreshToken in
-            // Exchange the refresh token for new tokens against your backend.
             let response = try await URLSession.shared.response(with: RefreshEndpoint(token: refreshToken))
             return JWTAuth.TokenPair(accessToken: response.access, refreshToken: response.refresh)
         },
@@ -208,15 +207,36 @@ struct ApiServer: ServerDefinition {
 }
 ```
 
-> **Important:** the refresh endpoint must not be authenticated by the same `JWTAuth` — the request would wait on the very refresh that is waiting on it. Give it `static var auth: NoAuth { NoAuth() }`; it authenticates with the refresh token, not the access token. If you do hit this, the request fails with a `RefreshReentrancyError` explaining the fix rather than hanging.
+> **Important:** Give the refresh endpoint `static var auth: NoAuth { NoAuth() }`. It authenticates with the refresh token, and a request authenticated by the same `JWTAuth` would wait for the refresh that is waiting for it. If that happens, the request fails with a `RefreshReentrancyError` instead of hanging.
 
-After a login or logout, update the tokens with `await ApiServer.auth.setTokens(_:)` or `await ApiServer.auth.clearTokens()`. Either call supersedes a refresh that is still in flight: its result is discarded rather than committed, so a refresh that started just before a logout cannot sign the user back in, and requests that were waiting on it proceed with the new tokens (or fail with `.notAuthenticated` after a logout). `onTokensUpdated` is not called for a superseded refresh, but a call that has already started cannot be revoked; if your store must never hold tokens after a logout, have it reject writes from a session that has since been signed out.
+After a login or logout, call `await ApiServer.auth.setTokens(_:)` or `await ApiServer.auth.clearTokens()`. Either call replaces a refresh that is still in progress. That refresh's tokens are discarded, so a refresh that started just before a logout can't sign the user back in. Requests that were waiting for it use the new tokens, or fail with `.notAuthenticated` after a logout.
 
-Use `JWTAuth.Configuration` to send the token in a different header or without a prefix, for example `.init(header: "X-Access-Token", tokenPrefix: "")`.
+`onTokensUpdated` isn't called for a discarded refresh, but a call that has already started can't be stopped. If your token store must never hold tokens after a logout, have it reject writes from a session that has since been signed out.
 
-### Custom authentication methods
+To send the token in a different header or without a prefix, pass a configuration such as `JWTAuth.Configuration(header: "X-Access-Token", tokenPrefix: "")`.
 
-Conform to `AuthenticationMethod` to implement your own scheme. Only `authenticate(request:)` is required; refreshable credentials also implement `shouldReauthenticate(for:response:)` and `reauthenticate(after:)`:
+### Credentials and environments
+
+Credentials usually belong to one environment: a token issued by staging isn't valid against production. A server-wide `static let auth` fits an app that talks to one environment at a time.
+
+An app that talks to several environments or accounts at once should pass the environment and credentials together on each request:
+
+```swift
+struct ApiClient {
+    let environment: ApiServer.Environments
+    let auth: JWTAuth   // one instance per client, so its refreshes are shared
+
+    func profile(_ endpoint: ProfileEndpoint) async throws -> ProfileEndpoint.Response {
+        try await URLSession.shared.response(with: endpoint, environment: environment, auth: auth)
+    }
+}
+```
+
+`auth:` accepts any `AuthenticationMethod` and defaults to the endpoint's `auth`. Two clients like this can make requests concurrently without affecting each other. A server whose credentials always come from the call site doesn't need to declare `auth`.
+
+### Custom methods
+
+Conform to `AuthenticationMethod`. Only `authenticate(request:)` is required:
 
 ```swift
 struct SignatureAuth: AuthenticationMethod {
@@ -230,120 +250,79 @@ struct SignatureAuth: AuthenticationMethod {
 }
 ```
 
-For failures that don't fit the built-in `AuthenticationError` cases (credential storage errors, signing failures), wrap them in `AuthenticationError.custom(underlying:)`.
+Credentials that can be refreshed also implement `shouldReauthenticate(for:response:)` and `reauthenticate(after:)`, and can set `maxRetryAttempts`. Wrap failures that don't match a built-in `AuthenticationError` case, such as a keychain error, in `AuthenticationError.custom(underlying:)`.
 
-### Error handling
+## Error Handling
 
-All failures — including authentication failures — surface as the endpoint's typed `EndpointTaskError`, so a single `catch` covers everything:
+Every failure, including authentication failures, is thrown as the endpoint's `TaskError`, so a `catch` needs no casting:
 
 ```swift
 do {
-    let response = try await URLSession.shared.response(with: MyEndpoint())
+    let profile = try await URLSession.shared.response(with: endpoint)
 } catch {
-    // error is MyEndpoint.TaskError — no casting needed
     switch error {
+    case .errorResponse(let httpResponse, let errorResponse):
+        // The server returned an error, decoded as the endpoint's ErrorResponse type.
     case .authenticationError(.refreshFailed(let underlying)):
-        // token refresh failed; underlying holds the refresh error
-    case .errorResponse(_, let errorResponse):
-        // typed server error response
+        // The token refresh failed.
+    case .internetConnectionOffline:
+        // The device is offline.
     default:
         break
     }
 }
 ```
 
-## Testing with EndpointsMocking
+## Testing
 
-Endpoints includes a comprehensive mocking system through the `EndpointsMocking` module:
+`withMock` from `EndpointsMocking` replaces the response for an endpoint type inside a test:
 
 ```swift
 import Testing
 import Endpoints
 import EndpointsMocking
 
-@Test func testMyEndpoint() async throws {
-    try await withMock(MyEndpoint.self, action: .return(.init(resourceId: "123", resourceName: "Test"))) {
-        let response = try await URLSession.shared.response(with: MyEndpoint())
-        #expect(response.resourceId == "123")
+@Test func loadsProfile() async throws {
+    try await withMock(ProfileEndpoint.self, action: .return(.init(name: "Zac", email: "zac@example.com"))) {
+        let profile = try await URLSession.shared.response(with: endpoint)
+        #expect(profile.name == "Zac")
     }
 }
 ```
 
-When a flow touches several endpoints, register them together with a `MockRegistry` instead of nesting `withMock` calls:
+To mock several endpoint types at once, register them together:
 
 ```swift
 try await withMock { mocks in
     mocks.register(RefreshEndpoint.self, action: .return(.init(access: "new", refresh: "next")))
-    mocks.register(ProfileEndpoint.self, action: .return(.init(name: "Zac")))
+    mocks.register(ProfileEndpoint.self, action: .return(.init(name: "Zac", email: "zac@example.com")))
 } test: {
-    let profile = try await session.response(with: ProfileEndpoint())
+    let profile = try await URLSession.shared.response(with: endpoint)
 }
 ```
 
-Mocks are scoped per endpoint type: endpoints without a registered mock pass through to the real transport, nested `withMock` scopes merge, and an inner mock for the same endpoint type shadows the outer one for the duration of its scope.
-
-The mocking system supports:
-- Returning successful responses
-- Returning error responses
-- Throwing network errors
-- Dynamic response generation
-- Combine publisher mocking
-- Authenticated and unauthenticated endpoints alike
-
-Note that mocks bypass authentication entirely: a mocked request never invokes the endpoint's `AuthenticationMethod`, and mock errors do not trigger the refresh/retry loop. To simulate an authentication failure, throw one directly with `.throw(.authenticationError(.notAuthenticated))`; to test the refresh flow itself, use a `URLProtocol`-based fake transport.
-
-To find out more about the pieces of the `Endpoint`, check out [Defining a ResponseType](https://github.com/velos/Endpoints/wiki/DefiningResponseType) on the wiki.
-
-## Examples
-
-To browse more complex examples, make sure to check out the [Examples](https://github.com/velos/Endpoints/wiki/Examples) wiki page or the documentation in Xcode.
+Endpoint types without a mock make real requests. Mocked requests skip authentication. See the [Mocking](Sources/Endpoints/Endpoints.docc/Mocking.md) guide for errors, dynamic responses, and testing the refresh flow.
 
 ## Requirements
 
-- Swift 6.0+
-- iOS 13.0+ / macOS 10.15+ / tvOS 13.0+ / watchOS 6.0+ to build endpoints and create `URLRequest`s
-- macOS 12.0+ for the async/await and Combine request APIs (`response(with:)`, `endpointPublisher(with:)`), and therefore for authentication
-
-## Installation
-
-### Swift Package Manager
-
-Add the following to your `Package.swift`:
-
-```swift
-dependencies: [
-    .package(url: "https://github.com/velos/Endpoints.git", from: "0.5.0")
-]
-```
-
-For testing, also add:
-
-```swift
-testTarget(
-    name: "YourTests",
-    dependencies: ["Endpoints", "EndpointsMocking"]
-)
-```
+- Swift 6.0 or later
+- iOS 13, macOS 10.15, tvOS 13, or watchOS 6 to define endpoints and build requests
+- macOS 12 for the async/await and Combine request methods, and so for authentication. Other platforms have no additional requirement.
+- `EndpointsMocking` is available on Apple platforms only. Linux builds include `Endpoints`.
 
 ## Documentation
 
-Full documentation is available in Xcode (Product > Build Documentation) and includes:
-- API reference for all types
-- Comprehensive examples
-- Mocking guide
-- Best practices
+The [API documentation](https://velosmobile.com/Endpoints/documentation/endpoints/) is published with each release. You can also build it in Xcode with Product > Build Documentation. The [Examples](Sources/Endpoints/Endpoints.docc/Examples.md) and [Mocking](Sources/Endpoints/Endpoints.docc/Mocking.md) guides are readable on GitHub.
 
-## Migration from 0.4.0
+## Migrating from 0.4
 
-If you're upgrading from version 0.4.0 or earlier, the main changes are:
-
-1. **ServerDefinition replaces EnvironmentType** - Define your environments in a `ServerDefinition` conforming type
-2. **Add Server typealias** - Add `typealias Server = YourServer` to your endpoints
-3. **Environment is per request, not global** - `ApiServer.environment = .staging` is gone. Pass `environment:` to the request methods, or rely on the server's `defaultEnvironment`. This is what allows two clients to use different environments at the same time.
-4. **Swift 6.0 required** - Update your Swift toolchain
-
-See the [Migration Guide](https://github.com/velos/Endpoints/wiki/Migration) for detailed instructions.
+- **Replace `EnvironmentType` with a `ServerDefinition`.** List each environment's base URL in `baseUrls`, and move any `requestProcessor` onto the server.
+- **Name the server on each endpoint** with `typealias Server = ApiServer`.
+- **Drop the `in:` argument.** `response(in: environment, with: endpoint)` becomes `response(with: endpoint)`, which uses the server's default environment, or `response(with: endpoint, environment: .staging)`. The same applies to `endpointPublisher` and `endpointTask`. `urlRequest(in:)` now takes one of the server's environments.
+- **Move credentials to `auth`.** Credentials set in a `requestProcessor` keep working, but declaring them with `static let auth` adds refresh and retry.
+- **Remove error casts.** Request methods use typed throws, so the error in a `catch` is already the endpoint's `TaskError`.
+- **Update to Swift 6.0.**
 
 ## License
 
-Endpoints is released under the MIT license. See LICENSE for details.
+Endpoints is released under the MIT license. See [LICENSE](LICENSE) for details.

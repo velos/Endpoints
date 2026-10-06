@@ -8,7 +8,7 @@
 
 import Foundation
 
-/// The HTTP Method
+/// An HTTP request method.
 public enum Method: Sendable {
     case options
     case get
@@ -20,6 +20,7 @@ public enum Method: Sendable {
     case trace
     case connect
 
+    /// The method name sent in the request, such as `GET`.
     public var methodString: String {
         switch self {
         case .options: return "OPTIONS"

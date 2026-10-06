@@ -8,8 +8,9 @@
 
 import Foundation
 
-public protocol PathRepresentable: Sendable{
-    /// A path-safe version of the value, suitable for a URL path
+/// A type that can be interpolated into a ``PathTemplate``.
+public protocol PathRepresentable: Sendable {
+    /// The value, percent-encoded for a URL path.
     var pathSafe: String { get }
 }
 
@@ -34,7 +35,16 @@ extension Int: PathRepresentable {
     }
 }
 
-/// A template representing a URL path
+/// A URL path with placeholders filled from an endpoint's ``Endpoint/PathComponents``.
+///
+/// Create one from a string literal, interpolating key paths with `\(path:)`:
+///
+/// ```swift
+/// let path: PathTemplate<EventEndpoint.PathComponents> = "calendars/\(path: \.calendarId)/events/\(path: \.eventId)"
+/// ```
+///
+/// Slashes are added between components as needed. Pass `includesSlash: false` to
+/// place a value directly against the surrounding text.
 public struct PathTemplate<T>: Sendable {
 
     private struct RepresentableInfo: Equatable, Sendable {
@@ -87,6 +97,7 @@ public struct PathTemplate<T>: Sendable {
         }
     }
 
+    /// Returns the path with each placeholder replaced by the matching property of `value`.
     public func path(with value: T) -> String {
         let values = keyPathComponents.map { (index, path, includesSlash) -> RepresentableInfo in
             return RepresentableInfo(index: index, representable: value[keyPath: path] as! PathRepresentable, includesSlash: includesSlash)

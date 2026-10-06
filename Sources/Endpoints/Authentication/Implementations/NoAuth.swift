@@ -4,7 +4,7 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// A no-op authentication method that passes requests through unchanged.
+/// Leaves requests unchanged. The default for servers that don't declare ``ServerDefinition/auth``.
 public struct NoAuth: AuthenticationMethod {
     public init() {}
 
