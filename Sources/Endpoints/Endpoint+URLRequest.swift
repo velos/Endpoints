@@ -24,7 +24,7 @@ extension Endpoint {
     ) throws(EndpointError) -> URLRequest {
 
         var components = URLComponents()
-        components.path = Self.definition.path.path(with: pathComponents)
+        components.percentEncodedPath = Self.definition.path.path(with: pathComponents)
 
         var urlQueryItems: [URLQueryItem] = []
         var bodyFormItems: [URLQueryItem] = []

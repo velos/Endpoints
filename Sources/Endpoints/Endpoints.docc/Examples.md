@@ -148,6 +148,8 @@ let event = try await URLSession.shared.response(
 )
 ```
 
+Pass raw values. Each `String` value is percent-encoded once as a single path segment, so a `/` inside a value is sent as `%2F` and can't add path segments. To insert a value that spans several segments, conform a type to ``PathRepresentable`` and return its `pathSafe` with the `/` separators unencoded.
+
 ### Query parameters
 
 `.query` reads a value from ``Endpoint/ParameterComponents``, and `.queryValue` sends a fixed value. `nil` values are left out:
