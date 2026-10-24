@@ -7,20 +7,22 @@ import Foundation
 
 extension DateScopes {
     enum JSONCoding {
-        static func makeDecoder() -> JSONDecoder {
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .custom { decoder in
-                let container = try decoder.singleValueContainer()
-                let string = try container.decode(String.self)
-                guard let date = RFC3339.parse(string) else {
-                    throw DecodingError.dataCorruptedError(
-                        in: container,
-                        debugDescription: "Expected an RFC 3339 date-time."
-                    )
+        static func makeDecoder(
+            isRawDataStatus: @Sendable @escaping (_ statusCode: Int) -> Bool = { _ in false }
+        ) -> HTTPResponseJSONDecoder {
+            HTTPResponseJSONDecoder(isRawDataStatus: isRawDataStatus) { decoder in
+                decoder.dateDecodingStrategy = .custom { decoder in
+                    let container = try decoder.singleValueContainer()
+                    let string = try container.decode(String.self)
+                    guard let date = RFC3339.parse(string) else {
+                        throw DecodingError.dataCorruptedError(
+                            in: container,
+                            debugDescription: "Expected an RFC 3339 date-time."
+                        )
+                    }
+                    return date
                 }
-                return date
             }
-            return decoder
         }
 
         static func makeEncoder() -> JSONEncoder {

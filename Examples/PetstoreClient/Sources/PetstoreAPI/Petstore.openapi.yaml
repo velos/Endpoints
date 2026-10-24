@@ -89,6 +89,16 @@ paths:
                 required: [ok]
                 properties:
                   ok: {type: boolean}
+  /pets/search:
+    get:
+      operationId: searchPets
+      parameters:
+        - {name: tags, in: query, required: true, schema: {type: array, items: {type: string}}}
+      responses:
+        '200':
+          description: Matching pets
+          content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/Pet'}}}}
+        '204': {description: No matches}
   /logo:
     get:
       security: []

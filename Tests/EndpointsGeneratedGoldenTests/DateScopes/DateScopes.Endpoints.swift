@@ -39,7 +39,7 @@ extension DateScopes {
 
         init() {}
 
-        static var errorDecoder: JSONDecoder { DateScopes.JSONCoding.makeDecoder() }
+        static var errorDecoder: HTTPResponseJSONDecoder { DateScopes.JSONCoding.makeDecoder() }
     }
 
     /// `GET /response`
@@ -54,7 +54,7 @@ extension DateScopes {
 
         init() {}
 
-        static var responseDecoder: JSONDecoder { DateScopes.JSONCoding.makeDecoder() }
+        static var responseDecoder: HTTPResponseJSONDecoder { DateScopes.JSONCoding.makeDecoder() }
     }
 
     /// `POST /plain`

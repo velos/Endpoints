@@ -3,6 +3,8 @@
 PetstoreAPI contains the spec, public config, and a public static auth extension.
 PetstoreClientTests is a second module, importing the public generated API and
 checking that Server.Auth and inherited endpoint authentication are HeaderKeyAuth.
+SearchPetsEndpoint emits repeated tags and a public status union: `.ok([Pet])`
+for 200 and `.noContent` for 204, decoded with HTTPResponseJSONDecoder.
 
 Run from the repository root:
 

@@ -27,7 +27,8 @@ import Testing
             "Value: {oneOf: [{type: string}, {type: integer}]}",
             "Value: {anyOf: [{type: string}, {type: boolean}]}",
             "Value: {type: object, additionalProperties: {type: string}}",
-            "Value: {type: integer, enum: [1, 2]}",
+            "Value: {type: boolean, enum: [true, false]}",
+            "Value: {type: integer, format: int32, enum: [2147483648]}",
             "Value: {type: array}",
             """
             Value: {oneOf: [{type: 'null'}, {$ref: '#/components/schemas/Other'}]}
@@ -79,13 +80,11 @@ import Testing
 
     @Test func unsupportedOperationBoundaries() {
         let definitions = [
-            "parameters: [{name: ids, in: query, schema: {type: array, items: {type: string}}}]",
-            "parameters: [{name: token, in: header, schema: {type: string}}]",
-            "parameters: [{name: dates, in: query, schema: {type: array, items: {type: string, format: date-time}}}]",
-            "parameters: [{name: id, in: query, schema: {type: integer, format: int64}}]",
-            "parameters: [{name: id, in: query, schema: {type: integer, format: int32}}]",
-            "parameters: [{name: id, in: query, schema: {type: string, format: uuid}}]",
-            "parameters: [{name: status, in: query, schema: {type: string, enum: [ok, bad]}}]",
+            "parameters: [{name: ids, in: query, style: spaceDelimited, schema: {type: array, items: {type: string}}}]",
+            "parameters: [{name: token, in: header, schema: {type: string, enum: [ok, bad]}}]",
+            "parameters: [{name: ids, in: query, explode: false, schema: {type: array, items: {type: string}}}]",
+            "parameters: [{name: id, in: path, required: true, schema: {type: boolean}}]",
+            "parameters: [{name: id, in: query, schema: {type: object, properties: {x: {type: string}}}}]",
             "requestBody: {required: true, content: {multipart/form-data: {schema: {type: object}}}}",
             "requestBody: {required: true, content: {application/x-www-form-urlencoded: {schema: {type: object}}}}",
             "requestBody: {required: true, content: {application/octet-stream: {schema: {type: string}}}}",
@@ -120,9 +119,7 @@ import Testing
             }
         }
         for responses in [
-            "'200': {description: OK}\n        '204': {description: Empty}",
-            "'204': {description: Empty}\n        '400': {description: Bad}\n        '404': {description: Missing}",
-            "'200': {description: OK, content: {application/json: {}}}",
+            "'200': {description: OK, content: {application/json: {}}}"
         ] {
             let spec = """
                 openapi: 3.1.0
@@ -139,7 +136,58 @@ import Testing
             #expect(
                 result.hasErrors
                     && result.diagnostics.contains { $0.message.hasPrefix("Unsupported:") })
+
         }
+    }
+
+    @Test func errorOnlyOperationProducesAnUnsupportedDiagnostic() {
+        let spec = """
+            openapi: 3.1.0
+            info: {title: Outcomes, version: 1.0.0}
+            servers: [{url: 'https://example.com'}]
+            paths:
+              /test:
+                get:
+                  responses:
+                    '400': {description: Bad request}
+            """
+        let result = Generator.generate(
+            spec: Data(spec.utf8), stem: "Outcomes", specPath: "Outcomes.openapi.yaml")
+        #expect(result.hasErrors)
+        #expect(
+            result.diagnostics.contains {
+                $0.message == "Unsupported: at least one success or default response is required"
+                    && $0.pointer == "/paths/~1test/get/responses"
+            })
+    }
+
+    @Test func droppedStatusesProduceSourceMarkedNotes() {
+        let spec = """
+            openapi: 3.1.0
+            info: {title: StatusNotes, version: 1.0.0}
+            servers: [{url: 'https://example.com'}]
+            paths:
+              /test:
+                get:
+                  responses:
+                    1XX: {description: Informational}
+                    '302': {description: Redirect}
+                    3XX: {description: Redirection}
+                    '204': {description: Empty}
+            """
+        let result = Generator.generate(
+            spec: Data(spec.utf8), stem: "StatusNotes", specPath: "StatusNotes.openapi.yaml")
+        #expect(!result.hasErrors)
+        #expect(result.diagnostics.count == 3)
+        #expect(
+            result.diagnostics.allSatisfy { $0.severity == .note && $0.message.contains("ignored") }
+        )
+        #expect(
+            result.diagnostics.map(\.pointer) == [
+                "/paths/~1test/get/responses/1XX", "/paths/~1test/get/responses/302",
+                "/paths/~1test/get/responses/3XX",
+            ])
+        #expect(result.diagnostics.map(\.line) == [8, 9, 10])
     }
 
     @Test func serversAndConfigOverride() throws {

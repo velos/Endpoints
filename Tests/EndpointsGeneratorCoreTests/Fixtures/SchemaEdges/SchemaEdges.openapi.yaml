@@ -33,6 +33,12 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/LegacyRecord'}
+  /modes/{state}:
+    get:
+      parameters:
+        - {name: state, in: path, required: true, schema: {type: string, enum: [red, blue]}}
+        - {name: level, in: query, schema: {type: integer, format: int32, enum: [-1, 1]}}
+      responses: {'204': {description: Empty}}
 components:
   schemas:
     Shapes:

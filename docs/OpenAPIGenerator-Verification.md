@@ -1,9 +1,12 @@
-# OpenAPI generator foundation verification
+# OpenAPI generator foundation verification (54563a1)
+
+Historical foundation record. The subsequent runtime-hooks phase is recorded in
+[OpenAPIGenerator-RuntimeHooks-Verification.md](OpenAPIGenerator-RuntimeHooks-Verification.md).
 
 Local toolchain: Apple Swift 6.4 (`swiftlang-6.4.0.34.1`), arm64 macOS,
 SwiftPM's default `swiftbuild` engine. This record covers the foundation subset
-in the task brief, not the later phases of the full design. All changes are
-uncommitted. `Sources/Endpoints` and `Sources/EndpointsMocking` are unchanged.
+in the task brief, not the later phases of the full design. These changes were committed as `54563a1`. At that boundary,
+`Sources/Endpoints` and `Sources/EndpointsMocking` were unchanged.
 
 ## Implemented boundaries
 

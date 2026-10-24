@@ -1,9 +1,9 @@
 # OpenAPI → Endpoints Generator: Architecture and Implementation Plan (revised after review)
 
 Repository: `/Users/zac/Projects/velos/Endpoints/.claude/worktrees/openapi-endpoint-generation-f58e25`
-Status: foundation slice implemented and review revisions verified locally. Runtime changes (§6), Linux execution, and native Xcode verification remain outside this checkout’s local acceptance.
+Status: foundation committed as `54563a1`; runtime hooks (§6.1–6.3) and full parameter/status-response generation implemented. Local verification is recorded in OpenAPIGenerator-Verification.md. Linux execution and native Xcode verification remain owner-run checks.
 
-**Prerequisite (not part of this design):** the path double-encoding bug the coordinator confirmed (`String.pathSafe` percent-encodes, then `urlRequest(in:)` assigns the result to `URLComponents.path`, which encodes again) is fixed in a separate PR before Phase 1. This design assumes a path contract of "generated code passes raw values; the runtime encodes exactly once", and Phase 2's path-encoding fixture asserts it.
+**Separately owned runtime bugs:** `claude/endpoints-runtime-fixes` fixes path double encoding, optional header omission (§6.4), and empty-body `EmptyCodable` error decoding (the last part of §6.1). This phase leaves those implementations untouched. Generated integration tests assert the intended behavior using `withKnownIssue` only for these three bugs; those wrappers must be removed when the fixes land.
 
 ---
 
@@ -219,7 +219,7 @@ Inputs(spec bytes, config bytes, stem)
   → Rendering  : CodeWriter → 4 GeneratedFile(name, bytes)
   → Diagnostics: collected, sorted, printed by the CLI
 ```
-IR (arrays only, no dictionaries): `Module { namespace, access, server: ServerDecl, schemas: [TypeDecl], endpoints: [EndpointDecl], support: SupportNeeds }`; `TypeRef` (`string, int, int32, int64, double, bool, date, data, uuid, url, jsonValue, array, dictionary, optional, named(path)`); `TypeDecl` (`structure | openEnum | closedEnum | union | alias`); `StructDecl.Property { swiftName, wireName, type, docs, deprecated, presence: .optional | .requiredNullable | .required, boxed }`; `UnionDecl { cases: [(name, payload: TypeRef?, match: .discriminator(String) | .kind(JSONKind) | .status(Int|range|default))], indirect }`; `EndpointDecl { name, docs, method, path: [PathSegment], pathParams, queryParams, headerParams, formParams, body: BodyDecl?, response: ResponseDecl, errorResponse: ResponseDecl?, auth: .inherit | .none, fixedHeaders, deprecated, nested }`.
+IR (arrays only, no dictionaries; local lookup/memoization tables do not cross this boundary): `Module { namespace, access, server: ServerDecl, schemas: [TypeDecl], endpoints: [EndpointDecl], support: SupportNeeds }`; `TypeRef` (`string, int, int32, int64, double, bool, date, data, uuid, url, jsonValue, array, dictionary, optional, named(path)`); `TypeDecl` (`structure | openEnum | closedEnum | union | alias`); `StructDecl.Property { swiftName, wireName, type, docs, deprecated, presence: .optional | .requiredNullable | .required, boxed }`; `UnionDecl { cases: [(name, payload: TypeRef?, match: .discriminator(String) | .kind(JSONKind) | .status(Int|range|default))], indirect }`; `EndpointDecl { name, docs, method, path: [PathSegment], pathParams, queryParams, headerParams, formParams, body: BodyDecl?, response: ResponseDecl, errorResponse: ResponseDecl?, auth: .inherit | .none, fixedHeaders, deprecated, nested }`.
 
 ### 5.2 Operations
 | OpenAPI | Generated | Status |
@@ -235,6 +235,10 @@ IR (arrays only, no dictionaries): `Module { namespace, access, server: ServerDe
 | `callbacks`, `links`, webhooks | ignored silently (not client surface) | n/a |
 
 ### 5.3 Parameters
+Scalar path and header parameters use `simple` serialization; `explode` has no effect on scalars and either value is accepted. Query scalars use `form` (either `explode` value), while query arrays require `form` plus `explode: true`. Other styles are unsupported.
+
+Header parameter override identities compare names case-insensitively with ASCII folding; other wire names compare UTF-8 bytes. Dropped explicit 3xx statuses and 1XX/3XX ranges produce source-marked note diagnostics.
+
 Properties of `PathComponents`/`ParameterComponents`/`HeaderComponents` (declared `Sendable`, explicit `init`, optionals default `nil`). Headers dictionary entries sorted by header name.
 
 | Construct | Generated | Status |
@@ -266,8 +270,11 @@ Priority: `application/json` → any `*+json` → `application/x-www-form-urlenc
 
 ### 5.5 Responses (one `Response`, one `ErrorResponse`, exact status dispatch)
 Response media selection: `application/json` → `*+json` → none/other. A non-JSON success body → `Data`.
-- **Response.** Collect success outcomes: explicit 2xx codes, then `2XX`, then `default` (only if no 2xx exists). If exactly one outcome → `typealias Response = T`, or `Void` (204, no content, `HEAD`), or `Data`. If several outcomes → nested `enum Response: Decodable, Hashable, Sendable` with one case per outcome, dispatched on `decoder.userInfo[.httpStatusCode]` (§6.1): `case ok(PetstoreAPI.Pet)`, `case noContent`, `case created(PetstoreAPI.Order)`, `case success(…)` for `2XX`, `case defaultResponse(…)`. Case names come from a fixed IANA reason-phrase table; unknown codes use `status<code>`. The decoder override `static var responseDecoder: HTTPResponseJSONDecoder { PetstoreAPI.JSONCoding.makeDecoder() }` is emitted whenever a union or a `Date` is involved.
-- **ErrorResponse** (`Decodable & Sendable`). Collect 4xx/5xx explicit codes, `4XX`/`5XX`, and `default` (when a 2xx exists). None → protocol default `EmptyCodable`. One outcome → `typealias ErrorResponse = PetstoreAPI.Problem` / nested `struct ErrorResponse`. Several → nested `enum ErrorResponse` with status-dispatched cases (`badRequest`, `notFound`, `clientError`, `serverError`, `defaultResponse`); a status with no matching case and no `default` throws `DecodingError`, which the runtime reports as `errorResponseParseError`. `static var errorDecoder` is emitted only when the error payload involves `Date`, or when a later-phase status union requires a custom decoder. For this foundation subset, all three overrides (`bodyEncoder`, `responseDecoder`, `errorDecoder`) follow the same rule: emit only if that payload, followed through referenced and inline schemas, involves `Date`. Other payloads inherit runtime defaults.
+- **Response.** Collect success outcomes: explicit 2xx codes, then `2XX`, then `default` (only if no 2xx exists). If exactly one outcome → `typealias Response = T`, or `Void` (204, no content, `HEAD`), or `Data`. If several outcomes → nested `enum Response: Decodable, Hashable, Sendable` with one case per outcome, dispatched on `decoder.userInfo[.httpStatusCode]` (§6.1): `case ok(PetstoreAPI.Pet)`, `case noContent`, `case created(PetstoreAPI.Order)`, `case success(…)` for `2XX`, `case defaultResponse(…)`. Case names come from a fixed [IANA reason-phrase table](https://www.iana.org/assignments/http-status-codes); unknown codes use `status<code>`. The decoder override `static var responseDecoder: HTTPResponseJSONDecoder { PetstoreAPI.JSONCoding.makeDecoder() }` is emitted whenever a union or a `Date` is involved.
+- **ErrorResponse** (`Decodable & Sendable`). Collect 4xx/5xx explicit codes, `4XX`/`5XX`, and `default` (when a 2xx exists). None → protocol default `EmptyCodable`. One outcome → `typealias ErrorResponse = PetstoreAPI.Problem` / nested `struct ErrorResponse`. Several → nested `enum ErrorResponse` with status-dispatched cases (`badRequest`, `notFound`, `clientError`, `serverError`, `defaultResponse`); a status with no matching case and no `default` throws `DecodingError`, which the runtime reports as `errorResponseParseError`. `static var errorDecoder: HTTPResponseJSONDecoder` is emitted for a status union, a payload involving `Date`, or a raw `Data` error payload. `bodyEncoder` is emitted only for a body involving `Date`; `responseDecoder` is emitted for a status union or a response involving `Date`. Date usage follows referenced and inline schemas. Other payloads inherit runtime defaults.
+- Exact status matches precede range matches, then `default`, regardless of map order. At least one success or default outcome is required; error-only operations produce an unsupported diagnostic. Enum cases retain the authored response-map order within their success/error category. Inline union payloads are nested `Option1`, `Option2`, etc. (§5.6), numbered by that category's authored outcome order, including body-less outcomes.
+- **Raw union bodies:** JSONDecoder normally parses the whole input before invoking a status enum, so it cannot dispatch arbitrary binary bytes. `HTTPResponseJSONDecoder` therefore has an opt-in `isRawDataStatus: @Sendable (_ statusCode: Int) -> Bool` selector. The JSON-only initializer selects no raw statuses; the selector initializer requires that argument. Selected bodies, including empty data, become a JSON base64 string before decoding; `.base64` is forced after configuration so custom data strategies cannot break raw decoding. Body-less union outcomes also select raw decoding, ignoring arbitrary bytes just as a single Void response does. Explicit 204 arms are always omitted: `Definition.responseWithMetadata` discards every 204 body and supplies `Data()` before decoding. Unions without a default treat unmatched statuses as raw, allowing their decoder to report the unexpected status code even for HTML or text bodies. The enum's `singleValueContainer().decode(Data.self)` receives the original bytes. Payloads decode through a single-value container to preserve JSONDecoder's Data/Date strategies; calling `Data(from:)` or `Date(from:)` directly bypasses those strategies. Generated overrides use the same exact/range/default precedence for this selector. An arm is omitted when its result equals the next matching lower-precedence result; pure code predicates are emitted as comparisons. Support omits empty configure closures, and `configure` is the last initializer parameter for trailing-closure use. Selection follows the spec's media priority, independent of the actual Content-Type header. Single raw successes retain the runtime's direct `Data` path; raw error payloads also use the selector. Invalid JSON on JSON statuses still throws.
+- The frozen reason-phrase table is checked into `Lowering/Operations.swift` (including `contentTooLarge` for 413 and `unprocessableContent` for 422); unassigned or unused codes such as 299 and 418 use `status<code>`. No platform HTTP phrase lookup participates in naming.
 - Response headers are not modelled (available to hand-written code via `.httpHeaders`).
 
 ### 5.6 Component schemas → Swift types
@@ -280,7 +287,7 @@ Models are `Codable, Hashable, Sendable`, properties `var`, explicit memberwise 
 | required + nullable (3.0 `nullable`, 3.1 `[T, "null"]`, `oneOf [T, null]`, `enum [..., null]`) | `T?`; struct gets explicit `init(from:)`/`encode(to:)`: `decode(T?.self, forKey:)` (missing key throws, `null` → nil) and `encode(_:forKey:)` (nil → `null`) | supported, exact |
 | optional + nullable | `T?`; absent and `null` both → `nil`; encoding omits. **Permanent policy**, documented in Generating.md (no tri-state type) | degraded by design |
 | required + `readOnly`/`writeOnly` | `T?` (required doesn't apply in the other direction) | supported |
-| string enum / int enum | `enums: "open"` (default): `struct Status: RawRepresentable, Codable, Hashable, Sendable { let rawValue; init(rawValue:); static let available = …; static let knownValues: [Status] }`; `"closed"`: `enum Status: String|Int, Codable, Hashable, Sendable, CaseIterable` | supported |
+| string enum / int enum | `enums: "open"` (default): `struct Status: RawRepresentable, Codable, Hashable, Sendable { let rawValue; init(rawValue:); static let available = …; static let knownValues: [Status] }`; `"closed"`: `enum Status: String|Int|Int32|Int64, Codable, Hashable, Sendable, CaseIterable` (integer formats retain their width) | supported |
 | enum of other types | error | unsupported |
 | `string` formats | `date-time` → `Date`; `uuid` → `UUID`; `uri` → `URL`; `byte` → `Data` (base64); `binary` → `Data` (JSON) / `MultipartFormFile` (multipart); `date` and all others → `String` | supported |
 | `integer` | no format → `Int`; `int32` → `Int32`; `int64` → `Int64` | supported |
@@ -355,14 +362,21 @@ public extension CodingUserInfoKey {
 /// and decodes an empty body as JSON `null`, so a response type can represent body-less statuses.
 public struct HTTPResponseJSONDecoder: DecoderType, Sendable {
     public var configure: @Sendable (JSONDecoder) -> Void
+    public var isRawDataStatus: @Sendable (_ statusCode: Int) -> Bool
     public init(configure: @Sendable @escaping (JSONDecoder) -> Void = { _ in })
+    public init(
+        isRawDataStatus: @Sendable @escaping (_ statusCode: Int) -> Bool,
+        configure: @Sendable @escaping (JSONDecoder) -> Void = { _ in }
+    )
     public func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T                 // fresh JSONDecoder, configure, decode
     public func decode<T: Decodable>(_ type: T.Type, from data: Data, response: HTTPURLResponse) throws -> T
     // fresh JSONDecoder; configure; userInfo[.httpStatusCode] = response.statusCode; userInfo[.httpHeaders] = …;
     // decode(type, from: data.isEmpty ? Data("null".utf8) : data)
 }
 ```
-Call sites switch to the three-argument form: `URLSession+Async.performRequest` (its `transform` gains the `HTTPURLResponse`), the three `endpointTask` overloads, `URLSession+Combine`, and the error path in `Definition+URLResponse.swift`. `Definition.response(data:response:error:)` keeps its public signature; a new internal variant returns the `HTTPURLResponse` alongside the data. Existing `JSONDecoder` users are untouched (default method). Also: `EmptyCodable.init(from:)` becomes a no-op initialiser that accepts any input (empty-body error responses then decode as `EmptyCodable` instead of `errorResponseParseError`).
+The initializers are disjoint: `init(configure:)` creates a JSON decoder with no raw-data statuses, while `init(isRawDataStatus:configure:)` requires a selector and also decodes its selected statuses as Data. A trailing closure after `isRawDataStatus:` binds to `configure`. Only the response-aware overload sets the HTTP userInfo keys or invokes `isRawDataStatus`; raw decoding forces `.base64` after configuration.
+
+Call sites switch to the three-argument form: `URLSession+Async.performRequest` (its `transform` gains the `HTTPURLResponse`), the three `endpointTask` overloads, `URLSession+Combine`, and the error path in `Definition+URLResponse.swift`. `Definition.response(data:response:error:)` keeps its public signature; a new internal variant returns the `HTTPURLResponse` alongside the data. Existing `JSONDecoder` users are untouched (default method). The `EmptyCodable.init(from:)` empty-body behavior is intentionally deferred to `claude/endpoints-runtime-fixes`; the public response helper otherwise preserves its existing status/data/error behavior. Combine delegates to the async implementation, so metadata forwarding there covers its publishers too.
 
 ### 6.2 Repeated query/form parameters
 ```swift
@@ -375,7 +389,7 @@ In `urlRequest(in:)` the existing `ParameterRepresentable` check runs **first** 
 ### 6.3 Conformances
 `extension ParameterRepresentable where Self: RawRepresentable, RawValue: ParameterRepresentable` and the `PathRepresentable` twin (default implementations); `Int32`, `Int64`, `UUID`: `ParameterRepresentable` and `PathRepresentable`.
 
-### 6.4 Optional headers
+### 6.4 Optional headers (separate bug-fix branch)
 `Optional<String>` isn't `CustomStringConvertible`, so optional header components currently throw `invalidHeader`. An internal `OptionalHeaderValue` protocol (`extension Optional where Wrapped: CustomStringConvertible`) makes `nil` omit the header and `.some` use the wrapped `description`. Behaviour change limited to a case that previously always threw.
 
 ---
@@ -459,17 +473,19 @@ extension Petstore {
                 guard let statusCode = decoder.userInfo[.httpStatusCode] as? Int else {
                     throw DecodingError.dataCorrupted(DecodingError.Context(
                         codingPath: decoder.codingPath,
-                        debugDescription: "Petstore responses must be decoded with HTTPResponseJSONDecoder."))
+                        debugDescription: "Petstore response requires the HTTP status code; decode with `HTTPResponseJSONDecoder.decode(_:from:response:)`."
+                    ))
                 }
                 switch statusCode {
                 case 201:
-                    self = .created(try Petstore.Order(from: decoder))
+                    self = .created(try decoder.singleValueContainer().decode(Petstore.Order.self))
                 case 202:
                     self = .accepted
                 default:
                     throw DecodingError.dataCorrupted(DecodingError.Context(
                         codingPath: decoder.codingPath,
-                        debugDescription: "Unexpected status code \(statusCode)."))
+                        debugDescription: "Unexpected status code \(statusCode)."
+                    ))
                 }
             }
         }
@@ -520,7 +536,9 @@ extension Petstore {
         }
 
         public static var bodyEncoder: JSONEncoder { Petstore.JSONCoding.makeEncoder() }
-        public static var responseDecoder: HTTPResponseJSONDecoder { Petstore.JSONCoding.makeDecoder() }
+        public static var responseDecoder: HTTPResponseJSONDecoder {
+            Petstore.JSONCoding.makeDecoder(isRawDataStatus: { $0 != 201 })
+        }
         public static var errorDecoder: HTTPResponseJSONDecoder { Petstore.JSONCoding.makeDecoder() }
     }
 
@@ -726,13 +744,18 @@ The explicit `init(from:)`/`encode(to:)` on `Pet` appears for required-nullable 
 extension Petstore {
 
     enum JSONCoding {
-        static func makeDecoder() -> HTTPResponseJSONDecoder {
-            HTTPResponseJSONDecoder { decoder in
+        static func makeDecoder(
+            isRawDataStatus: @Sendable @escaping (_ statusCode: Int) -> Bool = { _ in false }
+        ) -> HTTPResponseJSONDecoder {
+            HTTPResponseJSONDecoder(isRawDataStatus: isRawDataStatus) { decoder in
                 decoder.dateDecodingStrategy = .custom { decoder in
                     let container = try decoder.singleValueContainer()
                     let string = try container.decode(String.self)
                     guard let date = RFC3339.parse(string) else {
-                        throw DecodingError.dataCorruptedError(in: container, debugDescription: "Expected an RFC 3339 date-time, got '\(string)'.")
+                        throw DecodingError.dataCorruptedError(
+                            in: container,
+                            debugDescription: "Expected an RFC 3339 date-time."
+                        )
                     }
                     return date
                 }

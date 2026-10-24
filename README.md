@@ -316,6 +316,12 @@ Endpoint types without a mock make real requests. Mocked requests skip authentic
 
 The [API documentation](https://swiftpackageindex.com/velos/Endpoints/documentation) is hosted on the Swift Package Index and updated with each release, for both `Endpoints` and `EndpointsMocking`. You can also build it in Xcode with Product > Build Documentation. The [Examples](Sources/Endpoints/Endpoints.docc/Examples.md), [Authentication](Sources/Endpoints/Endpoints.docc/Authentication.md), and [Mocking](Sources/Endpoints/Endpoints.docc/Mocking.md) guides are readable on GitHub.
 
+## Migrating from 0.5
+
+- **Update to Swift 6.1.** The package now declares traits, which need Swift 6.1 tools.
+- **Remove your own parameter conformances for `UUID`, `Int32`, and `Int64`.** Endpoints now conforms these to `ParameterRepresentable` and `PathRepresentable`. If you added a conformance yourself, Swift warns that it was already stated in `Endpoints`, and requests use the library's version. A `UUID` is sent as `uuidString` (uppercase). If your server needs lowercase, store the value as a `String`.
+- **Opt out of the generator's dependencies if you don't use it.** On SwiftPM 6.2 and later, `.package(url: "https://github.com/velos/Endpoints.git", from: "0.6.0", traits: [])` skips fetching OpenAPIKit and Yams. Without it, they're fetched but only built when you use the generator plugin.
+
 ## Migrating from 0.4
 
 - **Replace `EnvironmentType` with a `ServerDefinition`.** List each environment's base URL in `baseUrls`, and move any `requestProcessor` onto the server.

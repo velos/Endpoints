@@ -51,7 +51,7 @@ extension Boundaries {
             self.parameterComponents = parameterComponents
         }
 
-        static var responseDecoder: JSONDecoder { Boundaries.JSONCoding.makeDecoder() }
+        static var responseDecoder: HTTPResponseJSONDecoder { Boundaries.JSONCoding.makeDecoder() }
     }
 
     /// `PUT /records/{recordId}`
@@ -95,6 +95,6 @@ extension Boundaries {
         }
 
         static var bodyEncoder: JSONEncoder { Boundaries.JSONCoding.makeEncoder() }
-        static var responseDecoder: JSONDecoder { Boundaries.JSONCoding.makeDecoder() }
+        static var responseDecoder: HTTPResponseJSONDecoder { Boundaries.JSONCoding.makeDecoder() }
     }
 }

@@ -8,7 +8,7 @@ enum HTTPMethod: String {
 
     var isSupported: Bool {
         switch self {
-        case .get, .post, .put, .patch, .delete: return true
+        case .get, .post, .put, .patch, .delete, .head: return true
         default: return false
         }
     }
@@ -67,9 +67,36 @@ struct EnumValue {
     var raw: String
 }
 
+enum StatusMatch: Equatable {
+    case code(Int)
+    case range(Int)
+    case fallback
+
+    var pattern: String {
+        switch self {
+        case .code(let status): return String(status)
+        case .range(let hundreds): return "\(hundreds * 100)..<\((hundreds + 1) * 100)"
+        case .fallback: return "default"
+        }
+    }
+}
+
+struct StatusOutcome {
+    var name: String
+    var match: StatusMatch
+    var payload: TypeRef?
+    var docs: [String] = []
+    var rawBody = false
+}
+
+struct ParameterConformance {
+    var typeName: String
+    var deprecated = false
+}
+
 struct TypeDecl {
     enum Kind {
-        case structure, openEnum, closedEnum
+        case structure, openEnum, closedEnum, statusUnion
         case alias(TypeRef)
     }
     var name: String
@@ -77,7 +104,9 @@ struct TypeDecl {
     var pointer = ""
     var renameKey = ""
     var properties: [Property] = []
+    var enumRawType: TypeRef = .string
     var values: [EnumValue] = []
+    var outcomes: [StatusOutcome] = []
     var nested: [TypeDecl] = []
     var docs: [String] = []
     var deprecated = false
@@ -125,6 +154,8 @@ struct EndpointDecl {
     var body: TypeRef?
     var response: TypeRef = .void
     var errorResponse: TypeRef?
+    var responseOutcomes: [StatusOutcome] = []
+    var errorOutcomes: [StatusOutcome] = []
     var bodyUsesDate = false
     var responseUsesDate = false
     var errorUsesDate = false
@@ -143,6 +174,7 @@ struct Module {
     var schemas: [TypeDecl] = []
     var endpoints: [EndpointDecl] = []
     var usesDate = false
+    var parameterConformances: [ParameterConformance] = []
 
     /// Resolve Date use through aliases and nested declarations once per named
     /// type. Memoization also keeps a shared acyclic component graph linear.
@@ -173,13 +205,41 @@ struct Module {
                 if case .alias(let aliased) = declaration.kind {
                     result = involvesDate(aliased)
                 } else {
-                    result = declaration.properties.contains { involvesDate($0.type) }
+                    result =
+                        declaration.properties.contains { involvesDate($0.type) }
+                        || declaration.outcomes.contains { $0.payload.map(involvesDate) ?? false }
                 }
                 memo[name] = result
                 return result
             default: return false
             }
         }
+        func enumDeclaration(_ type: TypeRef) -> String? {
+            switch type {
+            case .array(let element), .optional(let element): return enumDeclaration(element)
+            case .named(let name):
+                guard let declaration = declarations[name] else { return nil }
+                switch declaration.kind {
+                case .openEnum, .closedEnum: return name
+                case .alias(let target): return enumDeclaration(target)
+                default: return nil
+                }
+            default: return nil
+            }
+        }
+        for endpoint in endpoints {
+            for property in endpoint.pathParams + endpoint.queryParams {
+                if let name = enumDeclaration(property.type),
+                    !parameterConformances.contains(where: { wireEqual($0.typeName, name) })
+                {
+                    let nestedInEndpoint = name.hasPrefix(namespace + "." + endpoint.name + ".")
+                    parameterConformances.append(
+                        ParameterConformance(
+                            typeName: name, deprecated: endpoint.deprecated && nestedInEndpoint))
+                }
+            }
+        }
+        parameterConformances.sort { utf8Less($0.typeName, $1.typeName) }
         // JSONCoding remains available for the four-file output contract. Emit the
         // RFC 3339 helper only if a retained schema or endpoint actually uses Date.
         usesDate = schemas.contains { involvesDate(.named(namespace + "." + $0.name)) }

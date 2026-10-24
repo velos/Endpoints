@@ -184,7 +184,7 @@ let results = try await URLSession.shared.response(
 )
 ```
 
-Supported value types are `String`, `Int`, `Double`, `Bool`, `Date` (ISO 8601), `TimeZone`, and optionals of these. Conform other types to ``ParameterRepresentable``.
+Supported value types are `String`, `Int`, `Int32`, `Int64`, `Double`, `Bool`, `UUID`, `Date` (ISO 8601), `TimeZone`, and optionals of these. Arrays send repeated keys in array order, such as `tags=a&tags=b`; nil arrays, empty arrays, and nil elements are omitted. Conform other scalar types to ``ParameterRepresentable`` or repeated-value types to ``MultiValueParameterRepresentable``. A scalar conformance takes precedence when both are present. `RawRepresentable` types can adopt ``ParameterRepresentable`` or ``PathRepresentable`` using the default implementations when their raw value supports the corresponding protocol.
 
 To control percent-encoding, set ``Endpoint/queryEncodingStrategy``. This one also encodes `+`, which some servers read as a space:
 
@@ -383,6 +383,8 @@ struct ProfileEndpoint: Endpoint {
 ```
 
 Any type that conforms to ``DecoderType`` or ``EncoderType`` works.
+
+For custom decoders that need response metadata, use ``HTTPResponseJSONDecoder``. Its response-aware `decode(_:from:response:)` overload sets `.httpStatusCode` and `.httpHeaders` in `Decoder.userInfo`; the two-argument overload does not add these keys. Each call configures a fresh `JSONDecoder`, and an empty JSON body decodes as `null`. Use `isRawDataStatus` to select non-JSON bodies that should decode as `Data`; those statuses force `.base64` decoding after your configuration runs.
 
 ### Typed error responses
 

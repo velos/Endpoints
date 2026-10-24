@@ -194,6 +194,10 @@ import Testing
                 SchemaEdges.Container.self,
                 from: Data(#"{"mode":null,"nickname":null,"child":{},"values":[]}"#.utf8))
         }
+        let closedParameters = try SchemaEdges.GetModesByStateEndpoint(
+            pathComponents: .init(state: .red), parameterComponents: .init(level: .valueMinus1)
+        ).urlRequest()
+        #expect(closedParameters.url?.absoluteString == "https://example.com/modes/red?level=-1")
         let shapes = try JSONDecoder().decode(
             SchemaEdges.Shapes.self, from: Data(#"[{"value":1.5},{"value":2}]"#.utf8))
         #expect(shapes.map(\.value) == [1.5, 2])

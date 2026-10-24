@@ -138,7 +138,7 @@ struct Rendering {
         }
     }
 
-    private func render(_ declaration: TypeDecl, _ writer: inout CodeWriter) {
+    func render(_ declaration: TypeDecl, _ writer: inout CodeWriter) {
         let documentation =
             declaration.docs
             + (declaration.deprecated
@@ -149,15 +149,18 @@ struct Rendering {
             writer.line("\(access)typealias \(declaration.name) = \(type.swift)")
         case .structure:
             structure(declaration, &writer)
+        case .statusUnion:
+            statusUnion(declaration, &writer)
         case .closedEnum:
             writer.line(
-                "\(access)enum \(declaration.name): String, Codable, Hashable, Sendable, CaseIterable {"
+                "\(access)enum \(declaration.name): \(declaration.enumRawType.swift), Codable, Hashable, Sendable, CaseIterable {"
             )
             writer.indent()
             for value in declaration.values {
                 let identifier = value.name.replacingOccurrences(of: "`", with: "")
                 let rawValue =
-                    wireEqual(identifier, value.raw) ? "" : " = " + swiftLiteral(value.raw)
+                    declaration.enumRawType == .string && wireEqual(identifier, value.raw)
+                    ? "" : " = " + enumLiteral(value, in: declaration)
                 writer.line("case \(value.name)\(rawValue)")
             }
             writer.outdent()
@@ -167,13 +170,15 @@ struct Rendering {
                 "\(access)struct \(declaration.name): RawRepresentable, Codable, Hashable, Sendable {"
             )
             writer.indent()
-            writer.line("\(access)let rawValue: String")
+            writer.line("\(access)let rawValue: \(declaration.enumRawType.swift)")
             writer.line()
-            initializer([InitializerArgument(name: "rawValue", type: "String")], &writer)
+            initializer(
+                [InitializerArgument(name: "rawValue", type: declaration.enumRawType.swift)],
+                &writer)
             writer.line()
             for value in declaration.values {
                 writer.line(
-                    "\(access)static let \(value.name) = \(declaration.name)(rawValue: \(swiftLiteral(value.raw)))"
+                    "\(access)static let \(value.name) = \(declaration.name)(rawValue: \(enumLiteral(value, in: declaration)))"
                 )
             }
             let knownValues = declaration.values.map { "." + $0.name }.joined(separator: ", ")
@@ -183,6 +188,10 @@ struct Rendering {
             writer.outdent()
             writer.line("}")
         }
+    }
+
+    private func enumLiteral(_ value: EnumValue, in declaration: TypeDecl) -> String {
+        declaration.enumRawType == .string ? swiftLiteral(value.raw) : value.raw
     }
 
     private func structure(_ declaration: TypeDecl, _ writer: inout CodeWriter) {
@@ -317,6 +326,13 @@ struct Rendering {
             }
             writer.outdent()
             writer.line("}")
+            for conformance in module.parameterConformances {
+                writer.line()
+                if conformance.deprecated { writer.line("@available(*, deprecated)") }
+                writer.line(
+                    "extension \(conformance.typeName): PathRepresentable, ParameterRepresentable {}"
+                )
+            }
         }
     }
 
@@ -394,22 +410,22 @@ struct Rendering {
         }
         writer.line()
         initializer(arguments, &writer)
-        if endpoint.bodyUsesDate || endpoint.responseUsesDate || endpoint.errorUsesDate {
+        let responseNeedsDecoder = endpoint.responseUsesDate || endpoint.responseOutcomes.count > 1
+        let errorNeedsDecoder =
+            endpoint.errorUsesDate || endpoint.errorOutcomes.count > 1
+            || endpoint.errorOutcomes.contains(where: \.rawBody)
+        if endpoint.bodyUsesDate || responseNeedsDecoder || errorNeedsDecoder {
             writer.line()
             if endpoint.bodyUsesDate {
                 writer.line(
                     "\(access)static var bodyEncoder: JSONEncoder { \(namespace).JSONCoding.makeEncoder() }"
                 )
             }
-            if endpoint.responseUsesDate {
-                writer.line(
-                    "\(access)static var responseDecoder: JSONDecoder { \(namespace).JSONCoding.makeDecoder() }"
-                )
+            if responseNeedsDecoder {
+                decoderOverride("responseDecoder", outcomes: endpoint.responseOutcomes, &writer)
             }
-            if endpoint.errorUsesDate {
-                writer.line(
-                    "\(access)static var errorDecoder: JSONDecoder { \(namespace).JSONCoding.makeDecoder() }"
-                )
+            if errorNeedsDecoder {
+                decoderOverride("errorDecoder", outcomes: endpoint.errorOutcomes, &writer)
             }
         }
         writer.outdent()
@@ -481,11 +497,23 @@ struct Rendering {
             writer.indent()
             writer.line("enum JSONCoding {")
             writer.indent()
-            writer.line("static func makeDecoder() -> JSONDecoder {")
+            writer.line("static func makeDecoder(")
             writer.indent()
-            writer.line("let decoder = JSONDecoder()")
-            if module.usesDate { dateDecoding(&writer) }
-            writer.line("return decoder")
+            writer.line(
+                "isRawDataStatus: @Sendable @escaping (_ statusCode: Int) -> Bool = { _ in false }")
+            writer.outdent()
+            writer.line(") -> HTTPResponseJSONDecoder {")
+            writer.indent()
+            if module.usesDate {
+                writer.line(
+                    "HTTPResponseJSONDecoder(isRawDataStatus: isRawDataStatus) { decoder in")
+                writer.indent()
+                dateDecoding(&writer)
+                writer.outdent()
+                writer.line("}")
+            } else {
+                writer.line("HTTPResponseJSONDecoder(isRawDataStatus: isRawDataStatus)")
+            }
             writer.outdent()
             writer.line("}")
             writer.line()

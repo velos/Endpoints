@@ -16,7 +16,8 @@ func generation(_ stem: String, config override: Data? = nil) throws -> Generati
 }
 
 @Suite struct GoldenTests {
-    @Test(arguments: ["Boundaries", "Petstore", "SchemaEdges", "DateScopes"]) func sourceGoldens(
+    @Test(arguments: ["Boundaries", "Petstore", "SchemaEdges", "DateScopes", "Operations"])
+    func sourceGoldens(
         stem: String
     ) throws {
         let result = try generation(stem)
@@ -111,7 +112,9 @@ func generation(_ stem: String, config override: Data? = nil) throws -> Generati
 }
 
 @Suite struct ProcessDeterminismTests {
-    @Test func separateHashSeedsAndDirectories() throws {
+    @Test(arguments: ["Petstore", "Operations"]) func separateHashSeedsAndDirectories(stem: String)
+        throws
+    {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         var directory = Bundle.module.bundleURL
@@ -132,14 +135,14 @@ func generation(_ stem: String, config override: Data? = nil) throws -> Generati
             let output = root.appendingPathComponent("output-\(index)")
             try FileManager.default.createDirectory(at: input, withIntermediateDirectories: true)
             let spec = input.appendingPathComponent(
-                index == 1 ? "Petstore.openapi.yml" : "Petstore.openapi.yaml")
-            try FileManager.default.copyItem(at: fixture("Petstore"), to: spec)
-            let config = input.appendingPathComponent("Petstore.endpoints.json")
-            try FileManager.default.copyItem(at: fixture("Petstore", ".endpoints.json"), to: config)
+                index == 1 ? stem + ".openapi.yml" : stem + ".openapi.yaml")
+            try FileManager.default.copyItem(at: fixture(stem), to: spec)
+            let config = input.appendingPathComponent(stem + ".endpoints.json")
+            try FileManager.default.copyItem(at: fixture(stem, ".endpoints.json"), to: config)
             let process = Process()
             process.executableURL = executable
             process.arguments = [
-                "generate", "--spec", spec.path, "--config", config.path, "--stem", "Petstore",
+                "generate", "--spec", spec.path, "--config", config.path, "--stem", stem,
                 "--output-dir", output.path,
             ]
             var environment = ProcessInfo.processInfo.environment
@@ -161,7 +164,7 @@ func generation(_ stem: String, config override: Data? = nil) throws -> Generati
             #expect(process.terminationStatus == 0, "\(String(decoding: stderr, as: UTF8.self))")
             outputs.append(
                 try ["Server", "Schemas", "Endpoints", "Support"].map {
-                    try Data(contentsOf: output.appendingPathComponent("Petstore.\($0).swift"))
+                    try Data(contentsOf: output.appendingPathComponent(stem + ".\($0).swift"))
                 })
         }
         #expect(outputs[0] == outputs[1] && outputs[1] == outputs[2])

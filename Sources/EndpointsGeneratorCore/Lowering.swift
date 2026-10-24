@@ -2,7 +2,7 @@
 import Foundation
 import OpenAPIKit
 
-private struct Unsupported: Error {
+struct Unsupported: Error {
     let message: String
     let pointer: String
 }
@@ -34,7 +34,7 @@ struct Lowering {
             diagnostics.append(source.diagnostic("Cannot resolve local reference", pointer))
         }
     }
-    private func unsupported(_ message: String, _ pointer: String) -> Unsupported {
+    func unsupported(_ message: String, _ pointer: String) -> Unsupported {
         Unsupported(message: message, pointer: pointer)
     }
     func rename(_ original: String, in renames: [Rename]) -> String? {
@@ -151,7 +151,8 @@ struct Lowering {
                 if case .alias(let propertyType) = declaration.kind, missing(propertyType) {
                     return true
                 }
-                return declaration.properties.contains { missing($0.type) }
+                return declaration.outcomes.contains { $0.payload.map(missing) ?? false }
+                    || declaration.properties.contains { missing($0.type) }
                     || declaration.nested.contains(where: invalid)
             }
             module.schemas.removeAll { declaration in
@@ -286,8 +287,9 @@ struct Lowering {
         nested: inout [TypeDecl]
     ) throws -> TypeRef {
         if let values = schema.allowedValues, !values.isEmpty {
-            guard case .string = schema.value else {
-                throw unsupported("only string enums are supported in this slice", pointer)
+            switch schema.value {
+            case .string, .integer: break
+            default: throw unsupported("only string and integer enums are supported", pointer)
             }
             let name = try Naming.name(suggested, style: .type)
             nested.append(
@@ -364,18 +366,38 @@ struct Lowering {
             name: name, kind: .structure, pointer: pointer, renameKey: owner, docs: docs(schema),
             deprecated: schema.deprecated)
         if let allowed = schema.allowedValues, !allowed.isEmpty {
-            guard case .string = schema.value else {
-                throw unsupported("only string enums are supported in this slice", pointer)
+            switch schema.value {
+            case .string, .integer: break
+            default: throw unsupported("only string and integer enums are supported", pointer)
             }
             var allocator = NameAllocator(reserved: Naming.structReserved)
             declaration.kind = config.closedEnums ? .closedEnum : .openEnum
+            if case .integer = schema.value {
+                switch schema.formatString {
+                case "int32": declaration.enumRawType = .int32
+                case "int64": declaration.enumRawType = .int64
+                default: declaration.enumRawType = .int
+                }
+            }
             for raw in allowed {
                 // Null is represented by the property's presence, never an enum case.
                 if raw.value is NSNull || raw.value is Void { continue }
-                guard let value = raw.value as? String else {
-                    throw unsupported("non-string enum value", pointer + "/enum")
+                let value: String
+                let member: String
+                if declaration.enumRawType == .string, let string = raw.value as? String {
+                    value = string
+                    member = string.isEmpty ? "empty" : try Naming.name(string, style: .member)
+                } else if declaration.enumRawType != .string, let integer = raw.value as? Int {
+                    if declaration.enumRawType == .int32, Int32(exactly: integer) == nil {
+                        throw unsupported(
+                            "enum value is outside the Int32 range", pointer + "/enum")
+                    }
+                    value = String(integer)
+                    member = integer < 0 ? "valueMinus" + value.dropFirst() : "value" + value
+                } else {
+                    throw unsupported(
+                        "enum value does not match its scalar type", pointer + "/enum")
                 }
-                let member = value.isEmpty ? "empty" : try Naming.name(value, style: .member)
                 try allocator.claim(member, original: value, hint: "distinct enum wire values")
                 declaration.values.append(EnumValue(name: member, raw: value))
             }
@@ -488,8 +510,11 @@ struct Lowering {
             let located = try lookup.resolve(value, at: pointer + "/parameters/\(index)")
             let parameter = located.value
             parameters.removeAll {
-                wireEqual($0.value.name, parameter.name)
-                    && $0.value.location == parameter.location
+                let sameName =
+                    parameter.location == .header
+                    ? wireEqual(Naming.asciiLower($0.value.name), Naming.asciiLower(parameter.name))
+                    : wireEqual($0.value.name, parameter.name)
+                return sameName && $0.value.location == parameter.location
             }
             parameters.append(LocatedParameter(value: parameter, pointer: located.pointer))
         }
@@ -499,6 +524,7 @@ struct Lowering {
         for located in parameters {
             let parameter = located.value
             let sourcePointer = located.pointer
+            let nestedStart = result.nested.count
             do {
                 guard case .a(let context) = parameter.schemaOrContent else {
                     throw unsupported("parameter content", sourcePointer)
@@ -506,22 +532,17 @@ struct Lowering {
                 let locatedSchema = try lookup.resolve(
                     context.schema, at: sourcePointer + "/schema")
                 let schema = try lookup.schema(locatedSchema.value)
-                // Format date/date-time/uri query values as strings. No date arithmetic
-                // or enum/runtime conformances are needed at the request boundary.
-                let propertyType: TypeRef
-                if case .string = schema.value, schema.allowedValues == nil,
-                    ["date", "date-time", "uri"].contains(schema.formatString ?? "")
-                {
-                    propertyType = .string
-                } else {
-                    var ignored: [TypeDecl] = []
-                    propertyType = try type(
-                        schema, suggested: parameter.name, path: operationPath, owner: original,
-                        pointer: sourcePointer + "/schema", nested: &ignored)
-                    if !ignored.isEmpty {
-                        throw unsupported("enum or object parameter", sourcePointer)
-                    }
+                let parameterSchema: JSONSchema
+                switch context.schema {
+                case .a(let reference): parameterSchema = .reference(reference.jsonReference)
+                case .b(let schema): parameterSchema = schema
                 }
+                let propertyType = try parameterType(
+                    parameterSchema, suggested: parameter.name, path: operationPath,
+                    owner: original, pointer: sourcePointer + "/schema", nested: &result.nested)
+                let isEnum = schema.allowedValues?.isEmpty == false
+                let scalarTypes: [TypeRef] = [.string, .int, .int32, .int64, .double, .bool, .uuid]
+                let isScalar = scalarTypes.contains(propertyType) || isEnum
                 let member = try Naming.name(parameter.name, style: .member)
                 var property = Property(
                     name: member, wire: parameter.name, type: propertyType, presence: .required,
@@ -529,10 +550,12 @@ struct Lowering {
                     deprecated: parameter.deprecated)
                 switch parameter.location {
                 case .path:
-                    guard propertyType == .string || propertyType == .int, !nullable(schema)
+                    guard [.string, .int, .int32, .int64, .uuid].contains(propertyType) || isEnum,
+                        !nullable(schema), context.style == .simple
                     else {
                         throw unsupported(
-                            "path parameters must be non-nullable String or Int", sourcePointer)
+                            "path parameters require simple String, integer, UUID, or enum values",
+                            sourcePointer)
                     }
                     try pathNames.claim(
                         member, original: parameter.name, hint: "a distinct parameter name")
@@ -540,16 +563,36 @@ struct Lowering {
                         for: property, using: &pathNames, hint: "a distinct parameter name")
                     result.pathParams.append(property)
                 case .query:
-                    guard [.string, .int, .double, .bool].contains(propertyType),
-                        !nullable(schema)
+                    let isArray: Bool
+                    if case .array(let element) = propertyType {
+                        isArray = true
+                        let itemSchema: JSONSchema?
+                        if case .array(_, let array) = schema.value {
+                            itemSchema = array.items
+                        } else {
+                            itemSchema = nil
+                        }
+                        let itemIsEnum =
+                            try itemSchema.map {
+                                try lookup.schema($0).allowedValues?.isEmpty == false
+                            } ?? false
+                        guard scalarTypes.contains(element.unwrapped) || itemIsEnum else {
+                            throw unsupported(
+                                "query array elements must be scalar or enum values", sourcePointer)
+                        }
+                    } else {
+                        isArray = false
+                        guard isScalar else {
+                            throw unsupported(
+                                "query parameters must be scalar or array values", sourcePointer)
+                        }
+                    }
+                    guard !nullable(schema), context.style == .form, !context.allowReserved,
+                        !isArray || context.explode
                     else {
                         throw unsupported(
-                            "query parameters must be non-nullable String, Int, Double, or Bool scalars",
+                            "query parameters require form serialization with exploded arrays",
                             sourcePointer)
-                    }
-                    guard context.style == .form, !context.allowReserved else {
-                        throw unsupported(
-                            "non-default scalar query serialization", sourcePointer)
                     }
                     try queryNames.claim(
                         member, original: parameter.name, hint: "a distinct parameter name")
@@ -561,19 +604,27 @@ struct Lowering {
                     }
                     result.queryParams.append(property)
                 case .header:
-                    guard propertyType == .string, parameter.required, !nullable(schema) else {
+                    guard [.string, .int, .int32, .int64, .double, .bool].contains(propertyType),
+                        !nullable(schema), context.style == .simple
+                    else {
                         throw unsupported(
-                            "headers must be required String parameters", sourcePointer)
+                            "headers require simple String, integer, Double, or Bool values",
+                            sourcePointer)
                     }
                     try headerNames.claim(
                         member, original: parameter.name, hint: "a distinct parameter name")
                     try claimDeprecatedBackingStorage(
                         for: property, using: &headerNames, hint: "a distinct parameter name")
+                    if !parameter.required {
+                        property.type = .optional(propertyType)
+                        property.presence = .optional
+                    }
                     result.headerParams.append(property)
                 default: throw unsupported("cookie or querystring parameters", sourcePointer)
                 }
             } catch let error as Unsupported {
                 // A missing path value makes the entire operation unusable.
+                result.nested.removeSubrange(nestedStart...)
                 if parameter.location == .path { throw error }
                 report(error, at: sourcePointer)
             }
@@ -609,58 +660,42 @@ struct Lowering {
             }
         }
         let outcomes = Array(operation.responses)
-        var success = outcomes.filter { $0.key.isSuccess }
+        for outcome in outcomes
+        where outcome.key.rawValue.hasPrefix("3") || outcome.key.rawValue == "1XX" {
+            diagnostics.append(
+                source.diagnostic(
+                    "Response status '\(outcome.key.rawValue)' is ignored; only success and error outcomes are generated",
+                    pointer + "/responses/" + outcome.key.rawValue, .note))
+        }
+        var successes = outcomes.filter { $0.key.isSuccess }
         let defaults = outcomes.filter { $0.key.rawValue == "default" }
-        if success.isEmpty { success = defaults }
-        let errors =
-            outcomes.filter { $0.key.rawValue.hasPrefix("4") || $0.key.rawValue.hasPrefix("5") }
-            + (outcomes.contains { $0.key.isSuccess } ? defaults : [])
-        guard success.count == 1 else {
+        let hasSuccess = !successes.isEmpty
+        if successes.isEmpty { successes = defaults }
+        let errors = outcomes.filter {
+            $0.key.rawValue.hasPrefix("4") || $0.key.rawValue.hasPrefix("5")
+                || (hasSuccess && $0.key.rawValue == "default")
+        }
+        guard !successes.isEmpty else {
             throw unsupported(
-                "exactly one success outcome is required; status-tagged unions need runtime support",
-                pointer + "/responses")
+                "at least one success or default response is required", pointer + "/responses")
         }
-        guard errors.count <= 1 else {
-            throw unsupported(
-                "multiple error outcomes require status-tagged unions", pointer + "/responses")
-        }
-        func responsePointer(_ code: String) -> String { pointer + "/responses/" + code }
-        let locatedSuccess = try lookup.resolve(
-            success[0].value, at: responsePointer(success[0].key.rawValue))
-        let successBody = locatedSuccess.value
-        if success[0].key.rawValue == "204" || successBody.content.isEmpty {
-            result.response = .void
-        } else if let media = try selectedMedia(
-            successBody.content, pointer: locatedSuccess.pointer + "/content")
-        {
-            if isJSON(media.name) {
-                guard let schema = media.value.schema else {
-                    throw unsupported("JSON success responses require a schema", media.pointer)
-                }
-                result.response = try payload(
-                    schema, name: "Response", path: operationPath, owner: original,
-                    pointer: media.pointer + "/schema", nested: &result.nested)
-            } else {
-                result.response = .data
-            }
-        }
-        if let error = errors.first {
-            let locatedError = try lookup.resolve(
-                error.value, at: responsePointer(error.key.rawValue))
-            let body = locatedError.value
-            if !body.content.isEmpty {
-                guard
-                    let media = try selectedMedia(
-                        body.content, pointer: locatedError.pointer + "/content"),
-                    isJSON(media.name), let schema = media.value.schema
-                else {
-                    throw unsupported(
-                        "typed errors require a JSON schema", locatedError.pointer + "/content")
-                }
-                result.errorResponse = try payload(
-                    schema, name: "ErrorResponse", path: operationPath, owner: original,
-                    pointer: media.pointer + "/schema", nested: &result.nested)
-            }
+        result.responseOutcomes = try responseOutcomes(
+            successes.map { ResponseInput(status: $0.key.rawValue, response: $0.value) },
+            name: "Response", method: method,
+            path: operationPath, owner: original, pointer: pointer + "/responses",
+            nested: &result.nested)
+        result.response = responseType(
+            result.responseOutcomes, name: "Response", path: operationPath)
+        result.errorOutcomes = try responseOutcomes(
+            errors.map { ResponseInput(status: $0.key.rawValue, response: $0.value) },
+            name: "ErrorResponse", method: method,
+            path: operationPath, owner: original, pointer: pointer + "/responses",
+            nested: &result.nested)
+        if !result.errorOutcomes.isEmpty {
+            result.errorResponse =
+                result.errorOutcomes.count == 1 && result.errorOutcomes[0].payload == nil
+                ? nil
+                : responseType(result.errorOutcomes, name: "ErrorResponse", path: operationPath)
         }
         var nestedNames = NameAllocator(
             reserved: Naming.namespaceReserved.union(Naming.endpointReserved)
@@ -767,6 +802,19 @@ func pathSegments(_ path: String, properties: [Property]) throws -> EndpointPath
         }
         return !startsSegment || !endsSegment
     }
-    return embedded ? .computed(result) : .template(result)
+    if embedded {
+        // Computed paths interpolate raw scalar values before the runtime handles
+        // the resulting String. Enum descriptions are not their wire values.
+        for index in result.indices {
+            if case .parameter(let name) = result[index],
+                let property = properties.first(where: { $0.storageName == name }),
+                case .named = property.type
+            {
+                result[index] = .parameter(name + ".rawValue")
+            }
+        }
+        return .computed(result)
+    }
+    return .template(result)
 }
 #endif

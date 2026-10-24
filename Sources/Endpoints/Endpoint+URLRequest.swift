@@ -53,18 +53,24 @@ extension Endpoint {
                 isQuery = false
             }
 
-            guard let parameterValue = value as? ParameterRepresentable else {
+            let encodedValues: [String]
+            if let parameter = value as? ParameterRepresentable {
+                encodedValues = parameter.parameterValue.map { [$0] } ?? []
+            } else if let parameter = value as? MultiValueParameterRepresentable {
+                encodedValues = parameter.parameterValues
+            } else {
                 throw isQuery
                     ? EndpointError.invalidQuery(named: name, type: type(of: value))
                     : EndpointError.invalidForm(named: name, type: type(of: value))
             }
 
-            guard let encodedValue = parameterValue.parameterValue else { continue }
-
-            if isQuery {
-                urlQueryItems.append(URLQueryItem(name: name, value: encodedValue))
-            } else {
-                bodyFormItems.append(URLQueryItem(name: name, value: encodedValue))
+            for encodedValue in encodedValues {
+                let item = URLQueryItem(name: name, value: encodedValue)
+                if isQuery {
+                    urlQueryItems.append(item)
+                } else {
+                    bodyFormItems.append(item)
+                }
             }
         }
 

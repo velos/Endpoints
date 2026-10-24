@@ -16,9 +16,11 @@ import FoundationNetworking
 public enum EndpointError: Error, Sendable {
     /// The path and query didn't form a valid URL relative to the base URL.
     case invalid(components: URLComponents, relativeTo: URL)
-    /// A query parameter's value doesn't conform to ``ParameterRepresentable``.
+    /// A query parameter's value conforms to neither ``ParameterRepresentable`` nor
+    /// ``MultiValueParameterRepresentable`` (including arrays of parameter values).
     case invalidQuery(named: String, type: Any.Type)
-    /// A form parameter's value doesn't conform to ``ParameterRepresentable``.
+    /// A form parameter's value conforms to neither ``ParameterRepresentable`` nor
+    /// ``MultiValueParameterRepresentable`` (including arrays of parameter values).
     case invalidForm(named: String, type: Any.Type)
     /// A header's value doesn't conform to `CustomStringConvertible`.
     case invalidHeader(named: String, type: Any.Type)
@@ -72,6 +74,21 @@ extension JSONEncoder {
 
 public protocol DecoderType {
     func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T
+    /// Decodes a response body with access to the HTTP response.
+    ///
+    /// Defaults to `decode(_:from:)`.
+    func decode<T: Decodable>(
+        _ type: T.Type, from data: Data, response: HTTPURLResponse
+    ) throws -> T
+}
+
+public extension DecoderType {
+    /// Calls `decode(_:from:)`, ignoring the response.
+    func decode<T: Decodable>(
+        _ type: T.Type, from data: Data, response: HTTPURLResponse
+    ) throws -> T {
+        try decode(type, from: data)
+    }
 }
 
 extension JSONDecoder: DecoderType { }
@@ -124,8 +141,10 @@ public protocol Endpoint: Sendable {
     ///
     /// ``Parameter/query(_:path:)`` and ``Parameter/form(_:path:)`` read a property of
     /// this type. ``Parameter/queryValue(_:value:)`` and ``Parameter/formValue(_:value:)``
-    /// send a fixed value instead. Properties must conform to ``ParameterRepresentable``,
-    /// and `nil` values are left out of the request.
+    /// send a fixed value instead. Properties conform to ``ParameterRepresentable``
+    /// or ``MultiValueParameterRepresentable``; arrays send repeated keys in value order.
+    /// Nil values, empty arrays, and nil array elements are omitted. A single-value
+    /// ``ParameterRepresentable`` conformance takes precedence.
     associatedtype ParameterComponents: Sendable = Void
 
     /// The values that fill in the ``Definition``'s headers. Defaults to `Void`.

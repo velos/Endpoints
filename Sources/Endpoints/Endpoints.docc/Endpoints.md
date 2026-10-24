@@ -52,6 +52,7 @@ Start with <doc:Examples> for servers, environments, and common request shapes. 
 - ``PathRepresentable``
 - ``Parameter``
 - ``ParameterRepresentable``
+- ``MultiValueParameterRepresentable``
 - ``QueryEncodingStrategy``
 - ``Header``
 - ``HeaderField``
@@ -61,6 +62,7 @@ Start with <doc:Examples> for servers, environments, and common request shapes. 
 
 - ``EncoderType``
 - ``DecoderType``
+- ``HTTPResponseJSONDecoder``
 - ``EmptyCodable``
 - ``MultipartFormEncoder``
 - ``MultipartFormFile``
