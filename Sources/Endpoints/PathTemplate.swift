@@ -57,8 +57,15 @@ extension Int: PathRepresentable {
 /// let path: PathTemplate<EventEndpoint.PathComponents> = "calendars/\(path: \.calendarId)/events/\(path: \.eventId)"
 /// ```
 ///
-/// Slashes are added between components as needed. Pass `includesSlash: false` to
-/// place a value directly against the surrounding text.
+/// By default, interpolated values are separate path segments: slashes are added
+/// around them as needed, including before following literal text. Components
+/// joined with `+` are also separated by slashes as needed.
+///
+/// Pass `includesSlash: false` to embed a value directly against the surrounding
+/// text, for example `"files/\(path: \.id, includesSlash: false).json"`. This
+/// suppresses automatically inserted slashes without deleting literal slashes.
+/// Empty or nil values are omitted, an automatic slash is never added next to an
+/// existing one, and a trailing slash before an omitted final value is removed.
 public struct PathTemplate<T>: Sendable {
 
     private struct Literal: PathRepresentable {
@@ -151,29 +158,36 @@ public struct PathTemplate<T>: Sendable {
         })
 
         var fullString = ""
+        var trailingSlashWasInserted = false
         let previousComponents: [RepresentableInfo?] = [nil] + Array(allComponents.dropFirst())
         for (previous, component) in zip(previousComponents, allComponents) {
             let insertion = Self.normalizedPath(component.representable.pathSafe)
 
             if let previous = previous, component.includesSlash && !previous.includesSlash, fullString.last != "/", insertion.first != "/" {
                 fullString.append("/")
-            } else if !component.includesSlash, fullString.last == "/" {
+                trailingSlashWasInserted = true
+            } else if !component.includesSlash, trailingSlashWasInserted {
+                // Embedding can undo an automatic separator, but not a literal slash.
                 fullString.removeLast()
+                trailingSlashWasInserted = false
             }
 
             // if the last insertion is empty, then remove any trailing last '/'
             guard !insertion.isEmpty else {
                 if fullString.last == "/", component == allComponents.last {
                     fullString.removeLast()
+                    trailingSlashWasInserted = false
                 }
 
                 continue
             }
 
             fullString.append(insertion)
+            trailingSlashWasInserted = false
 
             if component.includesSlash, insertion.last != "/", component != allComponents.last {
                 fullString.append("/")
+                trailingSlashWasInserted = true
             }
         }
 
