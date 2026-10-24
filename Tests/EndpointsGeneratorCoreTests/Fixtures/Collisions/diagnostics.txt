@@ -1,0 +1,1 @@
+Collisions.openapi.yaml:11:5: error: Name collision 'GetPetEndpoint' between 'get-pet' and 'getPet'; use renames.operations["getPet"] [#/paths/~1two/get]

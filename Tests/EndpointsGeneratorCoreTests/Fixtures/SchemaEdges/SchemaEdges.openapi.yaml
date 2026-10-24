@@ -1,0 +1,74 @@
+openapi: 3.1.0
+info: {title: Schema edges, version: 1.0.0}
+servers:
+  - url: https://example.com
+    description: Zebra
+  - url: https://alternate.example
+    description: Alpha
+paths:
+  /files/{fileId}.json:
+    get:
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          deprecated: true
+          schema: {type: integer}
+        - name: legacy-filter
+          in: query
+          deprecated: true
+          schema: {type: string}
+        - name: X-Legacy
+          in: header
+          required: true
+          deprecated: true
+          schema: {type: string}
+      responses:
+        '204': {description: Empty}
+  /legacy:
+    get:
+      responses:
+        '200':
+          description: Legacy record
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LegacyRecord'}
+components:
+  schemas:
+    Shapes:
+      type: array
+      items:
+        type: object
+        required: [value]
+        properties:
+          value: {type: number}
+    Mode:
+      type: [string, 'null']
+      enum: [red, blue, null]
+    ReadOnlyID: {type: integer, format: int64, readOnly: true}
+    Container:
+      type: object
+      required: [mode, nickname, read-only, write-only, ref-read-only, child, values]
+      properties:
+        legacy: {$ref: '#/components/schemas/LegacyRecord'}
+        mode: {$ref: '#/components/schemas/Mode'}
+        nickname:
+          oneOf: [{type: string}, {type: 'null'}]
+        read-only: {type: string, readOnly: true}
+        write-only: {type: string, writeOnly: true}
+        ref-read-only: {$ref: '#/components/schemas/ReadOnlyID'}
+        child:
+          type: object
+          required: [nullable]
+          properties:
+            nullable: {type: [integer, 'null']}
+        values:
+          type: array
+          items: {type: [string, 'null']}
+    LegacyRecord:
+      type: object
+      deprecated: true
+      required: [old-name]
+      properties:
+        old-name: {type: string, deprecated: true}
+        old-count: {type: integer, deprecated: true}

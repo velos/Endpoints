@@ -1,0 +1,78 @@
+openapi: 3.0.3
+info:
+  title: Boundary API
+  version: 1.0.0
+servers:
+  - url: https://EXAMPLE.com/api/v3
+    description: Production
+paths:
+  /records/{recordId}:
+    parameters:
+      - name: recordId
+        in: path
+        required: true
+        schema: {type: string}
+    get:
+      operationId: getRecord
+      summary: Fetch an ordered record.
+      parameters:
+        - name: verbose
+          in: query
+          schema: {type: boolean}
+      security: []
+      responses:
+        '200':
+          description: Found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Record'}
+        '404':
+          description: Missing
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Problem'}
+    put:
+      operationId: updateRecord
+      parameters:
+        - name: X-Request-ID
+          in: header
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Record'}
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Record'}
+components:
+  schemas:
+    Record:
+      type: object
+      description: Property order is a public initializer contract.
+      required: [zeta, alpha, owner_id, id, timestamp]
+      properties:
+        zeta: {type: string}
+        alpha: {type: integer}
+        owner_id:
+          type: string
+          nullable: true
+          description: Required key, explicit null when there is no owner.
+        id: {type: integer, format: int64}
+        timestamp: {type: string, format: date-time}
+        metadata: {$ref: '#/components/schemas/Metadata'}
+        old-name: {type: string, deprecated: true}
+    Problem:
+      type: object
+      required: [message]
+      properties:
+        message: {type: string}
+    Metadata:
+      type: object
+      properties:
+        count: {type: integer, format: int32}
+        enabled: {type: boolean}

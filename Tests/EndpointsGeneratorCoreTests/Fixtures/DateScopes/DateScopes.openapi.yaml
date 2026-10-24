@@ -1,0 +1,61 @@
+openapi: 3.1.0
+info: {title: Date override scopes, version: 1.0.0}
+servers: [{url: 'https://example.com'}]
+paths:
+  /body:
+    post:
+      operationId: dateBody
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RecordAlias'}
+      responses: {'204': {description: Empty}}
+  /response:
+    get:
+      operationId: dateResponse
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RecordAlias'}
+  /error:
+    get:
+      operationId: dateError
+      responses:
+        '204': {description: Empty}
+        '400':
+          description: Error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RecordAlias'}
+  /plain:
+    post:
+      operationId: plain
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Plain'}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Plain'}
+        '400':
+          description: Error
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Plain'}
+components:
+  schemas:
+    RecordAlias: {$ref: '#/components/schemas/Record'}
+    Record:
+      type: object
+      required: [times]
+      properties:
+        times: {type: array, items: {$ref: '#/components/schemas/Timestamp'}}
+    Timestamp: {type: string, format: date-time}
+    Plain: {type: object, required: [value], properties: {value: {type: string}}}

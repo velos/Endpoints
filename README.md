@@ -307,7 +307,7 @@ Endpoint types without a mock make real requests. Mocked requests skip authentic
 
 ## Requirements
 
-- Swift 6.0 or later
+- Swift 6.1 or later
 - iOS 13, macOS 10.15, tvOS 13, or watchOS 6 to define endpoints and build requests
 - macOS 12 for the async/await and Combine request methods, and so for authentication. Other platforms have no additional requirement.
 - `EndpointsMocking` is available on Apple platforms only. Linux builds include `Endpoints`.

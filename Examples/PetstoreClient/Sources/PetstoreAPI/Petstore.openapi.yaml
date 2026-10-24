@@ -1,0 +1,134 @@
+openapi: 3.1.0
+info: {title: Petstore Subset, version: 1.0.0}
+servers:
+  - url: https://petstore.example/api/v3
+    description: Production
+  - url: https://staging.example/api/v3/
+    description: Staging
+security:
+  - api_key: []
+paths:
+  /pets/{petId}:
+    parameters:
+      - name: petId
+        in: path
+        required: true
+        schema: {type: integer}
+      - name: detail
+        in: query
+        schema: {type: string}
+    get:
+      operationId: getPet
+      summary: Get a pet.
+      tags: [pets]
+      parameters:
+        - name: detail
+          in: query
+          required: true
+          schema: {type: string}
+        - name: limit
+          in: query
+          schema: {type: integer}
+        - name: score
+          in: query
+          schema: {type: number}
+        - name: active
+          in: query
+          schema: {type: boolean}
+        - name: X-Request-ID
+          in: header
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Pet'}
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Problem'}
+    delete:
+      operationId: deletePet
+      responses:
+        '204': {description: Deleted}
+  /pets:
+    post:
+      operationId: createPet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Pet'}
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Pet'}
+    patch:
+      operationId: renamePet
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: {type: string}
+      responses:
+        '200':
+          description: Renamed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: {type: boolean}
+  /logo:
+    get:
+      security: []
+      responses:
+        '200':
+          description: Image
+          content:
+            image/png:
+              schema: {type: string, format: binary}
+components:
+  securitySchemes:
+    api_key: {type: apiKey, in: header, name: api_key}
+  schemas:
+    Pet:
+      description: A pet in the store.
+      type: object
+      required: [name, owner, tags]
+      properties:
+        name: {type: string}
+        owner: {type: [string, 'null']}
+        tags: {type: array, items: {type: string}}
+        id: {type: integer, format: int64}
+        status: {type: string, enum: [available, pending, sold]}
+        profile:
+          type: object
+          properties:
+            website: {type: string, format: uri}
+            uuid: {type: string, format: uuid}
+            avatar: {type: string, format: byte}
+        history:
+          type: array
+          items:
+            type: object
+            properties:
+              description: {type: string}
+        weight: {type: number}
+        class: {type: string}
+    Problem:
+      type: object
+      required: [code, message]
+      properties:
+        code: {type: integer}
+        message: {type: string}

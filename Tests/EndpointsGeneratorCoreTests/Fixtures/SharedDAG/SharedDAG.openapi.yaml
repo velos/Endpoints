@@ -1,0 +1,127 @@
+openapi: 3.1.0
+info: {title: Shared DAG, version: 1.0.0}
+servers: [{url: 'https://example.com'}]
+paths: {}
+components:
+  schemas:
+    Level0:
+      type: object
+      properties:
+        first: {$ref: '#/components/schemas/Level1'}
+        second: {$ref: '#/components/schemas/Level1'}
+        third: {$ref: '#/components/schemas/Level1'}
+    Level1:
+      type: object
+      properties:
+        first: {$ref: '#/components/schemas/Level2'}
+        second: {$ref: '#/components/schemas/Level2'}
+        third: {$ref: '#/components/schemas/Level2'}
+    Level2:
+      type: object
+      properties:
+        first: {$ref: '#/components/schemas/Level3'}
+        second: {$ref: '#/components/schemas/Level3'}
+        third: {$ref: '#/components/schemas/Level3'}
+    Level3:
+      type: object
+      properties:
+        first: {$ref: '#/components/schemas/Level4'}
+        second: {$ref: '#/components/schemas/Level4'}
+        third: {$ref: '#/components/schemas/Level4'}
+    Level4:
+      type: object
+      properties:
+        first: {$ref: '#/components/schemas/Level5'}
+        second: {$ref: '#/components/schemas/Level5'}
+        third: {$ref: '#/components/schemas/Level5'}
+    Level5:
+      type: object
+      properties:
+        first: {$ref: '#/components/schemas/Level6'}
+        second: {$ref: '#/components/schemas/Level6'}
+        third: {$ref: '#/components/schemas/Level6'}
+    Level6:
+      type: object
+      properties:
+        first: {$ref: '#/components/schemas/Level7'}
+        second: {$ref: '#/components/schemas/Level7'}
+        third: {$ref: '#/components/schemas/Level7'}
+    Level7:
+      type: object
+      properties:
+        first: {$ref: '#/components/schemas/Level8'}
+        second: {$ref: '#/components/schemas/Level8'}
+        third: {$ref: '#/components/schemas/Level8'}
+    Level8:
+      type: object
+      properties:
+        first: {$ref: '#/components/schemas/Level9'}
+        second: {$ref: '#/components/schemas/Level9'}
+        third: {$ref: '#/components/schemas/Level9'}
+    Level9:
+      type: object
+      properties:
+        first: {$ref: '#/components/schemas/Level10'}
+        second: {$ref: '#/components/schemas/Level10'}
+        third: {$ref: '#/components/schemas/Level10'}
+    Level10:
+      type: object
+      properties:
+        first: {$ref: '#/components/schemas/Level11'}
+        second: {$ref: '#/components/schemas/Level11'}
+        third: {$ref: '#/components/schemas/Level11'}
+    Level11:
+      type: object
+      properties:
+        first: {$ref: '#/components/schemas/Level12'}
+        second: {$ref: '#/components/schemas/Level12'}
+        third: {$ref: '#/components/schemas/Level12'}
+    Level12:
+      type: object
+      properties:
+        first: {$ref: '#/components/schemas/Level13'}
+        second: {$ref: '#/components/schemas/Level13'}
+        third: {$ref: '#/components/schemas/Level13'}
+    Level13:
+      type: object
+      properties:
+        first: {$ref: '#/components/schemas/Level14'}
+        second: {$ref: '#/components/schemas/Level14'}
+        third: {$ref: '#/components/schemas/Level14'}
+    Level14:
+      type: object
+      properties:
+        first: {$ref: '#/components/schemas/Level15'}
+        second: {$ref: '#/components/schemas/Level15'}
+        third: {$ref: '#/components/schemas/Level15'}
+    Level15:
+      type: object
+      properties:
+        first: {$ref: '#/components/schemas/Level16'}
+        second: {$ref: '#/components/schemas/Level16'}
+        third: {$ref: '#/components/schemas/Level16'}
+    Level16:
+      type: object
+      properties:
+        first: {$ref: '#/components/schemas/Level17'}
+        second: {$ref: '#/components/schemas/Level17'}
+        third: {$ref: '#/components/schemas/Level17'}
+    Level17:
+      type: object
+      properties:
+        first: {$ref: '#/components/schemas/Level18'}
+        second: {$ref: '#/components/schemas/Level18'}
+        third: {$ref: '#/components/schemas/Level18'}
+    Level18:
+      type: object
+      properties:
+        first: {$ref: '#/components/schemas/Level19'}
+        second: {$ref: '#/components/schemas/Level19'}
+        third: {$ref: '#/components/schemas/Level19'}
+    Level19:
+      type: object
+      properties:
+        first: {$ref: '#/components/schemas/Level20'}
+        second: {$ref: '#/components/schemas/Level20'}
+        third: {$ref: '#/components/schemas/Level20'}
+    Level20: {type: object, properties: {value: {type: string}}}
