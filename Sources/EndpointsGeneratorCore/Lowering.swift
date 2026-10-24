@@ -802,19 +802,7 @@ func pathSegments(_ path: String, properties: [Property]) throws -> EndpointPath
         }
         return !startsSegment || !endsSegment
     }
-    if embedded {
-        // Computed paths interpolate raw scalar values before the runtime handles
-        // the resulting String. Enum descriptions are not their wire values.
-        for index in result.indices {
-            if case .parameter(let name) = result[index],
-                let property = properties.first(where: { $0.storageName == name }),
-                case .named = property.type
-            {
-                result[index] = .parameter(name + ".rawValue")
-            }
-        }
-        return .computed(result)
-    }
+    if embedded { return .computed(result) }
     return .template(result)
 }
 #endif

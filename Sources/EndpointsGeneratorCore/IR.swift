@@ -131,8 +131,8 @@ enum PathSegment {
     case parameter(String)
 }
 
-/// Computed paths preserve embedded placeholders under the existing runtime's
-/// segment interpolation rules. Lowering chooses the strategy; rendering spells it.
+/// Computed paths encode each parameter through PathRepresentable while keeping
+/// literal template separators. Lowering chooses the strategy; rendering spells it.
 enum EndpointPath {
     case template([PathSegment])
     case computed([PathSegment])

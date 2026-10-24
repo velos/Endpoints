@@ -61,9 +61,11 @@ The updated design records these implementation details:
 5. Enum conformance extensions for deprecated endpoints also have the deprecation
    attribute, preventing generated references to the enclosing endpoint from
    warning. Schema deprecation remains documentation-only.
-6. Embedded enum path placeholders interpolate raw values before the existing
-   runtime handles the computed path String. Scalar simple/form serialization
-   accepts either explode value; exploded query arrays remain required.
+6. Embedded paths now return an internal `EncodedPath: PathRepresentable`,
+   concatenating literal template text and each parameter's `.pathSafe` (including
+   enums). This replaces the original computed raw String after runtime path fix
+   velos/Endpoints#24 merged. Scalar simple/form serialization accepts either
+   explode value; exploded query arrays remain required.
 7. An operation with no success/default outcome receives an unsupported diagnostic.
    No public response shape is invented for it.
 
@@ -99,20 +101,19 @@ CI sandbox settings are unchanged: CI builds with sandboxing enabled. The prior
 foundation probe established that Codex blocks nested sandbox-exec at manifest
 loading; these local runs do not establish plugin sandbox qualification.
 
-## Every added known-issue wrapper
+## Remaining known-issue wrappers (after PR#24)
 
-All are in `Tests/EndpointsGeneratedGoldenTests/OperationTests.swift`, with comments
-naming `claude/endpoints-runtime-fixes`. None are intermittent; unexpected success
-will flag the wrapper for removal.
+Both are in `Tests/EndpointsGeneratedGoldenTests/OperationTests.swift`, with comments
+naming `claude/endpoints-runtime-fixes`. Neither is intermittent; unexpected success
+will flag the wrapper for removal. The original path wrapper has been removed;
+`pathSpecialCharactersEncodeOnce` now passes without a wrapper.
 
 - `optionalHeadersOmitNilAndDescribePresentValues`: correct omission and present
   header assertions; only `EndpointError.invalidHeader` is matched as known.
-- `pathSpecialCharactersEncodeOnce`: request creation remains outside the wrapper;
-  only the correct URL expectation is wrapped, exposing double percent encoding.
 - `emptyBodyErrorUsesDefaultEmptyCodable`: expects a typed EmptyCodable error;
   only an empty-body `errorResponseParseError` containing DecodingError is matched.
 
-The three bug implementations are intentionally unchanged.
+The two remaining bug implementations are intentionally unchanged.
 
 ## Runtime-hooks review revisions
 
@@ -178,3 +179,36 @@ then ran. No source files were removed and no commits were created.
 - Async/callback success and typed-error metadata have separately named tests;
   empty-body decoding has separate tests for each overload. Error-only operations
   have their own mapping test. The three known-issue wrappers remain unchanged.
+
+## Post-merge embedded-path repair
+
+Runtime hooks are committed as `f0c87c7`; path encoding fix velos/Endpoints#24 is
+merged into PR#23. The path known-issue wrapper has been removed. Exactly two
+known issues remain: optional header omission and empty-body EmptyCodable errors.
+
+A standalone probe of the merged `PathTemplate` established that ordinary
+interpolation inserts a slash before `.json`, while `includesSlash: false`
+removes the preceding literal slash. Prefixes and two-parameter segments were
+also probed. Computed paths therefore remain, with a generated internal wrapper
+whose `pathSafe` concatenates literal text and individually encoded parameters.
+No runtime implementation or generated public signature was changed.
+
+The new Operations endpoint covers prefixed, adjacent and suffixed parameters
+and a later segment. Its request assertions failed before the repair for all
+seven inputs: spaces, `/`, `?`, `%`, a literal `%2F`, `#` and Unicode. They assert
+exact escaped URL bytes, segment count and absence of a query or fragment.
+Regenerated Operations and SchemaEdges cover string, enum and integer embedded
+values, including deprecated parameter backing storage.
+
+Local verification on Apple Swift 6.4 after this repair:
+
+| Check (all with `--disable-sandbox -Xswiftc -warnings-as-errors`) | Result |
+|---|---|
+| Root `swift build --build-tests` | Pass, zero warnings |
+| Root `swift test` | Pass: runtime 99, mocking 20, Core 31, generated goldens 20; 170 total, exactly 2 known issues |
+| PetstoreClient `swift build --build-tests` / `swift test` | Pass, zero warnings; 2 tests |
+| RuntimeOnlyClient `swift build --build-tests` / `swift test` | Pass, zero warnings; 1 test |
+
+The root suite includes source golden equality, process determinism and banned-API
+checks. `git diff --check` passes. Linux execution remains an owner-run check;
+this repair changes only the generator, fixtures, tests and documentation.

@@ -129,14 +129,13 @@ absent on disk and no longer included in compilation.
 - Namespace-level array aliases with inline object items emit sibling item types
   (for example `Shapes` and `ShapesItem`); Swift cannot nest declarations in a
   typealias. These generated names participate in collision checks.
-- Embedded path placeholders such as `/files/{fileId}.json` use a fileprivate
-  computed raw path on PathComponents. This preserves the requested public
-  components and works with this runtime's interpolation/slash semantics. Normal
-  full-segment placeholders use the hand-written endpoint style directly.
-- This runtime still double-encodes special characters in String path values.
-  Generated values remain raw; this slice does not work around or modify that
-  runtime defect. Request goldens assert ordinary String/Int paths and an embedded
-  placeholder; single-encoding qualification belongs to the separate runtime PR.
+- Embedded path placeholders such as `/files/{fileId}.json` originally used a
+  fileprivate computed raw String on PathComponents. After runtime fix
+  velos/Endpoints#24 merged, this was replaced with an internal `EncodedPath`
+  wrapper: literals retain separators and each parameter contributes `.pathSafe`.
+  Full-segment placeholders still use the hand-written endpoint style directly.
+  The post-merge regression checks cover embedded spaces, `/`, `?`, `#`, `%`,
+  pre-escaped-looking values and Unicode; see the runtime-hooks verification record.
 - Date support is derived from retained IR, so skipped date-valued constructs
   cannot emit an unused RFC 3339 helper. The date tests include the UTC and offset
   leap-second examples from [RFC 3339 sections 5.7–5.8](https://www.rfc-editor.org/rfc/rfc3339).

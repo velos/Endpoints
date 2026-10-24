@@ -382,9 +382,11 @@ struct Rendering {
                 }, &writer)
             if group.typeName == "PathComponents", case .computed(let segments) = endpoint.path {
                 writer.line()
-                writer.line(
-                    "fileprivate var _endpointPath: String { \(pathLiteral(segments, computed: true)) }"
-                )
+                writer.line("fileprivate var _endpointPath: \(namespace).EncodedPath {")
+                writer.indent()
+                writer.line(".init(pathSafe: \(pathLiteral(segments, computed: true)))")
+                writer.outdent()
+                writer.line("}")
             }
             writer.outdent()
             writer.line("}")
@@ -438,7 +440,7 @@ struct Rendering {
             switch segment {
             case .literal(let literal): result += swiftLiteral(literal).dropFirst().dropLast()
             case .parameter(let parameter):
-                result += computed ? "\\(\(parameter))" : "\\(path: \\.\(parameter))"
+                result += computed ? "\\(\(parameter).pathSafe)" : "\\(path: \\.\(parameter))"
             }
         }
         return result + "\""
@@ -495,6 +497,20 @@ struct Rendering {
         file { writer in
             writer.line("extension \(namespace) {")
             writer.indent()
+            if module.endpoints.contains(where: {
+                if case .computed = $0.path { return true }
+                return false
+            }) {
+                writer.line(
+                    "/// A path assembled from literal text and individually encoded parameter values."
+                )
+                writer.line("struct EncodedPath: PathRepresentable {")
+                writer.indent()
+                writer.line("let pathSafe: String")
+                writer.outdent()
+                writer.line("}")
+                writer.line()
+            }
             writer.line("enum JSONCoding {")
             writer.indent()
             writer.line("static func makeDecoder(")

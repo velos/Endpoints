@@ -6,6 +6,11 @@ import Endpoints
 import Foundation
 
 extension SchemaEdges {
+    /// A path assembled from literal text and individually encoded parameter values.
+    struct EncodedPath: PathRepresentable {
+        let pathSafe: String
+    }
+
     enum JSONCoding {
         static func makeDecoder(
             isRawDataStatus: @Sendable @escaping (_ statusCode: Int) -> Bool = { _ in false }

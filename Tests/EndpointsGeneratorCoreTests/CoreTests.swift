@@ -29,7 +29,7 @@ import Testing
 
     @Test func allocationRejectsReservedAndCollidingNames() throws {
         var allocator = NameAllocator(reserved: Naming.namespaceReserved)
-        for name in ["Date", "Server", "JSONDecoder", "RFC3339", "Header"] {
+        for name in ["Date", "Server", "JSONDecoder", "RFC3339", "Header", "EncodedPath"] {
             #expect(throws: NameError.self) {
                 try allocator.claim(name, original: name, hint: renameHint(.schemas, name))
             }

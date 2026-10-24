@@ -66,6 +66,32 @@ import FoundationNetworking
         #expect(Operations.MetadataEndpoint.Response.self == Void.self)
     }
 
+    @Test(arguments: [
+        ["a b", "a%20b"],
+        ["a/b", "a%2Fb"],
+        ["a?b", "a%3Fb"],
+        ["a%b", "a%25b"],
+        ["a%2Fb", "a%252Fb"],
+        ["a#b", "a%23b"],
+        ["café東京", "caf%C3%A9%E6%9D%B1%E4%BA%AC"],
+    ])
+    func embeddedValuesEncodeOnceWithoutAddingPathStructure(valueAndEncoding: [String]) throws {
+        let value = valueAndEncoding[0]
+        let encoded = valueAndEncoding[1]
+        let request = try Operations.EmbeddedValuesEndpoint(
+            pathComponents: .init(first: value, second: value, third: value)
+        ).urlRequest()
+        #expect(
+            request.url?.absoluteString
+                == "https://example.com/api/embedded/pre-\(encoded)\(encoded).json/next/\(encoded).txt"
+        )
+        let url = try #require(request.url)
+        let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: true))
+        #expect(components.percentEncodedPath.split(separator: "/").count == 5)
+        #expect(components.query == nil)
+        #expect(components.fragment == nil)
+    }
+
     @Test func exactSuccessBeforeRangeAndEmptyUnionCase() throws {
         for status in [200, 201, 204, 299] {
             let decoded = try Operations.LookupEndpoint.responseDecoder.decode(
@@ -275,12 +301,9 @@ import FoundationNetworking
     }
 
     @Test func pathSpecialCharactersEncodeOnce() throws {
-        // Path double-encoding bug; owned by claude/endpoints-runtime-fixes.
         let request = try Operations.SpecialPathEndpoint(pathComponents: .init(name: "a b%#?"))
             .urlRequest()
-        withKnownIssue("Path values are double encoded; claude/endpoints-runtime-fixes") {
-            #expect(request.url?.absoluteString == "https://example.com/api/special/a%20b%25%23%3F")
-        }
+        #expect(request.url?.absoluteString == "https://example.com/api/special/a%20b%25%23%3F")
     }
 
     @Test func emptyBodyErrorUsesDefaultEmptyCodable() {

@@ -34,7 +34,9 @@ extension SchemaEdges {
                 self._fileId = fileId
             }
 
-            fileprivate var _endpointPath: String { "files/\(_fileId).json" }
+            fileprivate var _endpointPath: SchemaEdges.EncodedPath {
+                .init(pathSafe: "files/\(_fileId.pathSafe).json")
+            }
         }
 
         struct ParameterComponents: Sendable {

@@ -15,7 +15,7 @@ public enum Naming {
             + "required final weak unowned Type Protocol")
             .split(separator: " ").map(String.init))
     public static let namespaceReserved = Set(
-        ("Server Environment JSONCoding RFC3339 JSONValue Indirect RawBodyEncoder "
+        ("Server Environment JSONCoding RFC3339 JSONValue Indirect RawBodyEncoder EncodedPath "
             + "String Int Int32 Int64 Double Bool Date Data UUID URL Optional Array "
             + "Dictionary Decodable Encodable Codable CodingKey Hashable Sendable "
             + "CaseIterable RawRepresentable Decoder Encoder DecodingError EncodingError "

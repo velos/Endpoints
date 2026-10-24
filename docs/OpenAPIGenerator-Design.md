@@ -1,9 +1,9 @@
 # OpenAPI → Endpoints Generator: Architecture and Implementation Plan (revised after review)
 
 Repository: `/Users/zac/Projects/velos/Endpoints/.claude/worktrees/openapi-endpoint-generation-f58e25`
-Status: foundation committed as `54563a1`; runtime hooks (§6.1–6.3) and full parameter/status-response generation implemented. Local verification is recorded in OpenAPIGenerator-Verification.md. Linux execution and native Xcode verification remain owner-run checks.
+Status: foundation committed as `54563a1`; runtime hooks (§6.1–6.3) and full parameter/status-response generation committed as `f0c87c7`. Path encoding fix velos/Endpoints#24 is merged; generated embedded paths use individually encoded values. Local verification is recorded in OpenAPIGenerator-RuntimeHooks-Verification.md (foundation history: OpenAPIGenerator-Verification.md). Linux execution and native Xcode verification remain owner-run checks.
 
-**Separately owned runtime bugs:** `claude/endpoints-runtime-fixes` fixes path double encoding, optional header omission (§6.4), and empty-body `EmptyCodable` error decoding (the last part of §6.1). This phase leaves those implementations untouched. Generated integration tests assert the intended behavior using `withKnownIssue` only for these three bugs; those wrappers must be removed when the fixes land.
+**Separately owned runtime bugs:** path double encoding is fixed in velos/Endpoints#24 (merged into this branch). Optional header omission (§6.4) and empty-body `EmptyCodable` error decoding (the last part of §6.1) are still to be fixed separately, and this branch leaves their implementations untouched. Generated integration tests assert the intended behavior, using `withKnownIssue` only for those two bugs. Remove each wrapper when its fix lands.
 
 ---
 
@@ -241,9 +241,13 @@ Header parameter override identities compare names case-insensitively with ASCII
 
 Properties of `PathComponents`/`ParameterComponents`/`HeaderComponents` (declared `Sendable`, explicit `init`, optionals default `nil`). Headers dictionary entries sorted by header name.
 
+Full-segment placeholders use ordinary `PathTemplate` key-path interpolation. Embedded placeholders (prefixes, suffixes such as `.json`, or multiple parameters within a segment) use a fileprivate `_endpointPath` returning the internal `<Namespace>.EncodedPath: PathRepresentable` from Support. It concatenates literal template text with each parameter's `.pathSafe`, including enums through their RawRepresentable conformance. Literal `/` stays a separator; `/`, `?`, `#`, `%`, spaces and Unicode inside values are percent-encoded once. The runtime normalizer preserves those escapes before assigning `percentEncodedPath`. The helper is emitted only when an embedded path is retained; no generated public signature uses it.
+
+Ordinary interpolation cannot replace this strategy with the current runtime: `"files/\(path: \.name).json"` produces `files/42/.json`; setting `includesSlash: false` produces `files42.json`. A local probe also covered prefixed and two-parameter segments. Keeping computed paths avoids changing runtime slash semantics while protecting parameter boundaries.
+
 | Construct | Generated | Status |
 |---|---|---|
-| path string/int/int32/int64/uuid | `String`/`Int`/`Int32`/`Int64`/`UUID` (runtime conformances §6.3), raw value interpolated; runtime encodes once (prerequisite PR) | supported |
+| path string/int/int32/int64/uuid | `String`/`Int`/`Int32`/`Int64`/`UUID` (runtime conformances §6.3), `PathRepresentable.pathSafe` encodes each value once; template separators are preserved | supported |
 | path enum (inline/ref) | enum type + `extension X: PathRepresentable, ParameterRepresentable {}` | supported |
 | path bool/double/other | unsupported (error / skip op) | unsupported |
 | query scalar required/optional | `T` / `T?` | supported |
@@ -317,7 +321,7 @@ Models are `Codable, Hashable, Sendable`, properties `var`, explicit memberwise 
 3. PascalCase: uppercase the first ASCII letter of each token, keep the rest. lowerCamel: first token lowercased entirely if all-uppercase ASCII, else first letter only; other tokens Pascal.
 4. Leading digit → prefix `_`. No tokens → **error**.
 5. Members that are Swift keywords → backticks. Types equal to a keyword or `Type`/`Protocol`/`Self`/`Any` → **error**.
-6. Reserved (→ **error** with rename hint). The namespace name itself is reserved in namespace, struct-nested, and endpoint-nested type scopes, preventing qualified references from resolving to a shadowing nested type. Namespace scope: `Server`, `Environment`, `JSONCoding`, `JSONValue`, `Indirect`, `RawBodyEncoder`, and every unqualified library type the generated code references (`String, Int, Int32, Int64, Double, Bool, Date, Data, UUID, URL, Optional, Array, Dictionary, Decodable, Encodable, Codable, Hashable, Sendable, CaseIterable, RawRepresentable, Decoder, Encoder, DecodingError, EncodingError, KeyedDecodingContainer, KeyedEncodingContainer, Endpoint, Definition, Header, HeaderField, Parameter, PathTemplate, Method, NoAuth, EmptyCodable, JSONEncoder, JSONDecoder, HTTPResponseJSONDecoder, MultipartFormEncoder, MultipartFormFile, MultipartFormJSON, EncoderType, DecoderType, ParameterRepresentable, PathRepresentable, ServerDefinition, TypicalEnvironments`). Endpoint scope: `Server, Response, ErrorResponse, Body, PathComponents, ParameterComponents, HeaderComponents, Auth, TaskError, BodyEncoder, ErrorDecoder, ResponseDecoder, definition, body, pathComponents, parameterComponents, headerComponents, auth, bodyEncoder, errorDecoder, responseDecoder, queryEncodingStrategy`. Struct scope: `CodingKeys`, `init`, `hashValue`, `rawValue`, `allCases`, `knownValues`, `wrappedValue`, and `_<name>` for every boxed or deprecated property. Union scope: `DiscriminatorKeys`, case names of the status/kind tables.
+6. Reserved (→ **error** with rename hint). The namespace name itself is reserved in namespace, struct-nested, and endpoint-nested type scopes, preventing qualified references from resolving to a shadowing nested type. Namespace scope: `Server`, `Environment`, `JSONCoding`, `JSONValue`, `Indirect`, `RawBodyEncoder`, `EncodedPath`, and every unqualified library type the generated code references (`String, Int, Int32, Int64, Double, Bool, Date, Data, UUID, URL, Optional, Array, Dictionary, Decodable, Encodable, Codable, Hashable, Sendable, CaseIterable, RawRepresentable, Decoder, Encoder, DecodingError, EncodingError, KeyedDecodingContainer, KeyedEncodingContainer, Endpoint, Definition, Header, HeaderField, Parameter, PathTemplate, Method, NoAuth, EmptyCodable, JSONEncoder, JSONDecoder, HTTPResponseJSONDecoder, MultipartFormEncoder, MultipartFormFile, MultipartFormJSON, EncoderType, DecoderType, ParameterRepresentable, PathRepresentable, ServerDefinition, TypicalEnvironments`). Endpoint scope: `Server, Response, ErrorResponse, Body, PathComponents, ParameterComponents, HeaderComponents, Auth, TaskError, BodyEncoder, ErrorDecoder, ResponseDecoder, definition, body, pathComponents, parameterComponents, headerComponents, auth, bodyEncoder, errorDecoder, responseDecoder, queryEncodingStrategy`. Struct scope: `CodingKeys`, `init`, `hashValue`, `rawValue`, `allCases`, `knownValues`, `wrappedValue`, and `_<name>` for every boxed or deprecated property. Union scope: `DiscriminatorKeys`, case names of the status/kind tables.
 7. Rename hints use JSON-subscript form, e.g. `renames.operations["GET /pets/{petId}"]`. Collisions within a scope (two originals → one Swift name; a query and a form field with one name; endpoint names from `operationId` vs method+path) → **error** naming both originals and the `renames` key to use.
 8. Enum member names: lowerCamel of the raw value; `""` → `empty`; ints → `value<N>` / `valueMinus<N>`; collisions → error.
 9. Environment case names: from `servers[].description` (lowerCamel), fallback `server<index>`; collisions → error.
@@ -740,6 +744,16 @@ Schema-level deprecation is always the doc line `/// - Important: Deprecated by 
 The explicit `init(from:)`/`encode(to:)` on `Pet` appears for required-nullable or deprecated properties. Deprecated fields retain their public names, types and initializer labels, with private backing storage used by generated initialization and coding so consumer builds do not warn. Parameter components use fileprivate backing storage for endpoint key paths. Structs without either requirement use synthesized Codable. The untagged `IdOrName` is allowed because its members are distinguishable by JSON kind (number vs string).
 
 ### 7.4 `Petstore.Support.swift` (each part emitted only when used; `JSONCoding` whenever a decoder/encoder override exists)
+For APIs with embedded path parameters, Support also emits an internal wrapper (see §5.3):
+```swift
+extension Petstore {
+    /// A path assembled from literal text and individually encoded parameter values.
+    struct EncodedPath: PathRepresentable {
+        let pathSafe: String
+    }
+}
+```
+
 ```swift
 extension Petstore {
 

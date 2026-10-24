@@ -135,6 +135,14 @@ paths:
         - {name: state, in: path, required: true, schema: {type: string, enum: [ready-now, later]}}
         - {name: code, in: path, required: true, schema: {$ref: '#/components/schemas/Code'}}
       responses: {'204': {description: Empty}}
+  /embedded/pre-{first}{second}.json/next/{third}.txt:
+    get:
+      operationId: embeddedValues
+      parameters:
+        - {name: first, in: path, required: true, schema: {type: string}}
+        - {name: second, in: path, required: true, schema: {type: string}}
+        - {name: third, in: path, required: true, schema: {type: string}}
+      responses: {'204': {description: Empty}}
   /empty-error:
     get:
       operationId: emptyError
