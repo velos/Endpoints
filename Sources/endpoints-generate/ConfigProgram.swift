@@ -24,9 +24,16 @@ struct ConfigProcessRunner: Sendable {
         func text(_ url: URL, limit: Int = 65_536) -> String {
             guard let handle = try? FileHandle(forReadingFrom: url) else { return "" }
             defer { try? handle.close() }
-            let size = (try? handle.seekToEnd()) ?? 0
-            try? handle.seek(toOffset: size > UInt64(limit) ? size - UInt64(limit) : 0)
-            return String(decoding: (try? handle.read(upToCount: limit)) ?? Data(), as: UTF8.self)
+            // The package's macOS floor is 10.15; the throwing FileHandle API needs 10.15.4.
+            if #available(macOS 10.15.4, *) {
+                let size = (try? handle.seekToEnd()) ?? 0
+                try? handle.seek(toOffset: size > UInt64(limit) ? size - UInt64(limit) : 0)
+                return String(decoding: (try? handle.read(upToCount: limit)) ?? Data(), as: UTF8.self)
+            } else {
+                let size = handle.seekToEndOfFile()
+                handle.seek(toFileOffset: size > UInt64(limit) ? size - UInt64(limit) : 0)
+                return String(decoding: handle.readData(ofLength: limit), as: UTF8.self)
+            }
         }
         var tail: String { text(stderr).split(separator: "\n").suffix(20).joined(separator: "\n") }
     }
