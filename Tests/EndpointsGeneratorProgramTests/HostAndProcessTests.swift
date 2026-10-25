@@ -19,6 +19,51 @@ func programCLI() throws -> URL {
 }
 
 @Suite struct HostAndProcessTests {
+    @Test func configDiagnosticsPreserveTheSuppliedPathSpelling() throws {
+        let root = try programScratch()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let config = root.appendingPathComponent("Pets.endpoints.swift")
+        let spec = root.appendingPathComponent("Pets.openapi.yaml")
+        try simpleProgramSpec.write(to: spec)
+        let warning = """
+            @available(*, deprecated, message: "configuration warning probe")
+            func previousConfiguration() -> EndpointsConfiguration { .init() }
+            let petsConfiguration = previousConfiguration()
+            """
+        let scenarios: [(String, Int32, String)] = [
+            ("let petsConfiguration = EndpointsConfiguration(); let value = Int.random(in: 0...1)",
+                1, "'random' is not allowed"),
+            ("let petsConfiguration = EndpointsConfiguration(accessLevel: 42)",
+                1, ": error:"),
+            ("let petsConfiguration = 42", 1, "exactly one"),
+            (#"let petsConfiguration = EndpointsConfiguration(operationNamingStrategy: .custom { _ in struct Local {}; return "\([Local()])" })"#,
+                1, "configuration program is not deterministic"),
+            (#"let petsConfiguration = EndpointsConfiguration(renames: [.type("Absent"): "Missing"])"#,
+                0, "Unused rename target"),
+            (warning, 0, "configuration warning probe"),
+            (warning, 0, "configuration warning probe"),  // Replay the cached warning.
+        ]
+        for (index, scenario) in scenarios.enumerated() {
+            let (declarations, status, message) = scenario
+            try Data(("// endpoints-configuration-version: 1\nimport EndpointsGeneratorConfig\n"
+                + declarations + "\n").utf8).write(to: config)
+            let suppliedPath = "../Pets.endpoints.swift"
+            let result = try ConfigProcessRunner().run(
+                programCLI(), arguments: [
+                    "generate", "--spec", spec.path, "--stem", "Pets",
+                    "--config-swift", suppliedPath,
+                    "--output-dir", root.appendingPathComponent("out").path,
+                    "--config-cache", root.appendingPathComponent("cache").path,
+                ], directory: root.appendingPathComponent("run\(index)"), timeout: 60)
+            let text = result.text(result.stderr)
+            try #require(!result.timedOut && result.status == status, "\(text)")
+            #expect(text.contains(message), "\(text)")
+            let blocks = CompilerDiagnosticBlock.parse(text)
+            try #require(!blocks.isEmpty, "\(text)")
+            #expect(blocks.allSatisfy { $0.path == suppliedPath }, "\(text)")
+            #expect(!text.contains(".tmp-"))
+        }
+    }
     @Test func configurationCompilesInConsumerLanguageAndIsolationModes() throws {
         let root = try programScratch()
         defer { try? FileManager.default.removeItem(at: root) }

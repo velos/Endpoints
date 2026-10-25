@@ -198,9 +198,9 @@ func generation(_ stem: String, configuration: EndpointsConfiguration) throws ->
                 var text = try String(contentsOf: url, encoding: .utf8)
                 if url.lastPathComponent == "ConfigLexicalCheck.swift" {
                     // Ban-list spellings are data. Actual API calls still fail this lint.
-                    for name in ["Mirror", "Hasher"] {
-                        text = text.replacingOccurrences(of: "\"" + name + "\"", with: "")
-                    }
+                    text = text.replacingOccurrences(
+                        of: #""[A-Za-z]*(Mirror|Hasher)[A-Za-z]*""#, with: "",
+                        options: .regularExpression)
                 }
                 for token in tokens {
                     #expect(

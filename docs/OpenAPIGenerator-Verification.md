@@ -781,7 +781,8 @@ The supplied `scratchpad/review/` probes and native logs were read only.
    compiling. The dual run added in the second-review correction below is the
    runtime guard for user configs. CI's macOS+Linux `--check` covers only this
    repository's fixtures, not users' configs. It does not prove arbitrary Swift
-   code deterministic or detect stable cross-host capacity/Unicode differences. The design records the
+   code deterministic or detect stable cross-host Unicode differences. The capacity
+   channel is now rejected by the follow-up below. The design records the
    legitimate uses excluded by the bans: regexes, key-path mapping conveniences,
    reference-type helpers, manual hashing and some benign helper names matching
    the pre-existing substring rules. Ordinary String/Array/Dictionary/Set
@@ -904,13 +905,14 @@ foreign compiler notes (including replayed cached notes), and wrong rename lines
 3. **Scope:** the lexical gate blocks cheap, known channels before compiling.
    The dual run is the runtime guard for user configs. CI's macOS+Linux `--check`
    covers only this repository's fixtures, not users' configs. These statements
-   replace the earlier claim to close every known channel. `Array.capacity` and
-   `ManagedBuffer.capacity` can observe allocator size classes (`malloc_size`
-   and platform equivalents), differing between macOS and Linux while stable
-   across repeated runs on one host. Standard-library Unicode properties can
-   change between toolchain versions. Those observations are outside the portable
-   naming contract; two equal executions do not establish cross-host portability
-   or prove arbitrary Swift code deterministic.
+   replace the earlier claim to close every known channel. The follow-up below
+   bans the measured allocator-dependent `Array.capacity` and
+   `ManagedBuffer.capacity` observations. Standard-library Unicode properties
+   can change between toolchain versions. On macOS the config program links the
+   OS stdlib, so Unicode tables can also change between macOS versions with the
+   same Xcode. Those Unicode observations are outside the portable naming contract;
+   two equal executions do not establish cross-host portability or prove arbitrary
+   Swift code deterministic.
 4. **Compiler notes:** only blocks whose standardized/resolved path is the config
    are forwarded. Foreign notes, including temporary embedded-DSL declaration
    notes, are dropped. Foreign errors retain the existing entry-error mapping
@@ -967,3 +969,44 @@ compiler errors, no temporary DSL notes on a cache hit, the runtime mismatch
 error/target note, and acceptance of the owner's config. No owner probe or native
 project was edited, and no Linux, native Xcode or plugin-sandbox success is
 claimed from these local checks. The changes remain uncommitted.
+
+
+## 3N-2 non-blocking follow-up after 66c2b9b
+
+1. **Allocator observations:** the exact identifier `capacity` is rejected before
+   compilation, including member access. Lexer rows also confirm that comments
+   and literal text remain opaque, and that `reserveCapacity` and
+   `minimumCapacity` remain allowed. The measured Array/ManagedBuffer allocator
+   channel is no longer listed as out of scope.
+2. **Unicode scope:** on macOS the config program links the OS stdlib. Unicode
+   tables can therefore change between macOS versions with the same Xcode, as
+   well as between toolchains. The ASCII helpers remain the portable option.
+3. **Runtime guard location:** the error now says “two runs produced different
+   results”. Both the error and its associated note point at the entry
+   declaration's line and column. The local/private-type and declarative-only
+   cases pin non-1:1 positions on cold and cached evaluations.
+4. **Diagnostic paths:** all config diagnostics preserve the path spelling
+   supplied to the CLI. Canonical paths still identify files and match compiler
+   blocks; only the forwarded header's path changes. Fresh and cached warnings,
+   lexical errors, compiler errors, entry errors, runtime errors/notes and rename
+   warnings are checked through the CLI with a relative config path. Restored
+   diagnostic metadata continues to be filtered against the actual config file.
+5. **Swift rename formatting:** errors and warnings omit `[#/renames/N]` suffixes.
+   Internal pointers are retained for locating/sorting diagnostics, and private
+   JSON transport diagnostics keep their pointer suffixes. The existing eight
+   authored-line warning checks and invalid-rename check pin the Swift output.
+
+**Local validation:** `swift test --disable-sandbox -Xswiftc -warnings-as-errors`
+passes all **227** tests, including 28 config-program tests, with exactly the two
+known issues (optional headers and empty-body `EmptyCodable`). Both example
+packages pass with the same flags (Petstore: 2 tests; RuntimeOnly: 1). There are
+zero project compiler warnings. The lexer, runtime-location, rename-formatting
+and CLI-path regressions failed against their pre-fix implementations.
+`git diff --check` passes. Logs: `/private/tmp/3n2-nits-baseline.log`,
+`3n2-nits-path-baseline.log`, `3n2-nits-program.log`, `3n2-nits-suite.log`,
+`3n2-nits-petstore.log` and `3n2-nits-runtime.log`.
+
+The owner's Linux `swift:6.1` result for committed 66c2b9b is 173 passing tests,
+including `runtimeGuardRejectsLocalAndPrivateTypeDescriptions`. This follow-up
+has not been run locally on Linux, with the plugin sandbox enabled, or in native
+Xcode. README and DocC are untouched; the follow-up remains uncommitted.

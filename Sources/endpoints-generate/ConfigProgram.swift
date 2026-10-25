@@ -131,6 +131,7 @@ struct ConfigCacheInputs {
 /// Host compiler/SDK identities and all nondeterministic cache bookkeeping stay here.
 final class ConfigProgram {
     let path: URL
+    let diagnosticPath: String
     let stem: String
     let source: Data
     let entryLine: Int
@@ -169,13 +170,17 @@ final class ConfigProgram {
         }
         return nil
     }
-    init(path: URL, stem: String, swiftc: URL?, cache: URL) throws {
+    init(
+        path: URL, stem: String, swiftc: URL?, cache: URL, diagnosticPath: String? = nil
+    ) throws {
+        let diagnosticPath = diagnosticPath ?? path.path
+        self.diagnosticPath = diagnosticPath
         self.path = path.standardizedFileURL
         self.stem = stem
         self.source = try Data(contentsOf: path)
         guard Naming.isIdentifier(stem), !Naming.keywords.contains(stem) else {
             throw ConfigProgramFailure(diagnostics: [
-                "\(path.path):1:1: error: stem must be a non-keyword ASCII Swift identifier"
+                "\(diagnosticPath):1:1: error: stem must be a non-keyword ASCII Swift identifier"
             ])
         }
         self.cache = cache.standardizedFileURL
@@ -184,7 +189,7 @@ final class ConfigProgram {
         entryColumn = checkedSource.entryColumn
         let issues = checkedSource.issues
         guard issues.isEmpty else {
-            throw ConfigProgramFailure(diagnostics: issues.map { $0.formatted(path: path.path) })
+            throw ConfigProgramFailure(diagnostics: issues.map { $0.formatted(path: diagnosticPath) })
         }
         try FileManager.default.createDirectory(at: self.cache, withIntermediateDirectories: true)
         let probe = try Self.temporary(
@@ -197,7 +202,7 @@ final class ConfigProgram {
                 executable, arguments: arguments, directory: logs, timeout: 30)
             guard result.status == 0 && !result.timedOut else {
                 throw ConfigProgramFailure(diagnostics: [
-                    "\(path.path):1:1: error: cannot determine \(label)\n" + result.tail
+                    "\(diagnosticPath):1:1: error: cannot determine \(label)\n" + result.tail
                 ])
             }
             return result.text(result.stdout).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -214,7 +219,7 @@ final class ConfigProgram {
             FileManager.default.isExecutableFile(atPath: selected.path)
         else {
             throw ConfigProgramFailure(diagnostics: [
-                "\(path.path):1:1: error: cannot find host swiftc; pass --swiftc <path>"
+                "\(diagnosticPath):1:1: error: cannot find host swiftc; pass --swiftc <path>"
             ])
         }
         compiler = selected.standardizedFileURL
@@ -290,17 +295,17 @@ final class ConfigProgram {
                 executable, arguments: arguments, directory: logs, timeout: timeout)
         } catch {
             throw ConfigProgramFailure(diagnostics: [
-                "\(path.path):1:1: error: cannot launch \(purpose): \(error)"
+                "\(diagnosticPath):1:1: error: cannot launch \(purpose): \(error)"
             ])
         }
         let blocks = CompilerDiagnosticBlock.parse(result.text(result.stderr))
         let forwarded = blocks.filter { isConfigurationPath($0.path) }
         if result.timedOut || result.signalled || result.status != 0 {
-            var messages = forwarded.map(\.text)
+            var messages = forwarded.map(configurationDiagnostic)
             var locatedError = forwarded.contains { $0.severity == "error" }
             if !locatedError, blocks.contains(where: { $0.severity == "error" }) {
                 messages.insert(
-                    "\(path.path):\(entryLine):\(entryColumn): error: "
+                    "\(diagnosticPath):\(entryLine):\(entryColumn): error: "
                         + ConfigLexicalCheck.entryMessage(stem: stem), at: 0)
                 locatedError = true
             }
@@ -310,22 +315,28 @@ final class ConfigProgram {
                     : result.signalled
                         ? "was terminated by signal \(result.status)"
                         : "exited with status \(result.status)"
-                messages.insert("\(path.path):1:1: error: \(purpose) \(reason)", at: 0)
+                messages.insert("\(diagnosticPath):1:1: error: \(purpose) \(reason)", at: 0)
                 if blocks.isEmpty { messages += stderrNotes(result.tail) }
             }
             throw ConfigProgramFailure(diagnostics: compilerDiagnostics + messages)
         }
-        for block in forwarded where !compilerDiagnostics.contains(block.text) {
-            compilerDiagnostics.append(block.text)
+        for block in forwarded {
+            let diagnostic = configurationDiagnostic(block)
+            if !compilerDiagnostics.contains(diagnostic) {
+                compilerDiagnostics.append(diagnostic)
+            }
         }
         return result
+    }
+    private func configurationDiagnostic(_ block: CompilerDiagnosticBlock) -> String {
+        diagnosticPath + block.text.dropFirst(block.path.count)
     }
     private func isConfigurationPath(_ candidate: String) -> Bool {
         URL(fileURLWithPath: candidate).standardizedFileURL.resolvingSymlinksInPath()
             == path.standardizedFileURL.resolvingSymlinksInPath()
     }
     private func stderrNotes(_ tail: String) -> [String] {
-        tail.split(separator: "\n").map { "\(path.path):1:1: note: " + $0 }
+        tail.split(separator: "\n").map { "\(diagnosticPath):1:1: note: " + $0 }
     }
     func valid(_ entry: URL) -> Bool {
         guard
@@ -389,7 +400,7 @@ final class ConfigProgram {
             String.init)
         if modules.contains(where: { !["Swift", "EndpointsGeneratorConfig"].contains($0) }) {
             throw ConfigProgramFailure(diagnostics: [
-                "\(path.path):1:1: error: configuration files may only import EndpointsGeneratorConfig"
+                "\(diagnosticPath):1:1: error: configuration files may only import EndpointsGeneratorConfig"
             ])
         }
         _ = try checked(
@@ -404,7 +415,7 @@ final class ConfigProgram {
         // The config was compiled in place; avoid publishing if it changed during compilation.
         guard try Data(contentsOf: path) == source else {
             throw ConfigProgramFailure(diagnostics: [
-                "\(path.path):1:1: error: configuration changed during compilation; build again"
+                "\(diagnosticPath):1:1: error: configuration changed during compilation; build again"
             ])
         }
         let binary = try Data(contentsOf: temporary.appendingPathComponent("config"))
@@ -500,7 +511,7 @@ final class ConfigProgram {
     func evaluate(_ requests: [NameRequest]) throws -> EvaluatedSwiftConfiguration {
         guard try Data(contentsOf: path) == source else {
             throw ConfigProgramFailure(diagnostics: [
-                "\(path.path):1:1: error: configuration changed during generation; build again"
+                "\(diagnosticPath):1:1: error: configuration changed during generation; build again"
             ])
         }
         let manager = FileManager.default
@@ -522,7 +533,7 @@ final class ConfigProgram {
                     // Also sanitize restored metadata produced before config-only filtering.
                     compilerDiagnostics = cached.flatMap(CompilerDiagnosticBlock.parse)
                         .filter { isConfigurationPath($0.path) }
-                        .map { path.path + $0.text.dropFirst($0.path.count) }
+                        .map(configurationDiagnostic)
                 } else {
                     if manager.fileExists(atPath: entry.path) {
                         let repairing = try ConfigFileLock(
@@ -560,9 +571,10 @@ final class ConfigProgram {
                     "first differing entry: " + targetSwift(requests[$0].target)
                 } ?? "declarative configuration differs between runs"
                 throw ConfigProgramFailure(diagnostics: [
-                    "\(path.path):1:1: error: configuration program is not deterministic: "
-                        + "two runs produced different names",
-                    "\(path.path):1:1: note: " + detail,
+                    "\(diagnosticPath):\(entryLine):\(entryColumn): error: "
+                        + "configuration program is not deterministic: "
+                        + "two runs produced different results",
+                    "\(diagnosticPath):\(entryLine):\(entryColumn): note: " + detail,
                 ] + compilerDiagnostics)
             }
             return first.configuration
@@ -597,18 +609,18 @@ final class ConfigProgram {
                     : "exited with status \(result.status)"
             throw ConfigProgramFailure(
                 diagnostics: [
-                    "\(path.path):1:1: error: configuration program \(reason)"
+                    "\(diagnosticPath):1:1: error: configuration program \(reason)"
                 ] + compilerDiagnostics + stderrNotes(result.tail))
         }
         guard let data = try? Data(contentsOf: response) else {
             throw ConfigProgramFailure(diagnostics: [
-                "\(path.path):1:1: error: configuration program did not write a response"
+                "\(diagnosticPath):1:1: error: configuration program did not write a response"
             ])
         }
         let text = String(decoding: data, as: UTF8.self)
         guard Array(text.utf8) == Array(data) else {
             throw ConfigProgramFailure(diagnostics: [
-                "\(path.path):1:1: error: configuration response is not UTF-8"
+                "\(diagnosticPath):1:1: error: configuration response is not UTF-8"
             ])
         }
         do {
@@ -620,7 +632,7 @@ final class ConfigProgram {
                     declarativeJSON: Data(json.utf8), names: names))
         } catch {
             throw ConfigProgramFailure(diagnostics: [
-                "\(path.path):1:1: error: invalid configuration response: \(error)"
+                "\(diagnosticPath):1:1: error: invalid configuration response: \(error)"
             ])
         }
     }

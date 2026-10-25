@@ -11,9 +11,49 @@ import Testing
     func issues(_ body: String) -> [ConfigIssue] {
         ConfigLexicalCheck.check(Data((header + body + entry).utf8), stem: "Pets")
     }
+    @Test func apiBansMatchExactCaseSensitiveTokensAndUnsafeBoundaries() {
+        for name in [
+            "randomPrefix", "taskName", "streetAddress", "pointerStyle", "asyncLabel",
+            "clockwise", "mirrored", "address", "unsafety", "unsafelyUnwrapped",
+            "Unsafety", "withUnsafety", "unsafe_label", "unsafe1", "withUnsafebytes",
+            "task", "clock", "mirror", "Random", "READLINE",
+            "RandomAccessCollection",
+        ] {
+            #expect(issues("let \(name) = 1").isEmpty, "Rejected helper: \(name)")
+        }
+        let rejected: [(String, String, Int)] = [
+            ("Int.random(in: 0...1)", "random", 5),
+            ("[1].randomElement()", "randomElement", 5),
+            (".shuffled()", "shuffled", 2), ("shuffle()", "shuffle", 1),
+            ("Task { }", "Task", 1), ("async", "async", 1), ("await", "await", 1),
+            ("ContinuousClock()", "ContinuousClock", 1),
+            (#""x".withCString { _ in }"#, "withCString", 5),
+            ("unsafeBitCast", "unsafeBitCast", 1), ("withUnsafeBytes", "withUnsafeBytes", 1),
+            ("UnsafePointer", "UnsafePointer", 1), ("unsafeLabel", "unsafeLabel", 1),
+            ("unsafe", "unsafe", 1), ("Unsafe", "Unsafe", 1), ("withUnsafe", "withUnsafe", 1),
+            ("SystemRandomNumberGenerator()", "SystemRandomNumberGenerator", 1),
+            ("RandomNumberGenerator", "RandomNumberGenerator", 1),
+            ("TaskGroup", "TaskGroup", 1), ("withTaskGroup", "withTaskGroup", 1),
+            ("withThrowingTaskGroup", "withThrowingTaskGroup", 1),
+            ("withDiscardingTaskGroup", "withDiscardingTaskGroup", 1),
+            ("withTaskCancellationHandler", "withTaskCancellationHandler", 1),
+            ("Clock", "Clock", 1), ("SuspendingClock()", "SuspendingClock", 1),
+            ("Duration", "Duration", 1), ("sleep", "sleep", 1),
+            ("ManagedBufferPointer", "ManagedBufferPointer", 1),
+            ("withContiguousMutableStorageIfAvailable", "withContiguousMutableStorageIfAvailable", 1),
+            ("getVaList", "getVaList", 1),
+            ("withUTF8Buffer", "withUTF8Buffer", 1), ("customMirror", "customMirror", 1),
+            ("`random`", "random", 2),
+        ]
+        let source = rejected.map(\.0).joined(separator: "\n")
+        #expect(issues(source) == rejected.enumerated().map { index, value in
+            ConfigIssue(line: index + 3, column: value.2,
+                message: "'\(value.1)' is not allowed in configuration files")
+        })
+    }
     @Test func lexerSeparatesLiteralTextFromExecutableChannels() {
         let banned =
-            "import Foundation #if #file #sourceLocation @_cdecl UnsafePointer ObjectIdentifier Int.random MemoryLayout CommandLine shuffle shuffled readLine ContinuousClock Task async await @unchecked _stdlib_isOSVersionAtLeast Unmanaged OpaquePointer withCString withUTF8 withContiguousStorageIfAvailable withVaList Mirror Hasher hashValue hash(into: class actor === !=="
+            "import Foundation #if #file #sourceLocation @_cdecl UnsafePointer ObjectIdentifier Int.random MemoryLayout CommandLine shuffle shuffled readLine ContinuousClock Task async await @unchecked _stdlib_isOSVersionAtLeast Unmanaged OpaquePointer withCString withUTF8 withContiguousStorageIfAvailable withVaList Mirror Hasher hashValue capacity hash(into: class actor === !== Duration sleep randomElement SystemRandomNumberGenerator RandomNumberGenerator withTaskGroup withThrowingTaskGroup withDiscardingTaskGroup withTaskCancellationHandler withUTF8Buffer customMirror unsafeBitCast withUnsafeBytes unsafeLabel"
         let literals = [
             "// " + banned + "\n",
             "/* " + banned + " /* nested */ */",
@@ -33,7 +73,7 @@ import Testing
             "@\n_cdecl(\"f\") func f() {}", "let x = UnsafePointer<Int>.self",
             "let x = ObjectIdentifier.self", "let x = Int.random(in: 1...2)",
             "let x = MemoryLayout<Int>.size", "let x = CommandLine.arguments", "let x = readLine()",
-            "let x = [1, 2].shuffled()", "var x = [1, 2]; x.shuffle()",
+            "let x = [1, 2].capacity", "let x = [1, 2].shuffled()", "var x = [1, 2]; x.shuffle()",
             "let x = ContinuousClock.now", "Task.detached {}", "let x = Unmanaged.self",
             "let x = OpaquePointer.self",
             "let x = \"text\".withCString { String(UInt(bitPattern: $0)) }",
@@ -49,6 +89,8 @@ import Testing
         }
         #expect(issues("// café\n  #line").first?.line == 4)
         #expect(issues("  #line").first?.column == 3)
+        #expect(issues(#"let text = "\(Duration.self)""#).first == ConfigIssue(
+            line: 3, column: 15, message: "'Duration' is not allowed in configuration files"))
     }
     @Test func regexKeyPathsAndIdentityChannelsAreRejected() {
         for source in [#"_ = /"/"#, #"_ = /x\//"#, #"_ = /[/*]/"#] {
@@ -63,7 +105,7 @@ import Testing
             message: "key-path expressions are not allowed in configuration files"))
         for name in [
             "ObjectIdentifier", "Unmanaged", "MemoryLayout", "Mirror", "Hasher", "hashValue",
-            "CommandLine", "unsafeBitCast", "UnsafeBufferPointer", "withUnsafeBytes",
+            "CommandLine", "capacity", "unsafeBitCast", "UnsafeBufferPointer", "withUnsafeBytes",
         ] {
             #expect(issues("let value = \(name)").first?.message
                 == "'\(name)' is not allowed in configuration files")
@@ -83,6 +125,7 @@ import Testing
                 == "identity operators are not allowed in configuration files")
         }
         for source in [
+            "var values = [1]; values.reserveCapacity(8); let minimumCapacity = 4",
             "let quotient = a / b; value /= 2", "struct Box { let name: String }",
             "enum State { case ready }; func name(_ text: String) -> String { text + text }",
             "let actor = 1; func hash(_ value: Int) -> Int { value }",

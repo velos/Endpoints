@@ -10,13 +10,15 @@ public struct Diagnostic: Equatable, Sendable {
     public let pointer: String
     public let severity: Severity
     public let message: String
+    var includesPointer = true
     public var formatted: String {
         let singleLine =
             message
             .replacingOccurrences(of: "\r", with: "\\r")
             .replacingOccurrences(of: "\n", with: "\\n")
             .replacingOccurrences(of: "\t", with: "\\t")
-        return "\(path):\(line):\(column): \(severity.rawValue): \(singleLine) [#\(pointer)]"
+        let suffix = includesPointer ? " [#\(pointer)]" : ""
+        return "\(path):\(line):\(column): \(severity.rawValue): \(singleLine)" + suffix
     }
     static func less(_ lhs: Self, _ rhs: Self) -> Bool {
         if !wireEqual(lhs.path, rhs.path) { return utf8Less(lhs.path, rhs.path) }
@@ -120,7 +122,8 @@ struct Source {
         if let swiftText {
             return Diagnostic(
                 path: path, line: swiftDiagnosticLine(at: pointer, in: swiftText), column: 1,
-                pointer: pointer, severity: severity, message: message)
+                pointer: pointer, severity: severity, message: message,
+                includesPointer: pointer != "/renames" && !pointer.hasPrefix("/renames/"))
         }
         let mark = keyNode(at: pointer)?.mark ?? node(at: pointer)?.mark
         return Diagnostic(

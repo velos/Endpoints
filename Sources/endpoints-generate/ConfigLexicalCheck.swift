@@ -118,6 +118,28 @@ enum ConfigLexicalCheck {
     }
 
     private struct Lexer {
+        // Public stdlib APIs that expose randomness, execution state, or identity.
+        // Match whole, case-sensitive tokens so ordinary helper names remain usable.
+        static let bannedAPIs: Set<String> = [
+            "random", "randomElement", "shuffled", "shuffle",
+            "SystemRandomNumberGenerator", "RandomNumberGenerator",
+            "Task", "TaskGroup", "ThrowingTaskGroup", "DiscardingTaskGroup",
+            "ThrowingDiscardingTaskGroup", "TaskLocal", "TaskPriority", "TaskExecutor",
+            "UnownedTaskExecutor", "withTaskGroup", "withThrowingTaskGroup",
+            "withDiscardingTaskGroup", "withThrowingDiscardingTaskGroup",
+            "withTaskCancellationHandler", "withTaskCancellationShield",
+            "withTaskExecutorPreference", "withTaskPriorityEscalationHandler",
+            "addTask", "addTaskUnlessCancelled", "addImmediateTask", "addImmediateTaskUnlessCancelled",
+            "async", "asyncDetached", "asyncUnlessCancelled", "await",
+            "Clock", "ContinuousClock", "SuspendingClock", "Duration", "sleep",
+            "readLine", "CommandLine",
+            "withCString", "withUTF8", "withUTF8Buffer",
+            "withContiguousStorageIfAvailable", "withContiguousMutableStorageIfAvailable",
+            "withVaList", "getVaList", "CVaListPointer", "OpaquePointer", "ManagedBufferPointer",
+            "AutoreleasingUnsafeMutablePointer", "baseAddress", "hasPointerRepresentation",
+            "Unmanaged", "ObjectIdentifier", "MemoryLayout", "Mirror", "MirrorPath",
+            "customMirror", "superclassMirror", "Hasher", "hashValue", "capacity",
+        ]
         let bytes: [UInt8]
         var index = 0
         var line = 1
@@ -235,16 +257,11 @@ enum ConfigLexicalCheck {
                     let implementationHook = name.hasPrefix("_") && name != "_" && !attribute
                     tokens.append(
                         Token(value: name, line: position.0, column: position.1, depth: depth))
-                    if [
-                        "unsafe", "objectidentifier", "random", "shuffle", "memorylayout", "commandline",
-                        "readline",
-                        "clock", "task", "async", "await",
-                        "unmanaged", "pointer", "address", "withcstring", "withutf8",
-                        "withcontiguous", "withvalist", "getvalist", "mirror",
-                    ].contains(where: { ASCII.lower(name).contains($0) }) || implementationHook
-                        || ["ObjectIdentifier", "Unmanaged", "MemoryLayout", "Mirror", "Hasher",
-                            "hashValue", "CommandLine"].contains(name)
-                        || ["unsafe", "Unsafe", "withUnsafe"].contains(where: name.hasPrefix)
+                    let unsafeAPI = ["unsafe", "Unsafe", "withUnsafe"].contains { prefix in
+                        guard name.hasPrefix(prefix) else { return false }
+                        return name.dropFirst(prefix.count).first.map { $0.isUppercase } ?? true
+                    }
+                    if Self.bannedAPIs.contains(name) || implementationHook || unsafeAPI
                     {
                         issues.append(
                             ConfigIssue(

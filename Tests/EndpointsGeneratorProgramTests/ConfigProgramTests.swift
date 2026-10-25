@@ -37,7 +37,7 @@ func evaluate(_ program: ConfigProgram, spec: Data, stem: String = "Pets") throw
 {
     try Generator.generate(
         spec: spec, swiftConfiguration: program.source, stem: stem, specPath: stem + ".yaml",
-        configurationPath: program.path.path, evaluate: program.evaluate)
+        configurationPath: program.diagnosticPath, evaluate: program.evaluate)
 }
 let simpleProgramSpec = Data(
     """
@@ -151,12 +151,12 @@ let simpleProgramSpec = Data(
         let header = "// endpoints-configuration-version: 1\nimport EndpointsGeneratorConfig\n"
         let operationNote = "first differing entry: .operation(\"legacy_get_pets\")"
         let bodies = [
-            (#"let petsConfiguration = EndpointsConfiguration(operationNamingStrategy: .custom { _ in struct Local {}; return "\([Local()])" })"#, operationNote),
-            (#"private struct Local {}; let petsConfiguration = EndpointsConfiguration(operationNamingStrategy: .custom { _ in "\([Local()])" })"#, operationNote),
-            (#"let petsConfiguration: EndpointsConfiguration = { struct Local {}; return .init(namespace: "\([Local()])") }()"#, "declarative configuration differs between runs"),
+            (#"    let petsConfiguration = EndpointsConfiguration(operationNamingStrategy: .custom { _ in struct Local {}; return "\([Local()])" })"#, operationNote, 3, 5),
+            ("private struct Local {}\n" + #"    let petsConfiguration = EndpointsConfiguration(operationNamingStrategy: .custom { _ in "\([Local()])" })"#, operationNote, 4, 5),
+            (#"    let petsConfiguration: EndpointsConfiguration = { struct Local {}; return .init(namespace: "\([Local()])") }()"#, "declarative configuration differs between runs", 3, 5),
         ]
         for (index, scenario) in bodies.enumerated() {
-            let (body, note) = scenario
+            let (body, note, line, column) = scenario
             let file = root.appendingPathComponent("Pets.endpoints.swift")
             try Data((header + body + "\n").utf8).write(to: file)
             for attempt in 0..<2 {
@@ -168,9 +168,9 @@ let simpleProgramSpec = Data(
                     Issue.record("Accepted an address-dependent description")
                 } catch let failure as ConfigProgramFailure {
                     #expect(failure.diagnostics.first == file.path
-                        + ":1:1: error: configuration program is not deterministic: two runs produced different names")
+                        + ":\(line):\(column): error: configuration program is not deterministic: two runs produced different results")
                     #expect(failure.diagnostics.contains {
-                        $0 == file.path + ":1:1: note: " + note
+                        $0 == file.path + ":\(line):\(column): note: " + note
                     })
                     #expect(program.runDurations.count == 2)
                     #expect(program.cacheHit == (attempt == 1))
@@ -200,6 +200,9 @@ let simpleProgramSpec = Data(
         for (target, line) in expected {
             let diagnostic = try #require(warnings.first { $0.message == "Unused rename target " + target })
             #expect(diagnostic.line == line, "\(target): \(diagnostic)")
+            #expect(diagnostic.pointer.hasPrefix("/renames/"))
+            #expect(diagnostic.formatted
+                == "\(file.path):\(line):1: warning: Unused rename target " + target)
         }
     }
     @Test func semanticConfigErrorsPointToSwiftRenameLines() throws {
@@ -219,6 +222,8 @@ let simpleProgramSpec = Data(
         let error = try #require(result.diagnostics.first { $0.severity == .error })
         #expect(error.path == file.path && error.line == 5)
         #expect(error.message.contains("Invalid rename value"))
+        #expect(error.pointer.hasPrefix("/renames/"))
+        #expect(error.formatted == "\(file.path):5:1: error: " + error.message)
     }
     @Test func namingErrorsGolden() throws {
         let file = programFixture("NamingErrors", ".endpoints.swift")

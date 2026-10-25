@@ -77,10 +77,11 @@ if let path = option("--config-swift") {
                 .appendingPathComponent("ConfigProgram")
         let program = try ConfigProgram(
             path: file, stem: stem,
-            swiftc: option("--swiftc").map { URL(fileURLWithPath: $0) }, cache: cache)
+            swiftc: option("--swiftc").map { URL(fileURLWithPath: $0) }, cache: cache,
+            diagnosticPath: path)
         result = try Generator.generate(
             spec: spec, swiftConfiguration: program.source, stem: stem,
-            specPath: specPath, configurationPath: file.path, evaluate: program.evaluate)
+            specPath: specPath, configurationPath: path, evaluate: program.evaluate)
         report(program.compilerDiagnostics)
     } catch let failure as ConfigProgramFailure {
         report(failure.diagnostics)

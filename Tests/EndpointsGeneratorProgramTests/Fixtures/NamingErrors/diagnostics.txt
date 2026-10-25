@@ -2,7 +2,6 @@ NamingErrors.endpoints.swift:3:1: error: configuration files may only import End
 NamingErrors.endpoints.swift:4:1: error: conditional compilation is not allowed in configuration files
 NamingErrors.endpoints.swift:5:1: error: conditional compilation is not allowed in configuration files
 NamingErrors.endpoints.swift:6:17: error: # directives and literals are not allowed in configuration files
-NamingErrors.endpoints.swift:7:5: error: 'address' is not allowed in configuration files
 NamingErrors.endpoints.swift:7:15: error: 'UnsafePointer' is not allowed in configuration files
 NamingErrors.endpoints.swift:8:16: error: 'random' is not allowed in configuration files
 NamingErrors.endpoints.swift:9:1: error: underscored attributes are not allowed in configuration files
