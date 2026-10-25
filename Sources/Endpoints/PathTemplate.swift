@@ -8,15 +8,29 @@
 
 import Foundation
 
+private let percentEscapeHexDigits = CharacterSet(charactersIn: "0123456789ABCDEFabcdef")
+
 /// A type that can be interpolated into a ``PathTemplate``.
 public protocol PathRepresentable: Sendable {
-    /// The value, percent-encoded for a URL path.
+    /// The value, percent-encoded as a single path segment.
+    ///
+    /// A `/` is kept as a separator, so encode it as `%2F` when it belongs to the value.
+    /// `%XX` sequences are kept as escapes, so encode a literal `%` as `%25`. Other
+    /// characters not allowed in a path, such as spaces, `?`, and `#`, are encoded for you.
     var pathSafe: String { get }
 }
 
 extension String: PathRepresentable {
+    /// Percent-encodes this string as a path segment, including `.` and `..` as
+    /// `%2E` and `%2E%2E` so URL resolution preserves them.
     public var pathSafe: String {
-        return self.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ""
+        if self == "." || self == ".." {
+            return String(repeating: "%2E", count: self.count)
+        }
+
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "/?#")
+        return self.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
     }
 }
 
@@ -43,9 +57,24 @@ extension Int: PathRepresentable {
 /// let path: PathTemplate<EventEndpoint.PathComponents> = "calendars/\(path: \.calendarId)/events/\(path: \.eventId)"
 /// ```
 ///
-/// Slashes are added between components as needed. Pass `includesSlash: false` to
-/// place a value directly against the surrounding text.
+/// By default, interpolated values are separate path segments: slashes are added
+/// around them as needed, including before following literal text. Components
+/// joined with `+` are also separated by slashes as needed.
+///
+/// Pass `includesSlash: false` to embed a value directly against the surrounding
+/// text, for example `"files/\(path: \.id, includesSlash: false).json"`. This
+/// suppresses automatically inserted slashes without deleting literal slashes.
+/// Empty or nil values are omitted, an automatic slash is never added next to an
+/// existing one, and a trailing slash before an omitted final value is removed.
 public struct PathTemplate<T>: Sendable {
+
+    private struct Literal: PathRepresentable {
+        let value: String
+
+        var pathSafe: String {
+            return value
+        }
+    }
 
     private struct RepresentableInfo: Equatable, Sendable {
         static func == (lhs: RepresentableInfo, rhs: RepresentableInfo) -> Bool {
@@ -67,11 +96,20 @@ public struct PathTemplate<T>: Sendable {
     public init() { }
 
     mutating func append(path: PathRepresentable, indexOverride: Int? = nil, includesSlash: Bool = true) {
+        // Fixed text, from string literals or the + operators, arrives as String. Wrap it
+        // so template slashes and %XX escapes are kept rather than segment-encoded.
+        let representable: PathRepresentable
+        if let literal = path as? String {
+            representable = Literal(value: literal)
+        } else {
+            representable = path
+        }
+
         if let index = indexOverride {
-            pathComponents.append(RepresentableInfo(index: index, representable: path, includesSlash: includesSlash))
+            pathComponents.append(RepresentableInfo(index: index, representable: representable, includesSlash: includesSlash))
             currentIndex = index
         } else {
-            pathComponents.append(RepresentableInfo(index: currentIndex, representable: path, includesSlash: includesSlash))
+            pathComponents.append(RepresentableInfo(index: currentIndex, representable: representable, includesSlash: includesSlash))
             currentIndex += 1
         }
     }
@@ -97,7 +135,18 @@ public struct PathTemplate<T>: Sendable {
         }
     }
 
-    /// Returns the path with each placeholder replaced by the matching property of `value`.
+    private static func normalizedPath(_ value: String) -> String {
+        return value.components(separatedBy: "%").enumerated().map { index, part in
+            let encoded = part.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ""
+            guard index > 0 else { return encoded }
+
+            let digits = part.unicodeScalars.prefix(2)
+            let validEscape = digits.count == 2 && digits.allSatisfy(percentEscapeHexDigits.contains)
+            return (validEscape ? "%" : "%25") + encoded
+        }.joined()
+    }
+
+    /// Returns the percent-encoded path with each placeholder replaced by the matching property of `value`.
     public func path(with value: T) -> String {
         let values = keyPathComponents.map { (index, path, includesSlash) -> RepresentableInfo in
             return RepresentableInfo(index: index, representable: value[keyPath: path] as! PathRepresentable, includesSlash: includesSlash)
@@ -109,29 +158,36 @@ public struct PathTemplate<T>: Sendable {
         })
 
         var fullString = ""
+        var trailingSlashWasInserted = false
         let previousComponents: [RepresentableInfo?] = [nil] + Array(allComponents.dropFirst())
         for (previous, component) in zip(previousComponents, allComponents) {
-            let insertion = component.representable.pathSafe
+            let insertion = Self.normalizedPath(component.representable.pathSafe)
 
             if let previous = previous, component.includesSlash && !previous.includesSlash, fullString.last != "/", insertion.first != "/" {
                 fullString.append("/")
-            } else if !component.includesSlash, fullString.last == "/" {
+                trailingSlashWasInserted = true
+            } else if !component.includesSlash, trailingSlashWasInserted {
+                // Embedding can undo an automatic separator, but not a literal slash.
                 fullString.removeLast()
+                trailingSlashWasInserted = false
             }
 
             // if the last insertion is empty, then remove any trailing last '/'
             guard !insertion.isEmpty else {
                 if fullString.last == "/", component == allComponents.last {
                     fullString.removeLast()
+                    trailingSlashWasInserted = false
                 }
 
                 continue
             }
 
             fullString.append(insertion)
+            trailingSlashWasInserted = false
 
             if component.includesSlash, insertion.last != "/", component != allComponents.last {
                 fullString.append("/")
+                trailingSlashWasInserted = true
             }
         }
 

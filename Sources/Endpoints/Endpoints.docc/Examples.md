@@ -120,7 +120,7 @@ let response = try await URLSession.shared.response(with: ArticlesEndpoint())
 
 ### Path components
 
-Interpolate key paths into the path with `\(path:)`. Slashes are added between components as needed:
+Interpolate key paths into the path with `\(path:)`. By default, each value is a separate path segment, so slashes are added around it as needed, including before following literal text. Components joined with `+` are also separated by slashes as needed:
 
 ```swift
 struct EventEndpoint: Endpoint {
@@ -147,6 +147,16 @@ let event = try await URLSession.shared.response(
     with: EventEndpoint(pathComponents: .init(calendarId: "work", eventId: 42))
 )
 ```
+
+To embed a value within surrounding text, pass `includesSlash: false`:
+
+```swift
+let path: PathTemplate<FileEndpoint.PathComponents> = "files/\(path: \.id, includesSlash: false).json"
+```
+
+For an `id` of `42`, this produces `files/42.json`. With the default `includesSlash: true`, the same template produces `files/42/.json`. `includesSlash: false` suppresses the automatic slashes but never deletes a slash written in the template. Empty or nil values are left out, along with the slash that would have preceded a trailing one.
+
+Pass raw values. Each `String` value is percent-encoded once as a single path segment, so a `/` inside a value is sent as `%2F` and can't add path segments. To insert a value that spans several segments, conform a type to ``PathRepresentable`` and return its `pathSafe` with the `/` separators unencoded.
 
 ### Query parameters
 

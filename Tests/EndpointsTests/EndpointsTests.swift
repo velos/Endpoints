@@ -31,6 +31,75 @@ struct EndpointsTests {
         #expect(response.response1 == "testing")
     }
 
+    @Test(arguments: [
+        ("a b", "a%20b"),
+        ("%", "%25"),
+        ("café雪", "caf%C3%A9%E9%9B%AA"),
+        ("a/b", "a%2Fb"),
+        ("a//b", "a%2F%2Fb"),
+        ("a?b", "a%3Fb"),
+        ("a#b", "a%23b"),
+        (".", "%2E"),
+        ("..", "%2E%2E"),
+        ("a%20b", "a%2520b"),
+        ("zac", "zac")
+    ])
+    func pathParametersAreEncodedOnce(value: String, encoded: String) throws {
+        let request = try SimpleEndpoint(
+            pathComponents: .init(name: value, id: "42")
+        ).urlRequest()
+
+        let url = try #require(request.url)
+        let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: true))
+        #expect(url.absoluteString == "https://api.velosmobile.com/user/\(encoded)/42/profile")
+        #expect(components.percentEncodedPath == "/user/\(encoded)/42/profile")
+    }
+
+    @Test(arguments: [
+        (CustomPathEndpoint.Kind.space, "my%20value"),
+        (.percent, "100%25"),
+        (.query, "a%3Fb"),
+        (.fragment, "a%23b"),
+        (.encoded, "a%2Fb"),
+        (.lowercaseEncoded, "a%2fb"),
+        (.invalidEscape, "%25zz"),
+        (.incompleteEscape, "%252"),
+        (.unicode, "caf%C3%A9%E9%9B%AA")
+    ])
+    fileprivate func customPathParametersAreNormalized(kind: CustomPathEndpoint.Kind, encoded: String) throws {
+        let request = try CustomPathEndpoint(pathComponents: .init(kind: kind)).urlRequest()
+
+        let url = try #require(request.url)
+        let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: true))
+        #expect(url.absoluteString == "https://api.velosmobile.com/user/\(encoded)")
+        #expect(components.percentEncodedPath == "/user/\(encoded)")
+    }
+
+    @Test(arguments: [
+        (Optional("a /%?#雪"), Optional(42), "/testing/testPath(Thing='a%20%2F%25%3F%23%E9%9B%AA')/42"),
+        (nil, nil, "/testing/testPath(Thing='')")
+    ])
+    func adjacentOptionalPathParameters(value: String?, integer: Int?, expectedPath: String) throws {
+        let request = try AdjacentPathEndpoint(
+            pathComponents: .init(value: value, integer: integer)
+        ).urlRequest()
+
+        let url = try #require(request.url)
+        let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: true))
+        #expect(url.absoluteString == "https://api.velosmobile.com\(expectedPath)")
+        #expect(components.percentEncodedPath == expectedPath)
+    }
+
+    @Test
+    func literalPathEncoding() throws {
+        let request = try LiteralPathEndpoint().urlRequest()
+
+        let url = try #require(request.url)
+        let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: true))
+        #expect(url.absoluteString == "https://api.velosmobile.com/literal%20%25/caf%C3%A9/%3F%23/%2F/%25zz/%2f")
+        #expect(components.percentEncodedPath == "/literal%20%25/caf%C3%A9/%3F%23/%2F/%25zz/%2f")
+    }
+
     @Test
     func basicEndpointWithCustomDecoder() throws {
         let request = try JSONProviderEndpoint(
@@ -284,4 +353,61 @@ struct EndpointsTests {
             "staging-api.velosmobile.com"
         ])
     }
+}
+
+private struct AdjacentPathEndpoint: Endpoint {
+    typealias Server = TestServer
+    typealias Response = Void
+
+    static let definition: Definition<AdjacentPathEndpoint> = Definition(
+        method: .get,
+        path: "testing/testPath(Thing='\(path: \.value, includesSlash: false)')\(path: \.integer)"
+    )
+
+    struct PathComponents {
+        let value: String?
+        let integer: Int?
+    }
+
+    let pathComponents: PathComponents
+}
+
+private struct LiteralPathEndpoint: Endpoint {
+    typealias Server = TestServer
+    typealias Response = Void
+
+    static let definition: Definition<LiteralPathEndpoint> = Definition(
+        method: .get,
+        path: "literal %/café/?#/%2F/%zz/%2f"
+    )
+}
+
+private struct CustomPathEndpoint: Endpoint {
+    typealias Server = TestServer
+    typealias Response = Void
+
+    static let definition: Definition<CustomPathEndpoint> = Definition(
+        method: .get,
+        path: "user/\(path: \.kind)"
+    )
+
+    enum Kind: String, PathRepresentable {
+        case space = "my value"
+        case percent = "100%"
+        case query = "a?b"
+        case fragment = "a#b"
+        case encoded = "a%2Fb"
+        case lowercaseEncoded = "a%2fb"
+        case invalidEscape = "%zz"
+        case incompleteEscape = "%2"
+        case unicode = "café雪"
+
+        var pathSafe: String { rawValue }
+    }
+
+    struct PathComponents {
+        let kind: Kind
+    }
+
+    let pathComponents: PathComponents
 }

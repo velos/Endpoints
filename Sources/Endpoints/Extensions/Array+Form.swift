@@ -14,8 +14,8 @@ extension Array where Element == URLQueryItem {
     /// suitable for putting into the httpBody of a request
     var formString: String {
         return map { item in
-            let name = item.name.pathSafe
-            let value = item.value?.pathSafe ?? ""
+            let name = item.name.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ""
+            let value = item.value?.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ""
             return "\(name)=\(value)"
         }.joined(separator: "&")
     }
