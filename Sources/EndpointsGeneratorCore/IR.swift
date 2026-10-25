@@ -1,11 +1,10 @@
 #if OpenAPIGenerator
 import Foundation
+import EndpointsGeneratorConfig
 
 // The lowering/rendering boundary contains arrays and values only. No hash collection
 // can silently acquire observable order when a renderer is extended.
-enum HTTPMethod: String {
-    case get, post, put, patch, delete, head, options, trace, query
-
+extension HTTPMethod {
     var isSupported: Bool {
         switch self {
         case .get, .post, .put, .patch, .delete, .head: return true
@@ -102,7 +101,7 @@ struct TypeDecl {
     var name: String
     var kind: Kind
     var pointer = ""
-    var renameKey = ""
+    var namingTarget: NameTarget? = nil
     var properties: [Property] = []
     var enumRawType: TypeRef = .string
     var values: [EnumValue] = []

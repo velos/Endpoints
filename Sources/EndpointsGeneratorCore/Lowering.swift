@@ -1,6 +1,7 @@
 #if OpenAPIGenerator
 import Foundation
 import OpenAPIKit
+import EndpointsGeneratorConfig
 
 struct Unsupported: Error {
     let message: String
@@ -13,6 +14,7 @@ struct Lowering {
     let configSource: Source
     let config: Configuration
     let namespace: String
+    let resolutions: NameResolutions
     var diagnostics: [Diagnostic] = []
     struct ComponentName {
         let original: String
@@ -28,6 +30,8 @@ struct Lowering {
                 source.diagnostic(
                     "Unsupported: " + error.message, error.pointer,
                     config.strict ? .error : .warning))
+        } else if let error = error as? NameResolutionFailure {
+            diagnostics.append(source.diagnostic(error.message, error.pointer))
         } else if let error = error as? NameError {
             diagnostics.append(source.diagnostic(error.description, pointer))
         } else {
@@ -37,19 +41,18 @@ struct Lowering {
     func unsupported(_ message: String, _ pointer: String) -> Unsupported {
         Unsupported(message: message, pointer: pointer)
     }
-    func rename(_ original: String, in renames: [Rename]) -> String? {
-        renames.first { wireEqual($0.original, original) }?.replacement
-    }
     func docs(_ schema: JSONSchema) -> [String] {
         [schema.title, schema.description].compactMap { $0 }.filter { !$0.isEmpty }
     }
 
     private func claimDeprecatedBackingStorage(
-        for property: Property, using allocator: inout NameAllocator, hint: String
+        for property: Property, using allocator: inout NameAllocator, hint: String,
+        target: NameTarget
     ) throws {
         guard property.deprecated else { return }
         try allocator.claim(
-            property.storageName, original: property.wire + " backing storage", hint: hint)
+            property.storageName, original: property.wire + " backing storage", hint: hint,
+            target: target)
     }
 
     mutating func lower() -> Module {
@@ -57,7 +60,8 @@ struct Lowering {
         let customServerRoot = config.serverType?.split(separator: ".").first.map(String.init)
         let reservedNames = Naming.namespaceReserved.union([namespace])
             .union(customServerRoot.map { [$0] } ?? [])
-        var names = NameAllocator(reserved: reservedNames)
+        var names = NameAllocator(
+            reserved: reservedNames, candidates: resolutions.allocations(in: .namespace))
         var server = ServerDecl()
         do { server = try lowerServer() } catch { report(error, at: "/servers") }
         var module = Module(
@@ -67,9 +71,10 @@ struct Lowering {
             let original = key.rawValue
             let sourcePointer = "/components/schemas/" + pointerPart(original)
             do {
-                let name = try Naming.name(
-                    original, style: .type, rename: rename(original, in: config.schemaRenames))
-                try names.claim(name, original: original, hint: renameHint(.schemas, original))
+                let name = try resolutions.name(.type(.component(original)))
+                try names.claim(
+                    name, original: original, hint: renameHint(.type(.component(original))),
+                    target: .type(.component(original)))
                 componentNames.append(ComponentName(original: original, swift: name))
             } catch { report(error, at: sourcePointer) }
         }
@@ -82,13 +87,15 @@ struct Lowering {
             else { continue }
             do {
                 var declaration = try declaration(
-                    schema, name: name, path: namespace + "." + name, owner: original,
+                    schema, name: name, path: namespace + "." + name,
+                    typeID: .component(original),
                     pointer: sourcePointer)
                 if case .alias = declaration.kind {
                     for child in declaration.nested {
                         try names.claim(
                             child.name, original: original + " inline item",
-                            hint: renameHint(.schemas, original))
+                            hint: renameHint(child.namingTarget ?? .type(.component(original))),
+                            target: child.namingTarget ?? .type(.component(original)))
                         module.schemas.append(child)
                     }
                     declaration.nested = []
@@ -189,6 +196,7 @@ struct Lowering {
     mutating func lowerServer() throws -> ServerDecl {
         var server = ServerDecl(customType: config.serverType, typical: config.hasEnvironments)
         if config.serverType != nil { return server }
+        var hadNamingFailure = false
         if config.hasEnvironments {
             for environment in config.environments {
                 let name = environment.name
@@ -205,15 +213,24 @@ struct Lowering {
             }
             server.defaultEnvironment = config.defaultEnvironment ?? "production"
         } else {
-            var allocator = NameAllocator(reserved: ["rawValue", "allCases", "hashValue"])
+            var allocator = NameAllocator(
+                reserved: ["rawValue", "allCases", "hashValue"],
+                candidates: resolutions.allocations(in: .environments))
             for (index, specServer) in document.servers.enumerated() {
                 let sourcePointer = "/servers/\(index)"
+                let target = NameTarget.environment(specServer.description ?? "server\(index + 1)")
+                let name: String
                 do {
-                    let name = try Naming.name(
-                        specServer.description ?? "server\(index + 1)", style: .member)
+                    name = try resolutions.name(target)
                     try allocator.claim(
                         name, original: specServer.description ?? "server\(index + 1)",
-                        hint: "a unique servers[].description")
+                        hint: renameHint(target), target: target)
+                } catch {
+                    hadNamingFailure = true
+                    report(error, at: sourcePointer)
+                    continue
+                }
+                do {
                     // OpenAPIKit's URLTemplate stores the unnormalised input string.
                     var url = specServer.urlTemplate.rawValue
                     for (key, variable) in specServer.variables {
@@ -239,16 +256,19 @@ struct Lowering {
                 .replacingOccurrences(of: "`", with: "") ?? ""
         }
         if server.environments.isEmpty {
-            diagnostics.append(
-                source.diagnostic(
-                    "At least one absolute server URL is required; configure server.type or server.environments",
-                    "/servers"))
+            if !hadNamingFailure {
+                diagnostics.append(
+                    source.diagnostic(
+                        "At least one absolute server URL is required; configure server: .type(...) or .environments(...)",
+                        "/servers"))
+            }
         } else if !server.environments.contains(where: {
             $0.name.replacingOccurrences(of: "`", with: "") == server.defaultEnvironment
         }) {
             diagnostics.append(
                 configSource.diagnostic(
-                    "defaultEnvironment has no URL", "/server/defaultEnvironment"))
+                    "The default server environment has no URL; configure server: .environments(_:default:)",
+                    "/server/defaultEnvironment"))
         }
         server.securityDocs = try securityDocumentation()
         return server
@@ -283,7 +303,8 @@ struct Lowering {
     }
 
     mutating func type(
-        _ schema: JSONSchema, suggested: String, path: String, owner: String, pointer: String,
+        _ schema: JSONSchema, path: String, typeID: TypeID,
+        pointer: String,
         nested: inout [TypeDecl]
     ) throws -> TypeRef {
         if let values = schema.allowedValues, !values.isEmpty {
@@ -291,10 +312,11 @@ struct Lowering {
             case .string, .integer: break
             default: throw unsupported("only string and integer enums are supported", pointer)
             }
-            let name = try Naming.name(suggested, style: .type)
+            let name = try resolutions.name(.type(typeID))
             nested.append(
                 try declaration(
-                    schema, name: name, path: path + "." + name, owner: owner, pointer: pointer)
+                    schema, name: name, path: path + "." + name, typeID: typeID,
+                    pointer: pointer)
             )
             return .named(path + "." + name)
         }
@@ -320,14 +342,16 @@ struct Lowering {
                 throw unsupported("arrays require one items schema", pointer)
             }
             let item = try type(
-                items, suggested: suggested + "Item", path: path, owner: owner,
+                items, path: path,
+                typeID: .inline(.items(of: typeID)),
                 pointer: pointer + "/items", nested: &nested)
             return .array(nullable(items) ? .optional(item) : item)
         case .object:
-            let name = try Naming.name(suggested, style: .type)
+            let name = try resolutions.name(.type(typeID))
             nested.append(
                 try declaration(
-                    schema, name: name, path: path + "." + name, owner: owner, pointer: pointer)
+                    schema, name: name, path: path + "." + name, typeID: typeID,
+                    pointer: pointer)
             )
             return .named(path + "." + name)
         case .reference(let reference, _):
@@ -350,7 +374,7 @@ struct Lowering {
             }
             if members.count == 2, nonNull.count == 1 {
                 return try type(
-                    nonNull[0], suggested: suggested, path: path, owner: owner,
+                    nonNull[0], path: path, typeID: typeID,
                     pointer: pointer, nested: &nested)
             }
             throw unsupported("oneOf/anyOf schemas", pointer)
@@ -360,17 +384,22 @@ struct Lowering {
     }
 
     mutating func declaration(
-        _ schema: JSONSchema, name: String, path: String, owner: String, pointer: String
+        _ schema: JSONSchema, name: String, path: String, typeID: TypeID,
+        pointer: String
     ) throws -> TypeDecl {
         var declaration = TypeDecl(
-            name: name, kind: .structure, pointer: pointer, renameKey: owner, docs: docs(schema),
+            name: name, kind: .structure, pointer: pointer, namingTarget: .type(typeID),
+            docs: docs(schema),
             deprecated: schema.deprecated)
         if let allowed = schema.allowedValues, !allowed.isEmpty {
             switch schema.value {
             case .string, .integer: break
             default: throw unsupported("only string and integer enums are supported", pointer)
             }
-            var allocator = NameAllocator(reserved: Naming.structReserved)
+            var allocator = NameAllocator(
+                reserved: Naming.structReserved,
+                candidates: resolutions.allocations(
+                    in: allocationScope(.enumCase("", in: typeID))))
             declaration.kind = config.closedEnums ? .closedEnum : .openEnum
             if case .integer = schema.value {
                 switch schema.formatString {
@@ -386,19 +415,21 @@ struct Lowering {
                 let member: String
                 if declaration.enumRawType == .string, let string = raw.value as? String {
                     value = string
-                    member = string.isEmpty ? "empty" : try Naming.name(string, style: .member)
+                    member = try resolutions.name(.enumCase(string, in: typeID))
                 } else if declaration.enumRawType != .string, let integer = raw.value as? Int {
                     if declaration.enumRawType == .int32, Int32(exactly: integer) == nil {
                         throw unsupported(
                             "enum value is outside the Int32 range", pointer + "/enum")
                     }
                     value = String(integer)
-                    member = integer < 0 ? "valueMinus" + value.dropFirst() : "value" + value
+                    member = try resolutions.name(.enumCase(value, in: typeID))
                 } else {
                     throw unsupported(
                         "enum value does not match its scalar type", pointer + "/enum")
                 }
-                try allocator.claim(member, original: value, hint: "distinct enum wire values")
+                try allocator.claim(
+                    member, original: value, hint: renameHint(.enumCase(value, in: typeID)),
+                    target: .enumCase(value, in: typeID))
                 declaration.values.append(EnumValue(name: member, raw: value))
             }
             guard !declaration.values.isEmpty else {
@@ -413,19 +444,22 @@ struct Lowering {
             if object.properties.isEmpty && source.node(at: pointer + "/properties") == nil {
                 throw unsupported("free-form object schemas", pointer)
             }
-            var allocator = NameAllocator(reserved: Naming.structReserved)
+            var allocator = NameAllocator(
+                reserved: Naming.structReserved,
+                candidates: resolutions.allocations(
+                    in: allocationScope(.property("", in: typeID))))
             for (wire, property) in object.properties {
                 let sourcePointer = pointer + "/properties/" + pointerPart(wire)
                 do {
-                    let member = try Naming.name(
-                        wire, style: .member,
-                        rename: rename(owner + "." + wire, in: config.propertyRenames))
+                    let member = try resolutions.name(.property(wire, in: typeID))
                     try allocator.claim(
-                        member, original: wire, hint: renameHint(.properties, owner + "." + wire))
+                        member, original: wire, hint: renameHint(.property(wire, in: typeID)),
+                        target: .property(wire, in: typeID))
                     var nested: [TypeDecl] = []
                     let propertyType = try type(
-                        property, suggested: member.replacingOccurrences(of: "`", with: ""),
-                        path: path, owner: owner + "." + wire, pointer: sourcePointer,
+                        property,
+                        path: path,
+                        typeID: .inline(.property(wire, in: typeID)), pointer: sourcePointer,
                         nested: &nested)
                     let presence: Presence =
                         !property.required || directional(property)
@@ -436,7 +470,8 @@ struct Lowering {
                         presence: presence, docs: docs(property), deprecated: property.deprecated)
                     try claimDeprecatedBackingStorage(
                         for: loweredProperty, using: &allocator,
-                        hint: renameHint(.properties, owner + "." + wire))
+                        hint: renameHint(.property(wire, in: typeID)),
+                        target: .property(wire, in: typeID))
                     declaration.properties.append(loweredProperty)
                     declaration.nested += nested
                 } catch { report(error, at: sourcePointer) }
@@ -444,11 +479,18 @@ struct Lowering {
             var nestedNames = NameAllocator(
                 reserved: Naming.namespaceReserved.union(Naming.structReserved).union([
                     namespace
-                ]))
+                ]),
+                candidates: declaration.nested.map {
+                    NameAllocation(
+                        name: $0.name, original: targetSwift($0.namingTarget ?? .type(typeID)),
+                        hint: renameHint($0.namingTarget ?? .type(typeID)),
+                        target: $0.namingTarget ?? .type(typeID), pointer: $0.pointer)
+                })
             for nested in declaration.nested {
                 try nestedNames.claim(
                     nested.name, original: nested.name,
-                    hint: renameHint(.properties, nested.renameKey))
+                    hint: renameHint(nested.namingTarget ?? .type(typeID)),
+                    target: nested.namingTarget ?? .type(typeID))
             }
             declaration.nested.sort { utf8Less($0.name, $1.name) }
             return declaration
@@ -456,9 +498,9 @@ struct Lowering {
         var nested: [TypeDecl] = []
         declaration.kind = .alias(
             try type(
-                schema, suggested: name,
+                schema,
                 path: path.split(separator: ".").dropLast().joined(separator: "."),
-                owner: owner, pointer: pointer, nested: &nested))
+                typeID: typeID, pointer: pointer, nested: &nested))
         declaration.nested = nested
         return declaration
     }
@@ -475,11 +517,12 @@ struct Lowering {
             throw unsupported("operation or path-level servers", pointer)
         }
         let original = operation.operationId ?? identity
-        let derivedName =
-            operation.operationId ?? fallbackOperationName(method: method, path: path)
-        let renamed = rename(original, in: config.operationRenames)
-        let name = try Naming.name(derivedName, style: .type, rename: renamed) + "Endpoint"
-        try names.claim(name, original: original, hint: renameHint(.operations, original))
+        let operationID =
+            operation.operationId.map(OperationID.id) ?? .route(method: method, path: path)
+        let name = try resolutions.name(.operation(operationID)) + "Endpoint"
+        try names.claim(
+            name, original: original, hint: renameHint(.operation(operationID)),
+            target: .operation(operationID))
         let operationPath = namespace + "." + name
         var result = EndpointDecl(name: name, method: method, pointer: pointer)
         result.docs =
@@ -497,35 +540,29 @@ struct Lowering {
                     "Operation security differs from the document; the endpoint inherits server authentication",
                     pointer + "/security", .note))
         }
-        struct LocatedParameter {
-            let value: OpenAPI.Parameter
-            let pointer: String
-        }
-        var parameters: [LocatedParameter] = []
-        for (index, value) in item.parameters.enumerated() {
-            let located = try lookup.resolve(value, at: itemPointer + "/parameters/\(index)")
-            parameters.append(LocatedParameter(value: located.value, pointer: located.pointer))
-        }
-        for (index, value) in operation.parameters.enumerated() {
-            let located = try lookup.resolve(value, at: pointer + "/parameters/\(index)")
-            let parameter = located.value
-            parameters.removeAll {
-                let sameName =
-                    parameter.location == .header
-                    ? wireEqual(Naming.asciiLower($0.value.name), Naming.asciiLower(parameter.name))
-                    : wireEqual($0.value.name, parameter.name)
-                return sameName && $0.value.location == parameter.location
-            }
-            parameters.append(LocatedParameter(value: parameter, pointer: located.pointer))
-        }
-        var pathNames = NameAllocator(reserved: Naming.structReserved.union(["_endpointPath"]))
-        var queryNames = NameAllocator(reserved: Naming.structReserved)
-        var headerNames = NameAllocator(reserved: Naming.structReserved)
+        let parameters = locatedParameters(
+            item: item, operation: operation, itemPointer: itemPointer, pointer: pointer,
+            lookup: lookup)
+        var pathNames = NameAllocator(
+            reserved: Naming.structReserved.union(["_endpointPath"]),
+            candidates: resolutions.allocations(
+                in: allocationScope(.parameter("", in: .path, of: operationID))))
+        var queryNames = NameAllocator(
+            reserved: Naming.structReserved,
+            candidates: resolutions.allocations(
+                in: allocationScope(.parameter("", in: .query, of: operationID))))
+        var headerNames = NameAllocator(
+            reserved: Naming.structReserved,
+            candidates: resolutions.allocations(
+                in: allocationScope(.parameter("", in: .header, of: operationID))))
         for located in parameters {
             let parameter = located.value
             let sourcePointer = located.pointer
             let nestedStart = result.nested.count
             do {
+                guard let location = supportedParameterLocation(parameter.location) else {
+                    throw unsupported("cookie or querystring parameters", sourcePointer)
+                }
                 guard case .a(let context) = parameter.schemaOrContent else {
                     throw unsupported("parameter content", sourcePointer)
                 }
@@ -538,17 +575,28 @@ struct Lowering {
                 case .b(let schema): parameterSchema = schema
                 }
                 let propertyType = try parameterType(
-                    parameterSchema, suggested: parameter.name, path: operationPath,
-                    owner: original, pointer: sourcePointer + "/schema", nested: &result.nested)
+                    parameterSchema, path: operationPath,
+
+                    typeID: .inline(
+                        .parameter(
+                            parameter.name,
+                            in: location, of: operationID)),
+                    pointer: sourcePointer + "/schema", nested: &result.nested)
                 let isEnum = schema.allowedValues?.isEmpty == false
-                let scalarTypes: [TypeRef] = [.string, .int, .int32, .int64, .double, .bool, .uuid]
+                let scalarTypes: [TypeRef] = [
+                    .string, .int, .int32, .int64, .double, .bool, .uuid,
+                ]
                 let isScalar = scalarTypes.contains(propertyType) || isEnum
-                let member = try Naming.name(parameter.name, style: .member)
+                let parameterTarget = NameTarget.parameter(
+                    parameter.name,
+                    in: location,
+                    of: operationID)
+                let member = try resolutions.name(parameterTarget)
                 var property = Property(
                     name: member, wire: parameter.name, type: propertyType, presence: .required,
                     docs: parameter.description.map { [$0] } ?? [],
                     deprecated: parameter.deprecated)
-                switch parameter.location {
+                switch location {
                 case .path:
                     guard [.string, .int, .int32, .int64, .uuid].contains(propertyType) || isEnum,
                         !nullable(schema), context.style == .simple
@@ -558,9 +606,11 @@ struct Lowering {
                             sourcePointer)
                     }
                     try pathNames.claim(
-                        member, original: parameter.name, hint: "a distinct parameter name")
+                        member, original: parameter.name, hint: renameHint(parameterTarget),
+                        target: parameterTarget)
                     try claimDeprecatedBackingStorage(
-                        for: property, using: &pathNames, hint: "a distinct parameter name")
+                        for: property, using: &pathNames, hint: renameHint(parameterTarget),
+                        target: parameterTarget)
                     result.pathParams.append(property)
                 case .query:
                     let isArray: Bool
@@ -595,9 +645,11 @@ struct Lowering {
                             sourcePointer)
                     }
                     try queryNames.claim(
-                        member, original: parameter.name, hint: "a distinct parameter name")
+                        member, original: parameter.name, hint: renameHint(parameterTarget),
+                        target: parameterTarget)
                     try claimDeprecatedBackingStorage(
-                        for: property, using: &queryNames, hint: "a distinct parameter name")
+                        for: property, using: &queryNames, hint: renameHint(parameterTarget),
+                        target: parameterTarget)
                     if !parameter.required {
                         property.type = .optional(propertyType)
                         property.presence = .optional
@@ -612,15 +664,16 @@ struct Lowering {
                             sourcePointer)
                     }
                     try headerNames.claim(
-                        member, original: parameter.name, hint: "a distinct parameter name")
+                        member, original: parameter.name, hint: renameHint(parameterTarget),
+                        target: parameterTarget)
                     try claimDeprecatedBackingStorage(
-                        for: property, using: &headerNames, hint: "a distinct parameter name")
+                        for: property, using: &headerNames, hint: renameHint(parameterTarget),
+                        target: parameterTarget)
                     if !parameter.required {
                         property.type = .optional(propertyType)
                         property.presence = .optional
                     }
                     result.headerParams.append(property)
-                default: throw unsupported("cookie or querystring parameters", sourcePointer)
                 }
             } catch let error as Unsupported {
                 // A missing path value makes the entire operation unusable.
@@ -632,21 +685,12 @@ struct Lowering {
         result.path = try pathSegments(path, properties: result.pathParams)
         if let request = operation.requestBody {
             let locatedBody = try lookup.resolve(request, at: pointer + "/requestBody")
-            let body = locatedBody.value
-            guard body.required else {
-                throw unsupported("optional request body", locatedBody.pointer)
-            }
-            guard
-                let media = try selectedMedia(
-                    body.content, pointer: locatedBody.pointer + "/content"),
-                isJSON(media.name), let schema = media.value.schema
-            else {
-                throw unsupported(
-                    "only JSON request bodies are supported", locatedBody.pointer + "/content")
-            }
+            let body = try jsonRequestBody(locatedBody, lookup: lookup)
+            let media = body.media
             let sourcePointer = media.pointer + "/schema"
-            result.body = try payload(
-                schema, name: "Body", path: operationPath, owner: original,
+            result.body = try type(
+                body.schema, path: operationPath,
+                typeID: .inline(.body(operationID)),
                 pointer: sourcePointer, nested: &result.nested)
             if media.name != "application/json" {
                 if result.headerParams.contains(where: {
@@ -659,37 +703,32 @@ struct Lowering {
                 result.fixedHeaders.append(FixedHeader(name: "Content-Type", value: media.name))
             }
         }
-        let outcomes = Array(operation.responses)
-        for outcome in outcomes
-        where outcome.key.rawValue.hasPrefix("3") || outcome.key.rawValue == "1XX" {
+        let groups = groupedResponses(operation, id: operationID)
+        for status in groups.ignored {
             diagnostics.append(
                 source.diagnostic(
-                    "Response status '\(outcome.key.rawValue)' is ignored; only success and error outcomes are generated",
-                    pointer + "/responses/" + outcome.key.rawValue, .note))
+                    "Response status '\(status)' is ignored; only success and error outcomes are generated",
+                    pointer + "/responses/" + status, .note))
         }
-        var successes = outcomes.filter { $0.key.isSuccess }
-        let defaults = outcomes.filter { $0.key.rawValue == "default" }
-        let hasSuccess = !successes.isEmpty
-        if successes.isEmpty { successes = defaults }
-        let errors = outcomes.filter {
-            $0.key.rawValue.hasPrefix("4") || $0.key.rawValue.hasPrefix("5")
-                || (hasSuccess && $0.key.rawValue == "default")
-        }
+        let successes = groups.successes
+        let errors = groups.errors
         guard !successes.isEmpty else {
             throw unsupported(
                 "at least one success or default response is required", pointer + "/responses")
         }
         result.responseOutcomes = try responseOutcomes(
-            successes.map { ResponseInput(status: $0.key.rawValue, response: $0.value) },
+            successes,
             name: "Response", method: method,
-            path: operationPath, owner: original, pointer: pointer + "/responses",
+            path: operationPath, operationID: operationID,
+            pointer: pointer + "/responses",
             nested: &result.nested)
         result.response = responseType(
             result.responseOutcomes, name: "Response", path: operationPath)
         result.errorOutcomes = try responseOutcomes(
-            errors.map { ResponseInput(status: $0.key.rawValue, response: $0.value) },
+            errors,
             name: "ErrorResponse", method: method,
-            path: operationPath, owner: original, pointer: pointer + "/responses",
+            path: operationPath, operationID: operationID,
+            pointer: pointer + "/responses",
             nested: &result.nested)
         if !result.errorOutcomes.isEmpty {
             result.errorResponse =
@@ -699,62 +738,31 @@ struct Lowering {
         }
         var nestedNames = NameAllocator(
             reserved: Naming.namespaceReserved.union(Naming.endpointReserved)
-                .subtracting(["Body", "Response", "ErrorResponse"]).union([namespace]))
+                .subtracting(["Body", "Response", "ErrorResponse"]).union([namespace]),
+            candidates: result.nested.map {
+                NameAllocation(
+                    name: $0.name,
+                    original: targetSwift($0.namingTarget ?? .operation(operationID)),
+                    hint: renameHint($0.namingTarget ?? .operation(operationID)),
+                    target: $0.namingTarget ?? .operation(operationID),
+                    pointer: $0.pointer)
+            })
         for nested in result.nested {
             try nestedNames.claim(
-                nested.name, original: nested.name, hint: renameHint(.operations, original))
+                nested.name, original: nested.name,
+                hint: renameHint(nested.namingTarget ?? .operation(operationID)),
+                target: nested.namingTarget ?? .operation(operationID))
         }
         result.nested.sort { utf8Less($0.name, $1.name) }
         return result
     }
 
-    mutating func payload(
-        _ schema: JSONSchema, name: String, path: String, owner: String, pointer: String,
-        nested: inout [TypeDecl]
-    ) throws -> TypeRef {
-        if case .object = schema.value {
-            nested.append(
-                try declaration(
-                    schema, name: name, path: path + "." + name, owner: owner, pointer: pointer)
-            )
-            return .named(path + "." + name)
-        }
-        return try type(
-            schema, suggested: name, path: path, owner: owner, pointer: pointer, nested: &nested
-        )
-    }
-}
-
-func isJSON(_ media: String) -> Bool { media == "application/json" || media.hasSuffix("+json") }
-extension Lowering {
-    struct SelectedMedia {
-        let name: String
-        let value: OpenAPI.Content
-        let pointer: String
-    }
-
-    func selectedMedia(_ content: OpenAPI.Content.Map, pointer: String) throws -> SelectedMedia? {
-        let items = Array(content)
-        guard
-            let selected = items.first(where: { $0.key.rawValue == "application/json" })
-                ?? items.first(where: { $0.key.rawValue.hasSuffix("+json") }) ?? items.first
-        else { return nil }
-        let located = try lookup.resolve(
-            selected.value, at: pointer + "/" + pointerPart(selected.key.rawValue))
-        return SelectedMedia(
-            name: selected.key.rawValue, value: located.value, pointer: located.pointer)
-    }
 }
 
 func operationIdentity(method: HTTPMethod, path: String) -> String {
     method.uppercase + " " + path
 }
 
-func fallbackOperationName(method: HTTPMethod, path: String) -> String {
-    method.rawValue + " "
-        + path.replacingOccurrences(of: "{", with: " By ").replacingOccurrences(
-            of: "}", with: " ")
-}
 func pathSegments(_ path: String, properties: [Property]) throws -> EndpointPath {
     let text = String(path.drop(while: { $0 == "/" }))
     var result: [PathSegment] = []

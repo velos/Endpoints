@@ -1,3 +1,8 @@
+> Current configuration boundary: only `<Stem>.endpoints.swift` will be user-facing,
+> from 3N-2. The 3N-1 plugin uses defaults and discovers no config files. Earlier
+> config invalidation measurements below describe historical probes, not a supported
+> sidecar interface; the JSON reader is now private CLI/test transport.
+
 # OpenAPI generator foundation verification (54563a1)
 
 Historical foundation record. The subsequent runtime-hooks phase is recorded in
@@ -84,17 +89,17 @@ invocations. Byte hashes and nanosecond modification times were compared.
 | Clean build | One generator invocation, four generated files; compiled successfully |
 | Unchanged rebuild | Zero generator invocations; bytes and mtimes unchanged |
 | Spec edit | One invocation; all four headers changed |
-| Config add, edit, remove | One invocation for each change; inputs/config hashes updated |
+| Historical config add, edit, remove (discovery since removed) | One invocation for each change; inputs/config hashes updated |
 | Add second spec | One new invocation; eight outputs; both namespaces compiled |
 | Remove second spec | Four remaining outputs; removed namespace's files absent |
 | Case-insensitive stem clash | Build failed with duplicate-stem diagnostic (different extensions allow testing on case-insensitive volumes) |
-| Duplicate namespace in sidecar | Build failed with duplicate-namespace diagnostic |
+| Duplicate namespace in historical configuration probe (discovery since removed) | Build failed with duplicate-namespace diagnostic |
 | Generator version/source change | Executable rebuilt, one generator invocation; version header changed |
 | Comment-only generator edit | Source recompiled, but generation did not rerun when executable bytes were unchanged |
 | Remove final spec | No commands, zero generated files; expected no-spec warning; remaining hand-written source compiled |
 
 Swift 6.4 emitted **no unhandled-file warning** for `.openapi.yaml`,
-`.openapi.json`, or `.endpoints.json` inputs. Do not exclude these files from a
+or `.openapi.json` inputs. Do not exclude these specifications from a
 target: the plugin needs to discover them. Swift 6.1's behavior remains for CI to
 observe. Swift 6.4's `swiftbuild` engine did emit stale-file cleanup warnings on
 spec removal (old paths outside its newly allowed output roots); the files were
@@ -214,10 +219,10 @@ Parser details discovered during the byte-matching checks:
   path/query/header parameters and verifies their requests, plus required/optional
   deprecated-property JSON round trips. `--build-tests -Xswiftc -warnings-as-errors`
   passes with zero warnings across the package and goldens.
-- **C — Hints and details.** Schema/operation/property hints use JSON-subscript
-  syntax with deterministic JSON escaping. Nested property hints retain the real
-  rename key. Tests validate all categories and escaped keys; diagnostic goldens
-  were regenerated. YAML parse errors append the quoted YamlError description.
+- **C — Hints and details.** Schema/operation/property hints preserve escaped wire
+  identities and nested owners. Phase 3N-1 supersedes these original hint spellings
+  with typed Swift syntax. Tests validate all categories and escaped keys; diagnostic
+  goldens were regenerated. YAML parse errors append the quoted YamlError description.
 - **C — Remaining cleanup.** Operation identity is computed once and passed into
   lowering. The namespace allocator is constructed once in lower(), including
   the configured server root. RFC guard continuations use four spaces. Bearer
@@ -262,10 +267,238 @@ Manual checklist for a native `.xcodeproj` (not opening Package.swift in Xcode):
   target inputs; keep them out of Copy Bundle Resources.
 - Confirm all four outputs compile, including a public auth extension used from
   another module.
-- Edit the spec and sidecar, add/remove a sidecar, and verify regeneration.
+- Edit the spec and verify regeneration. Starting in 3N-2, also edit/add/remove the Swift config and verify regeneration.
 - Confirm source-marked diagnostics appear in the issue navigator.
 - Add/remove a second spec and exercise duplicate stem/namespace errors.
 
 No unresolved implementation question remains for the requested slice. Linux,
 native Xcode, and the separately owned runtime fixes remain distinct verification
 boundaries.
+
+## Phase 3N-1: naming v2 (uncommitted, 2026-10-25)
+
+Implemented the approved `OpenAPIGenerator-Naming.md` §10 scope: the dependency-free
+`EndpointsGeneratorConfig` product on both platforms, the full typed configuration
+API, shared reference algorithm, structured identities, inventory/resolution/single
+lowering, typed structured renames, private transport diagnostics, and spec naming extensions.
+The Swift-file compiler, runner, transport, and cache belong to 3N-2.
+
+### Identifier review and wire preservation
+
+**Every identifier changed in the five existing source goldens: none.**
+
+| Existing fixture | Identifier changes |
+| --- | --- |
+| Boundaries | None; only all four config-hash headers changed; the redundant owner_id rename is now removed, exercising default ownerId generation |
+| Petstore | None |
+| SchemaEdges | None |
+| DateScopes | None |
+| Operations | None |
+
+All 20 existing generated file bodies (excluding the three header lines) were
+byte-compared against a copy saved before implementation and are identical. This
+also establishes that their CodingKeys, enum raw values, query parameter names,
+and header names are byte-identical before and after. Diagnostic goldens now use
+Swift rename hints and list both colliding identities. The additional `NamingConfigured` fixture exercises names absent from the
+older corpus: snake case, screaming enum values, acronym/digit boundaries,
+non-ASCII names repaired by renames, distinct located parameters, independent
+inline names, integer enums, and both spec extensions. Compiled tests round-trip
+its JSON and assert the exact enum raw values and HTTP request names; an additional
+Core test compares wire bytes across all three declarative strategies.
+
+### Implementation choices where the design left details open
+
+- `ServerEnvironment` is a typed enum of the existing `local`, `development`,
+  `staging`, and `production` cases; `.environments` defaults to `.production`.
+  `OperationFilter` has stored `include`/`exclude` arrays. Any corresponding
+  JSON vocabulary belongs only to the private transport.
+- Acronym defaults are empty. Public default arguments inline `[]`; the internal
+  default constant and algorithm/keyword/reserved helpers have package visibility.
+  Core owns scope allocation and diagnostics.
+- Identity equality/hashing compares UTF-8 bytes, preserving the existing rule
+  that canonically equivalent Unicode wire strings are distinct. No hash-table
+  traversal determines output order. Inventory request IDs are unique targets.
+- A digit followed by uppercase then lowercase starts a new token before the
+  capital. This preserves `HTTP2Status`, `UTF8String` and `v2Beta` while keeping
+  `2FA` one token. The executable, rule text and pseudocode use the same condition.
+- The expanded table governs the wholly non-ASCII `.verbatim` case: it has no
+  candidate, rather than inventing an underscore-only name. ASCII punctuation
+  still maps one scalar to one underscore (`---` becomes `___`).
+- `NameContext` offers both an initializer that computes spelling candidates and
+  a memberwise initializer for the documented fields. Core prepares integer enum
+  candidates (`value42`/`valueMinus1`) explicitly, preserving the actual decimal
+  wire name and distinguishing integer enums from numeric string enums.
+- Inline defaults come from their wire origin, independently of member renames.
+  Array-item identities nest `.items(of:)`; status-union payloads retain their
+  `.response`/`.errorResponse` status identities and default to `Option<N>`.
+  Composite schema support is unchanged. Status-union payloads retain their actual
+  `.response`/`.errorResponse` identities; no unused union-member case is public.
+- The private fixture serialization currently encodes the remaining inline origins as `{"items": <type>}`,
+  `{"parameter": <wire>, "location": <location>, "operation": <operation>}`,
+  `{"body": <operation>}`, `{"response": <operation>, "status": <status>}`,
+  and `{"errorResponse": <operation>, "status": <status>}`.
+- Route aliases normalize recursively, including located parameters and inline
+  owners. Supplying both route and ID aliases for one target is ambiguous.
+  Unused renames warn regardless of `strict`. Operation rename values exclude
+  `Endpoint`; namespace reservation applies to the emitted suffixed name.
+- Naming diagnostics provide copyable Swift hints. The plugin uses defaults;
+  Swift config evaluation starts in 3N-2. JSON is private CLI/test transport only.
+
+### Local verification
+
+Apple Swift 6.4, arm64 macOS, default Swift Build engine; all local SwiftPM
+commands use `--disable-sandbox` and `-Xswiftc -warnings-as-errors`.
+
+- Full `swift test`: passes, including all six compiled source goldens, the
+  expanded reference table, request-order shuffle, rename/extension diagnostics,
+  byte-exact identities, and cross-process determinism. Exactly two known issues
+  remain: optional headers and empty-body `EmptyCodable` error decoding.
+- `swift test --package-path Examples/PetstoreClient`: passes (2 tests).
+- `swift test --package-path Examples/RuntimeOnlyClient`: passes (1 test).
+- `swift build --disable-default-traits --product Endpoints`: passes.
+- `git diff --check`: passes.
+
+Linux `swift:6.1` execution is owner-run; it was not run locally. No Foundation or
+platform module is imported by the new config library. No config-program process
+spawning or Swift-file execution has been added.
+
+
+### 3N-1 revision: Swift config only (2026-10-25)
+
+- Removed JSON discovery and configuration inputs from both plugin entry points.
+  The only planned user config is `<Stem>.endpoints.swift`, starting in 3N-2.
+  Defaults are used until then. Naming diagnostics now show only Swift rename hints.
+- Renamed the CLI transport flag to `--configuration-json`, omitted from public
+  usage, README and DocC. Core retains its private reader and pointer diagnostics;
+  there is no vocabulary compatibility promise or legacy-map migration diagnostic.
+- Core generation tests now construct `EndpointsConfiguration` in process where
+  practical. A direct adapter retains custom closures and uses the same semantic
+  validation as the transport reader. Rename dictionaries are sorted by structured
+  identity before resolution; diagnostics and output do not depend on traversal order.
+  In-process calls may supply authored source bytes for the header fingerprint;
+  without source bytes the fingerprint is `none` (not a hash of closure identity).
+- Renamed the configured naming fixture to `NamingConfigured` and fixture transport
+  files to `<Stem>.configuration.json`. Strategy/rename and exact-wire coverage is
+  retained. All 20 existing generated file bodies remain byte-identical to the saved
+  pre-3N-1 snapshot; none of their identifiers or wire values changed.
+- Removed PetstoreClient's JSON file. Its auth witness is temporarily internal and
+  its tests use `@testable import`; a 3N-2 TODO restores public access through a Swift
+  config and an ordinary second-module import. This keeps the example exercising
+  the real plugin, requests, authentication and decoding without using private CLI
+  transport as an example interface.
+
+Local verification on Apple Swift 6.4 / macOS, with `--disable-sandbox` and
+`-Xswiftc -warnings-as-errors`: all 189 package tests pass, exactly two known issues
+remain (optional headers and empty-body `EmptyCodable`); both examples pass (2 and
+1 tests); the runtime builds with the generator trait disabled. Zero compiler or
+build warnings. A separate temporary Petstore consumer also passes with deliberately
+malformed `Petstore.endpoints.json` beside its spec, excluded from SwiftPM inputs:
+the plugin ignores it, whereas the former direct filesystem discovery would have
+read it. Cross-process determinism and private-flag fixture tests pass in the full
+suite. `git diff --check` passes. Linux `swift:6.1` execution remains owner-run.
+
+
+### 3N-1 review revisions (2026-10-25)
+
+1. **Unsupported parameters.** Lowering checks the shared supported-location mapping
+   before schema or name resolution. Cookie/querystring locations return nil rather
+   than borrowing query identity. Regression tests cover strict errors and lenient
+   warnings, with and without a same-named query and with an inline cookie enum.
+2. **Public surface.** Algorithm/ASCII helpers, `NameError`, acronym defaults, strategy
+   dispatch, target role helpers and the prepared-candidate initializer are package-only.
+   Core no longer re-exports `Naming`/`NameError`. The ordinary context initializer and
+   context spelling helpers remain deliberate public helpers. 3N-2 must pass the same
+   `-package-name EndpointsConfigProgram` to both swiftc steps; the design commands now
+   include that flag. No config-program execution was added.
+3. **Developer documentation.** All public source declarations have doc comments,
+   including candidate nil/empty rules, enum styles, environments, glob semantics,
+   acronym validation, rename precedence and byte-exact identities. `NameTarget.owner`
+   returns the target itself for `.type`, as documented. Removed the unused
+   `InlineOrigin.unionMember` API and its private encoding; status-union payloads keep
+   `.response`/`.errorResponse` identities and their `Option<N>` default candidates.
+4. **Digit boundary.** A digit splits before an uppercase letter only when followed
+   by lowercase. The algorithm, prose, pseudocode and table agree; precision rows
+   include `_2fa`, `oAuth2Token`/`OAuth2Token`, and `v2Beta`/`V2Beta`.
+5. **Collision diagnostics.** Nested type allocators describe originals with Swift
+   identities, never the private JSON representation. An exact diagnostic test pins
+   the `tags`/`tagsItem` collision and its failing property pointer.
+6. **Invalid-name diagnostics.** Library messages contain no rename suggestion.
+   Core suggests a rename for strategy failures; invalid explicit values are labelled
+   `Invalid rename value`. Exact messages are asserted through typed and private
+   transport entry points, without doubled hints.
+7. **Shared walk decisions.** `OperationInputs.swift` owns media selection, response
+   partitions/ignored statuses, payload identities/default numbering, HEAD/204 skips,
+   and supported parameter locations. Both inventory and lowering call these helpers.
+8. **Precision/default tests.** Restored the deleted precision cases, including `_`
+   rejection, type keywords and reserved `init`. Every declarative default is checked
+   for both initializer forms, with all six strategies exercised through `name(for:)`.
+   Table contexts use real environment, header, query and path roles.
+
+Additional cleanup: Boundaries has no owner_id rename and now proves default
+`ownerId` generation. Core stores one `EndpointsConfiguration` value; other settings
+are projections, with separate diagnostic-location metadata. Allocator failure
+pointers use `NameTarget` rather than matching name/hint strings. Unrelated formatter
+reflows in IR and both lowering files were restored to their original spelling.
+Semantic diagnostic advice uses Swift labels. The private JSON path reuses its
+composed source rather than composing YAML twice.
+
+An inline-object property's `x-swift-name` supplies the naming input for **both**
+the property and its independently resolved inline type. For example, `wire_key`
+with `x-swift-name: better_key` defaults to property `betterKey` and type `BetterKey`;
+a property rename alone does not rename that type. Existing integration coverage
+exercises this shared extension behavior.
+
+Verification on Apple Swift 6.4/macOS, using `--disable-sandbox` and warnings-as-errors:
+all 194 package tests pass (including 55 naming table rows); both examples pass (2
+and 1 tests); the runtime builds with the generator trait disabled. Exactly two
+known issues remain: optional headers and empty-body `EmptyCodable`. Final build/test
+logs contain no compiler/build warnings. The cookie, nested collision and hint tests
+failed against the pre-fix code before the repair. A separate temporary compilation
+of the former digit rule reproduces `_2Fa`; the repaired reference table asserts
+`_2fa`. A compiler-generated public symbol graph contains only the intended 14
+public types and no undocumented source declarations or package helper leaks.
+All 20 existing golden bodies remain byte-identical to the saved pre-3N-1 snapshot,
+including wire values; only Boundaries' config fingerprint changed after removing
+the redundant rename. Cross-process determinism and `git diff --check` pass.
+Linux `swift:6.1` passed the owner’s preceding review run (136 tests, two known issues);
+this revision's Linux execution remains owner-run and was not repeated locally.
+
+
+### 3N-1 second review revisions (2026-10-25)
+
+- Restored `public` to the keyword set after an overbroad access-modifier edit
+  changed that string literal to a duplicate `package`. Added property/enum/type
+  table rows and an independent frozen-set assertion covering every keyword.
+  The supplied `probe3/K.openapi.yaml` generates escaped `public` members and enum
+  constants, and its four generated files type-check with warnings-as-errors.
+- Nil strategies now report `The naming strategy returned no name` when the
+  naming input has tokens. Tokenless inputs retain the `no ASCII identifier`
+  explanation. Typed generation tests pin both exact messages and source pointers.
+- Removed dead `suggested:` and `owner:` arguments from lowering and parameter
+  type lowering. Deleted the pass-through payload helper and call `type` directly.
+  Inventory alone chooses candidates; lowering uses resolved identities.
+- Renames sort by their UTF-8 Swift hint spelling. Removed the JSON emitters used
+  only for sorting; the remaining hint test independently pins Swift escaping.
+  The private JSON reader remains unchanged as a transport boundary.
+- Both inventory and lowering call `jsonRequestBody`, which requires a required
+  body, selected JSON media and a schema. Typed tests cover JSON and vendor JSON,
+  optional bodies, multipart and form bodies. Renames targeting skipped bodies now
+  warn as unused, while supported bodies emit their renamed types.
+- Namespace diagnostics use the complete requested Swift advice. Server targets
+  are bound once, and server naming failures no longer produce a misleading
+  missing-URL follow-up. Exact diagnostics are covered at the generator boundary.
+- Simplified the `user_IDs` table row. The public configuration type doc describes
+  the value declared by `<Stem>.endpoints.swift`; the public context initializer
+  explicitly treats numeric input as strings (`"5"` becomes `_5`), unlike prepared
+  integer enum contexts. A public-initializer test asserts this distinction.
+
+All new regression checks failed on the preceding implementation before fixes.
+Final local verification: Apple Swift 6.4/macOS, `--disable-sandbox` and
+`-Xswiftc -warnings-as-errors`; 199 package tests pass, including 58 naming-table
+rows, with exactly the two known issues (optional headers and empty-body
+`EmptyCodable`). Both examples pass (2 and 1 tests), and the runtime builds with
+its generator trait disabled. No compiler/build warnings. All 20 existing golden
+bodies remain byte-identical to the saved baseline, including wire spellings;
+no golden regeneration was needed. Cross-process determinism and
+`git diff --check` pass. Linux `swift:6.1` passed the owner’s preceding revision
+(141 tests, two known issues); this revision was not rerun on Linux locally.

@@ -1,1 +1,1 @@
-NoOperationId.openapi.yaml:10:5: error: Name collision 'GetPetsByPetIdEndpoint' between 'GET /pets/{petId}' and 'GET /pets/by-pet-id'; use renames.operations["GET /pets/by-pet-id"] [#/paths/~1pets~1by-pet-id/get]
+NoOperationId.openapi.yaml:10:5: error: Name collision 'GetPetsByPetIdEndpoint' between 'GET /pets/{petId}' (renames: [.operation(.route(method: .get, path: "/pets/{petId}")): "NewName"]) and 'GET /pets/by-pet-id' (renames: [.operation(.route(method: .get, path: "/pets/by-pet-id")): "NewName"]) [#/paths/~1pets~1by-pet-id/get]

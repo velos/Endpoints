@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "accessLevel": "public",
+  "acronyms": ["ID", "URL"],
+  "renames": [
+    {"type":"Date","name":"CalendarDate"},
+    {"type":"東京","name":"Tokyo"},
+    {"property":"owner_name","in":"pet_record","name":"owner"},
+    {"type":{"property":"status","in":"pet_record"},"name":"OrderStatus"},
+    {"enumCase":"IN_PROGRESS","in":{"property":"status","in":"pet_record"},"name":"working"},
+    {"parameter":"id","location":"query","operation":{"method":"GET","path":"/pets/{pet_id}"},"name":"queryIdentifier"},
+    {"parameter":"id","location":"header","operation":{"method":"GET","path":"/pets/{pet_id}"},"name":"headerIdentifier"},
+    {"environment":"Production US","name":"production"}
+  ]
+}

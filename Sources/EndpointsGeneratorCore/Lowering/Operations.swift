@@ -1,20 +1,17 @@
 #if OpenAPIGenerator
 import OpenAPIKit
+import EndpointsGeneratorConfig
 
 extension Lowering {
-    struct ResponseInput {
-        let status: String
-        let response: Either<OpenAPI.Reference<OpenAPI.Response>, OpenAPI.Response>
-    }
-
     mutating func parameterType(
-        _ originalSchema: JSONSchema, suggested: String, path: String, owner: String,
+        _ originalSchema: JSONSchema, path: String,
+        typeID: TypeID,
         pointer: String, nested: inout [TypeDecl]
     ) throws -> TypeRef {
         let schema = try lookup.schema(originalSchema)
         if schema.allowedValues?.isEmpty == false {
             return try type(
-                originalSchema, suggested: suggested, path: path, owner: owner,
+                originalSchema, path: path, typeID: typeID,
                 pointer: pointer, nested: &nested)
         }
         switch schema.value {
@@ -26,13 +23,15 @@ extension Lowering {
                 throw unsupported("parameter arrays require one items schema", pointer)
             }
             let element = try parameterType(
-                items, suggested: suggested + "Item", path: path, owner: owner,
+                items, path: path,
+                typeID: .inline(.items(of: typeID)),
                 pointer: pointer + "/items", nested: &nested)
             return .array(nullable(items) ? .optional(element) : element)
         default: throw unsupported("object or composite parameter", pointer)
         }
         return try type(
-            schema, suggested: suggested, path: path, owner: owner, pointer: pointer,
+            schema, path: path, typeID: typeID,
+            pointer: pointer,
             nested: &nested)
     }
 
@@ -42,12 +41,12 @@ extension Lowering {
 
     mutating func responseOutcomes(
         _ inputs: [ResponseInput], name: String, method: HTTPMethod, path: String,
-        owner: String, pointer: String, nested: inout [TypeDecl]
+        operationID: OperationID, pointer: String, nested: inout [TypeDecl]
     ) throws -> [StatusOutcome] {
         var outcomes: [StatusOutcome] = []
         var unionChildren: [TypeDecl] = []
         var names = NameAllocator(reserved: ["init", "hashValue", "DiscriminatorKeys"])
-        for (index, input) in inputs.enumerated() {
+        for input in inputs {
             let located = try lookup.resolve(input.response, at: pointer + "/" + input.status)
             let match: StatusMatch
             switch input.status {
@@ -61,28 +60,31 @@ extension Lowering {
                 }
                 match = .code(code)
             }
+            let typeID = input.typeID
             let caseName = statusCaseName(match)
             try names.claim(caseName, original: input.status, hint: "distinct response statuses")
             var outcome = StatusOutcome(
                 name: caseName, match: match,
                 docs: ["`\(input.status)`: " + (located.value.description ?? "")])
-            if input.status != "204", method != .head,
+            if input.hasBody(method: method),
                 let media = try selectedMedia(
-                    located.value.content, pointer: located.pointer + "/content")
+                    located.value.content, pointer: located.pointer + "/content", lookup: lookup)
             {
                 if isJSON(media.name) {
                     guard let schema = media.value.schema else {
                         throw unsupported("JSON responses require a schema", media.pointer)
                     }
                     if inputs.count == 1 {
-                        outcome.payload = try payload(
-                            schema, name: name, path: path, owner: owner,
+                        outcome.payload = try type(
+                            schema, path: path,
+                            typeID: typeID,
                             pointer: media.pointer + "/schema", nested: &nested)
                     } else {
                         // Inline union members live inside the union, as in §5.6.
-                        outcome.payload = try payload(
-                            schema, name: "Option\(index + 1)", path: path + "." + name,
-                            owner: owner, pointer: media.pointer + "/schema", nested: &unionChildren
+                        outcome.payload = try type(
+                            schema, path: path + "." + name,
+                            typeID: typeID, pointer: media.pointer + "/schema",
+                            nested: &unionChildren
                         )
                     }
                 } else {
@@ -100,10 +102,20 @@ extension Lowering {
             var union = TypeDecl(name: name, kind: .statusUnion, outcomes: outcomes)
             union.nested = unionChildren.sorted { utf8Less($0.name, $1.name) }
             var allocator = NameAllocator(
-                reserved: Naming.namespaceReserved.union([namespace, name]))
+                reserved: Naming.namespaceReserved.union([namespace, name]),
+                candidates: union.nested.map {
+                    NameAllocation(
+                        name: $0.name,
+                        original: targetSwift($0.namingTarget ?? .operation(operationID)),
+                        hint: renameHint($0.namingTarget ?? .operation(operationID)),
+                        target: $0.namingTarget ?? .operation(operationID),
+                        pointer: $0.pointer)
+                })
             for child in union.nested {
                 try allocator.claim(
-                    child.name, original: child.name, hint: renameHint(.operations, owner))
+                    child.name, original: child.name,
+                    hint: renameHint(child.namingTarget ?? .operation(operationID)),
+                    target: child.namingTarget ?? .operation(operationID))
             }
             nested.append(union)
         }

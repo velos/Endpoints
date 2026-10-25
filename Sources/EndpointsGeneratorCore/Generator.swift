@@ -1,6 +1,6 @@
 #if OpenAPIGenerator
+import EndpointsGeneratorConfig
 import Foundation
-import Yams
 
 public struct GeneratedFile {
     public let name: String
@@ -12,12 +12,39 @@ public struct GenerationResult {
     public var hasErrors: Bool { diagnostics.contains { $0.severity == .error } }
 }
 public enum Generator {
+    /// Internal CLI/fixture transport. Its JSON vocabulary is not public API.
     public static func generate(
         spec: Data, config: Data? = nil, stem: String, specPath: String,
         configPath: String? = nil
     ) -> GenerationResult {
         let (configuration, configDiagnostics) = Configuration.load(
-            config, path: configPath ?? stem + ".endpoints.json")
+            config, path: configPath ?? stem + ".configuration.json")
+        let configSource =
+            configuration.transportSource
+            ?? Source(path: configPath ?? stem + ".configuration.json", root: nil)
+        return generate(
+            spec: spec, configuration: configuration, configDiagnostics: configDiagnostics,
+            configSource: configSource, configBytes: config, stem: stem, specPath: specPath)
+    }
+
+    /// In-process configuration. Source bytes, when supplied, fingerprint the authored config;
+    /// a missing fingerprint is rendered as `none`, just as for a call without config bytes.
+    public static func generate(
+        spec: Data, configuration: EndpointsConfiguration, stem: String, specPath: String,
+        configurationSource: Data? = nil
+    ) -> GenerationResult {
+        let config = Configuration(configuration)
+        let path = stem + ".endpoints.swift"
+        return generate(
+            spec: spec, configuration: config, configDiagnostics: config.diagnostics(path: path),
+            configSource: Source(path: path, root: nil), configBytes: configurationSource,
+            stem: stem, specPath: specPath)
+    }
+
+    private static func generate(
+        spec: Data, configuration: Configuration, configDiagnostics: [Diagnostic],
+        configSource: Source, configBytes: Data?, stem: String, specPath: String
+    ) -> GenerationResult {
         var diagnostics = configDiagnostics
         let emptySource = Source(path: specPath, root: nil)
         if !Naming.isIdentifier(stem) || Naming.keywords.contains(stem) {
@@ -29,13 +56,14 @@ public enum Generator {
         let namespace = configuration.namespace ?? stem
         if Naming.namespaceReserved.contains(namespace) {
             diagnostics.append(
-                emptySource.diagnostic("Reserved namespace '\(namespace)'; set config.namespace"))
+                emptySource.diagnostic(
+                    "Reserved namespace '\(namespace)'; choose another with namespace: \"…\""))
         }
         if configuration.serverType?.split(separator: ".").first.map(String.init) == namespace {
             diagnostics.append(
                 emptySource.diagnostic(
-                    "Namespace collides with the configured server type; "
-                        + "use config.namespace or a module-qualified server.type"
+                    "Namespace '\(namespace)' collides with the configured server type; "
+                        + "choose another namespace: or module-qualify server: .type(\"Module.\(namespace)\")"
                 ))
         }
         if !diagnostics.isEmpty {
@@ -48,14 +76,17 @@ public enum Generator {
             return GenerationResult(
                 files: [], diagnostics: diagnostics.sorted(by: Diagnostic.less))
         }
-        let configRoot = config.flatMap { String(data: $0, encoding: .utf8) }.flatMap {
-            try? compose(yaml: $0, .default, .default, .utf8)
-        }
+        var inventory = NameInventory(
+            document: loaded.document, source: loaded.source, config: configuration)
+        inventory.collect()
+        diagnostics += inventory.diagnostics
+        let resolutions = DeclarativeNameResolver().resolve(
+            inventory.requests, config: configuration, source: configSource)
+        diagnostics += resolutions.diagnostics
         var lowering = Lowering(
             document: loaded.document, source: loaded.source,
-            configSource: Source(
-                path: configPath ?? stem + ".endpoints.json", root: configRoot),
-            config: configuration, namespace: namespace)
+            configSource: configSource, config: configuration, namespace: namespace,
+            resolutions: resolutions)
         let module = lowering.lower()
         diagnostics += lowering.diagnostics
         diagnostics.sort(by: Diagnostic.less)
@@ -65,7 +96,7 @@ public enum Generator {
         // The canonical source label is part of the determinism contract.
         let sourceLabel = stem + ".openapi"
         let specHash = String(SHA256.hex(Array(spec)).prefix(16))
-        let configHash = config.map { String(SHA256.hex(Array($0)).prefix(16)) } ?? "none"
+        let configHash = configBytes.map { String(SHA256.hex(Array($0)).prefix(16)) } ?? "none"
         let header = [
             "// Generated by EndpointsGenerator \(GeneratorVersion.current) for \(stem) (\(sourceLabel)). Do not edit.",
             "// Inputs: spec sha256 \(specHash), config sha256 \(configHash)",

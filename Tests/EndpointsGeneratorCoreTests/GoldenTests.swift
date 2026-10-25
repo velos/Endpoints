@@ -1,3 +1,4 @@
+import EndpointsGeneratorConfig
 import Foundation
 import Testing
 
@@ -9,14 +10,22 @@ func fixture(_ stem: String, _ suffix: String = ".openapi.yaml") -> URL {
     Bundle.module.resourceURL!.appendingPathComponent("Fixtures/\(stem)/\(stem)\(suffix)")
 }
 func generation(_ stem: String, config override: Data? = nil) throws -> GenerationResult {
-    let config = override ?? (try? Data(contentsOf: fixture(stem, ".endpoints.json")))
+    let config = override ?? (try? Data(contentsOf: fixture(stem, ".configuration.json")))
     return Generator.generate(
         spec: try Data(contentsOf: fixture(stem)), config: config, stem: stem,
-        specPath: stem + ".openapi.yaml", configPath: stem + ".endpoints.json")
+        specPath: stem + ".openapi.yaml", configPath: stem + ".configuration.json")
+}
+
+func generation(_ stem: String, configuration: EndpointsConfiguration) throws -> GenerationResult {
+    Generator.generate(
+        spec: try Data(contentsOf: fixture(stem)), configuration: configuration,
+        stem: stem, specPath: stem + ".openapi.yaml")
 }
 
 @Suite struct GoldenTests {
-    @Test(arguments: ["Boundaries", "Petstore", "SchemaEdges", "DateScopes", "Operations"])
+    @Test(arguments: [
+        "Boundaries", "Petstore", "SchemaEdges", "DateScopes", "Operations", "NamingConfigured",
+    ])
     func sourceGoldens(
         stem: String
     ) throws {
@@ -90,7 +99,7 @@ func generation(_ stem: String, config override: Data? = nil) throws -> Generati
         let split = text.components(separatedBy: "    Problem:\n")
         let tail = split[1].components(separatedBy: "    Metadata:\n")
         let shuffled = split[0] + "    Metadata:\n" + tail[1] + "    Problem:\n" + tail[0]
-        let config = try Data(contentsOf: fixture("Boundaries", ".endpoints.json"))
+        let config = try Data(contentsOf: fixture("Boundaries", ".configuration.json"))
         let normal = Generator.generate(
             spec: Data(text.utf8), config: config, stem: "Boundaries",
             specPath: "Boundaries.openapi.yaml")
@@ -137,12 +146,13 @@ func generation(_ stem: String, config override: Data? = nil) throws -> Generati
             let spec = input.appendingPathComponent(
                 index == 1 ? stem + ".openapi.yml" : stem + ".openapi.yaml")
             try FileManager.default.copyItem(at: fixture(stem), to: spec)
-            let config = input.appendingPathComponent(stem + ".endpoints.json")
-            try FileManager.default.copyItem(at: fixture(stem, ".endpoints.json"), to: config)
+            let config = input.appendingPathComponent(stem + ".configuration.json")
+            try FileManager.default.copyItem(at: fixture(stem, ".configuration.json"), to: config)
             let process = Process()
             process.executableURL = executable
             process.arguments = [
-                "generate", "--spec", spec.path, "--config", config.path, "--stem", stem,
+                "generate", "--spec", spec.path, "--configuration-json", config.path, "--stem",
+                stem,
                 "--output-dir", output.path,
             ]
             var environment = ProcessInfo.processInfo.environment

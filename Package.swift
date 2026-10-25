@@ -6,6 +6,7 @@ import PackageDescription
 // Conditional targets based on platform
 #if os(Linux)
 let runtimeProducts: [Product] = [
+    .library(name: "EndpointsGeneratorConfig", targets: ["EndpointsGeneratorConfig"]),
     .library(
         name: "Endpoints",
         targets: ["Endpoints"]),
@@ -21,6 +22,7 @@ let runtimeTargets: [Target] = [
 ]
 #else
 let runtimeProducts: [Product] = [
+    .library(name: "EndpointsGeneratorConfig", targets: ["EndpointsGeneratorConfig"]),
     .library(
         name: "Endpoints",
         targets: ["Endpoints"]),
@@ -47,7 +49,10 @@ let runtimeTargets: [Target] = [
 
 let generatorTrait = "OpenAPIGenerator"
 let generatorTargets: [Target] = [
+    .target(name: "EndpointsGeneratorConfig", dependencies: []),
+    .testTarget(name: "EndpointsGeneratorConfigTests", dependencies: ["EndpointsGeneratorConfig"]),
     .target(name: "EndpointsGeneratorCore", dependencies: [
+        "EndpointsGeneratorConfig",
         .product(name: "OpenAPIKit", package: "OpenAPIKit", condition: .when(traits: [generatorTrait])),
         .product(name: "OpenAPIKit30", package: "OpenAPIKit", condition: .when(traits: [generatorTrait])),
         .product(name: "OpenAPIKitCompat", package: "OpenAPIKit", condition: .when(traits: [generatorTrait])),

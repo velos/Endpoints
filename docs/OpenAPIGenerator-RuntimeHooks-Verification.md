@@ -89,7 +89,7 @@ export SWIFT_MODULECACHE_PATH=/tmp/endpoints-module-cache
 | PetstoreClient build with `--build-tests`, then test, with warnings as errors | Pass; 2 tests, zero warnings |
 | RuntimeOnlyClient build with `--build-tests`, then test, with warnings as errors | Pass; 1 test, zero warnings |
 | RuntimeOnlyClient `.build/checkouts` | Exists and is empty; no OpenAPIKit or Yams |
-| Unhandled spec/sidecar warning on Swift 6.4 | None observed in the example builds/tests |
+| Unhandled specification warning on Swift 6.4 | None observed in the example builds/tests |
 | `git diff --check` | Pass |
 | Linux Swift 6.1 / native Xcode | Not run here; owner reported 108 Linux tests passing before these review revisions; the revised code needs an owner-run Linux check |
 

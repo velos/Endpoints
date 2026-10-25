@@ -1,4 +1,5 @@
 #if OpenAPIGenerator
+import EndpointsGeneratorConfig
 import OpenAPIKit
 
 extension Lowering {

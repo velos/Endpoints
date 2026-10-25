@@ -1,10 +1,14 @@
+import EndpointsGeneratorConfig
 import Foundation
 import Testing
 
 @testable import EndpointsGeneratorCore
 
 @Suite struct MappingTests {
-    func schemas(_ contents: String, strict: Bool = true) -> GenerationResult {
+    func schemas(
+        _ contents: String, strict: Bool = true, configuration: EndpointsConfiguration? = nil,
+        config: Data? = nil
+    ) -> GenerationResult {
         let indentedContents = contents.split(separator: "\n", omittingEmptySubsequences: false)
             .map { "    " + $0 }.joined(separator: "\n")
         let spec = """
@@ -16,8 +20,14 @@ import Testing
               schemas:
             \(indentedContents)
             """
+        if let config {
+            return Generator.generate(
+                spec: Data(spec.utf8), config: config, stem: "Mapping",
+                specPath: "Mapping.openapi.yaml")
+        }
         return Generator.generate(
-            spec: Data(spec.utf8), config: Data("{\"version\":1,\"strict\":\(strict)}".utf8),
+            spec: Data(spec.utf8),
+            configuration: configuration ?? EndpointsConfiguration(strict: strict),
             stem: "Mapping", specPath: "Mapping.openapi.yaml")
     }
 
@@ -62,15 +72,14 @@ import Testing
         }
         let result = try generation(
             "Reserved",
-            config: Data(#"{"version":1,"renames":{"schemas":{"Date":"CalendarDate"}}}"#.utf8))
+            configuration: EndpointsConfiguration(renames: [.type("Date"): "CalendarDate"]))
         #expect(!result.hasErrors)
         #expect(
             String(decoding: result.files[1].bytes, as: UTF8.self).contains("struct CalendarDate"))
         let collision = try generation(
             "Reserved",
-            config: Data(
-                #"{"version":1,"server":{"type":"CustomServer"},"renames":{"schemas":{"Date":"CustomServer"}}}"#
-                    .utf8))
+            configuration: EndpointsConfiguration(
+                server: .type("CustomServer"), renames: [.type("Date"): "CustomServer"]))
         #expect(
             collision.hasErrors
                 && collision.diagnostics.contains {
@@ -105,7 +114,7 @@ import Testing
                     """
                 let result = Generator.generate(
                     spec: Data(spec.utf8),
-                    config: Data("{\"version\":1,\"strict\":\(strict)}".utf8), stem: "Operations",
+                    configuration: EndpointsConfiguration(strict: strict), stem: "Operations",
                     specPath: "Operations.openapi.yaml")
                 #expect(
                     result.hasErrors == strict, "\(detail): \(result.diagnostics.map(\.formatted))")
@@ -212,16 +221,20 @@ import Testing
             stem: "Servers", specPath: "Servers.openapi.yaml")
         #expect(!keyword.hasErrors)
         #expect(String(decoding: keyword.files[0].bytes, as: UTF8.self).contains("{ .`default` }"))
-        let configs = [
-            (#"{"version":1,"server":{"type":"CustomServer"}}"#, "typealias Server = CustomServer"),
+        let configs: [(EndpointsConfiguration, String)] = [
             (
-                #"{"version":1,"server":{"environments":{"production":"https://example.com/a"}}}"#,
+                EndpointsConfiguration(server: .type("CustomServer")),
+                "typealias Server = CustomServer"
+            ),
+            (
+                EndpointsConfiguration(
+                    server: .environments([.production: "https://example.com/a"])),
                 "typealias Environments = TypicalEnvironments"
             ),
         ]
         for (config, needle) in configs {
             let value = Generator.generate(
-                spec: data, config: Data(config.utf8), stem: "Servers",
+                spec: data, configuration: config, stem: "Servers",
                 specPath: "Servers.openapi.yaml")
             #expect(
                 !value.hasErrors
@@ -229,17 +242,17 @@ import Testing
         }
         let invalid = Generator.generate(
             spec: data,
-            config: Data(
-                #"{"version":1,"strict":false,"server":{"environments":{"staging":"https://h"}}}"#
-                    .utf8), stem: "Servers", specPath: "Servers.openapi.yaml")
+            configuration: EndpointsConfiguration(
+                server: .environments([.staging: "https://h"]), strict: false), stem: "Servers",
+            specPath: "Servers.openapi.yaml")
         #expect(
             invalid.hasErrors
-                && invalid.diagnostics.contains { $0.message.contains("defaultEnvironment") })
+                && invalid.diagnostics.contains { $0.message.contains("default server environment") })
         for url in ["/relative", "https://h/?q=1", "https://h/#f"] {
             let spec = base.replacingOccurrences(
                 of: "https://{region}.example.com/v1", with: "'" + url + "'")
             let value = Generator.generate(
-                spec: Data(spec.utf8), config: Data(#"{"version":1,"strict":false}"#.utf8),
+                spec: Data(spec.utf8), configuration: EndpointsConfiguration(strict: false),
                 stem: "Servers", specPath: "Servers.openapi.yaml")
             #expect(value.hasErrors)
         }

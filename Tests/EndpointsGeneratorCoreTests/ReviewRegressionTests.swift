@@ -1,3 +1,4 @@
+import EndpointsGeneratorConfig
 import Foundation
 import Testing
 
@@ -6,10 +7,10 @@ import Testing
 @Suite struct ReviewRegressionTests {
     @Test func namespaceCannotBeShadowedByGeneratedTypes() {
         let cases = [
-            ("Mapping: {type: string}", #"renames.schemas["Mapping"]"#),
+            ("Mapping: {type: string}", #".type("Mapping")"#),
             (
                 "Container: {type: object, properties: {mapping: {type: object, properties: {id: {type: string}}}}}",
-                #"renames.properties["Container.mapping"]"#
+                #".type(.inline(.property("mapping", in: "Container")))"#
             ),
         ]
         for (schema, hint) in cases {
@@ -54,7 +55,7 @@ import Testing
                 token: {type: http, scheme: bearer}
             """
         let result = Generator.generate(
-            spec: Data(spec.utf8), config: Data(#"{"version":1,"accessLevel":"public"}"#.utf8),
+            spec: Data(spec.utf8), configuration: EndpointsConfiguration(accessLevel: .public),
             stem: "Bearer", specPath: "Bearer.openapi.yaml")
         #expect(!result.hasErrors)
         let server = String(decoding: result.files[0].bytes, as: UTF8.self)
@@ -163,8 +164,9 @@ import Testing
             })
         let renamed = try generation(
             "NoOperationId",
-            config: Data(
-                #"{"version":1,"renames":{"operations":{"GET /pets/by-pet-id":"FindPets"}}}"#.utf8))
+            configuration: EndpointsConfiguration(renames: [
+                .operation(.route(method: .get, path: "/pets/by-pet-id")): "FindPets"
+            ]))
         #expect(!renamed.hasErrors)
         #expect(
             String(decoding: renamed.files[2].bytes, as: UTF8.self).contains(
@@ -208,12 +210,15 @@ import Testing
               properties:
                 oldName: {type: string, deprecated: true}
                 _oldName: {type: string}
-            """)
+            """,
+            configuration: EndpointsConfiguration(renames: [
+                .property("_oldName", in: "Value"): "_oldName"
+            ]))
         #expect(result.hasErrors)
         #expect(
             result.diagnostics.contains {
                 $0.message.contains("Name collision '_oldName'")
-                    && $0.message.contains(#"renames.properties["Value._oldName"]"#)
+                    && $0.message.contains(#".property("_oldName", in: "Value")"#)
             })
     }
 
@@ -260,9 +265,9 @@ import Testing
               schemas:
                 \(composed): {type: string}
             """
-        let config = "{\"version\":1,\"renames\":{\"schemas\":{\"\(decomposed)\":\"Unexpected\"}}}"
+        let config = EndpointsConfiguration(renames: [.type(.component(decomposed)): "Unexpected"])
         let matched = Generator.generate(
-            spec: Data(spec.utf8), config: Data(config.utf8), stem: "Wire",
+            spec: Data(spec.utf8), configuration: config, stem: "Wire",
             specPath: "Wire.openapi.yaml")
         #expect(!matched.hasErrors, "\(matched.diagnostics.map(\.formatted))")
         let schemas = String(

@@ -1,4 +1,5 @@
 #if OpenAPIGenerator
+import EndpointsGeneratorConfig
 import Foundation
 
 public enum ServerURLs {

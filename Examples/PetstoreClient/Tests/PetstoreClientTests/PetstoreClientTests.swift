@@ -1,13 +1,15 @@
+import Endpoints
 import Foundation
 import Testing
-import Endpoints
-import PetstoreAPI
+
+// TODO(3N-2): configure accessLevel: .public in Petstore.endpoints.swift and restore a public API import.
+@testable import PetstoreAPI
 
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
 
-@Test func publicAuthenticationWitnessAndRequest() throws {
+@Test func authenticationWitnessAndRequest() throws {
     #expect(Petstore.Server.Auth.self == HeaderKeyAuth.self)
     #expect(Petstore.GetPetEndpoint.Auth.self == HeaderKeyAuth.self)
     #expect(Petstore.GetLogoEndpoint.Auth.self == NoAuth.self)
@@ -24,7 +26,7 @@ import FoundationNetworking
     #expect(Petstore.Server.auth.key == "example-api-key")
 }
 
-@Test func publicStatusUnionAndRepeatedTags() throws {
+@Test func statusUnionAndRepeatedTags() throws {
     let request = try Petstore.SearchPetsEndpoint(parameterComponents: .init(tags: ["a", "b"]))
         .urlRequest()
     #expect(

@@ -138,7 +138,7 @@ Effective minimum toolchain for all consumers: **Swift 6.1** (our manifest). REA
         dependencies: [.product(name: "Endpoints", package: "Endpoints")],
         plugins: [.plugin(name: "EndpointsGeneratorPlugin", package: "Endpoints")])
 ```
-`Sources/App/Petstore.openapi.yaml` plus optional `Sources/App/Petstore.endpoints.json`. Phase 2 records whether SwiftPM 6.1 warns about the `.yaml` as an unhandled file; if so the README calls it benign (it must not be `exclude`d).
+`Sources/App/Petstore.openapi.yaml` plus optional `Sources/App/Petstore.endpoints.swift` starting in 3N-2 (the only user-facing config). Phase 2 records whether SwiftPM 6.1 warns about the `.yaml` as an unhandled file; if so the README calls it benign (it must not be `exclude`d).
 
 ### 2.4 Xcode projects
 `Plugins/EndpointsGeneratorPlugin/Plugin.swift` implements `BuildToolPlugin` and, under `#if canImport(XcodeProjectPlugin)`, `XcodeBuildToolPlugin` (`target.inputFiles`, `context.pluginWorkDirectoryURL`), both calling one `makeCommands(specs:toolURL:workDirectory:)`. Phase 2 includes a manual checklist against a real `.xcodeproj` (not the package opened in Xcode): discovery, regeneration on spec edit, issue-navigator diagnostics, Copy Bundle Resources guidance.
@@ -152,13 +152,13 @@ Linux container `swift:6.1`; macOS `macos-latest`. Steps added: `swift test` (go
 
 ### 3.1 Discovery
 - Spec: `<Stem>.openapi.{json,yaml,yml}` where `Stem` matches `[A-Za-z_][A-Za-z0-9_]*`; the literal `openapi.{json,yaml,yml}` is accepted with stem `API`. Any other `*.openapi.*` name → `Diagnostics.error` ("rename the file; the stem becomes the Swift namespace").
-- Config: `<Stem>.endpoints.json` beside the spec (so `API.endpoints.json` for the bare form). Listed as an input only when present; plugins re-run on every build plan, so adding/removing it is picked up next build (Phase 2 proves this).
-- Namespace = `config.namespace` if set, else the stem verbatim. The plugin reads each sidecar's `namespace` with `JSONSerialization` and errors on duplicate namespaces, duplicate stems, and stems that differ only by ASCII case (case-insensitive filesystems).
+- Config: only `<Stem>.endpoints.swift` beside the spec, available from 3N-2. Phase 3N-1 uses defaults and discovers no configuration files.
+- Namespace = configured namespace if set (3N-2), else the stem verbatim. The plugin rejects duplicate stems and stems that differ only by ASCII case. Configured namespace clashes are diagnosed by the consumer compiler; the plugin does not evaluate configs while planning.
 - Zero specs → `Diagnostics.warning`, no commands. Several specs → one command and four files each.
 
 ### 3.2 Command
 ```
-endpoints-generate generate --spec <path> --stem <Stem> --output-dir <dir> [--config <path>] [--check]
+endpoints-generate generate --spec <path> --stem <Stem> --output-dir <dir> [--check]
 ```
 Outputs under `pluginWorkDirectoryURL/GeneratedSources/<Stem>/`. All four files are always produced (a file with nothing to declare gets the header and a one-line comment). Files are written only when their bytes differ. `--check` (vendoring, Phase 6) regenerates into memory and exits 1 if any existing file's bytes differ.
 
@@ -167,43 +167,32 @@ Outputs under `pluginWorkDirectoryURL/GeneratedSources/<Stem>/`. All four files 
 
 ---
 
-## 4. Config schema (`<Stem>.endpoints.json`)
+## 4. Typed Swift configuration (available from 3N-2)
 
-Closed schema; unknown keys are errors (listed sorted). `version` is required.
+The only user-facing configuration is `<Stem>.endpoints.swift` beside the spec
+(`API.endpoints.swift` for bare `openapi.yaml`). It imports the dependency-free
+`EndpointsGeneratorConfig` product and declares the typed configuration described
+in [OpenAPIGenerator-Naming.md §4.1](OpenAPIGenerator-Naming.md).
+That document supersedes this design's original configuration and naming rules.
+Phase 3N-1 provides the library, naming algorithm and in-process Core support;
+the plugin evaluates Swift config files starting in 3N-2. Until then the plugin
+uses defaults, including internal access. There is no user-facing JSON sidecar.
 
-```json
-{
-  "version": 1,
-  "namespace": "PetstoreAPI",
-  "accessLevel": "public",
-  "server": {
-    "type": null,
-    "environments": { "staging": "https://staging.example.com/api/v3", "production": "https://api.example.com/api/v3" },
-    "defaultEnvironment": "production"
-  },
-  "operations": { "include": ["*"], "exclude": ["deleteUser", "DELETE /store/*"] },
-  "renames": {
-    "schemas": { "Date": "CalendarDate" },
-    "operations": { "listPets": "FetchPets" },
-    "properties": { "Pet.first-name": "givenName" }
-  },
-  "enums": "open",
-  "strict": true
-}
+```swift
+// endpoints-configuration-version: 1
+import EndpointsGeneratorConfig
+
+let petstoreConfiguration = EndpointsConfiguration(
+    accessLevel: .public,
+    renames: [.type("Date"): "CalendarDate"]
+)
 ```
 
-| Key | Default | Meaning |
-|---|---|---|
-| `version` | required | Config schema version; only `1` accepted. |
-| `namespace` | stem | Outer `enum` name; must be a valid ASCII identifier. |
-| `accessLevel` | `"internal"` | `"internal"` (no modifier), `"package"`, `"public"`. |
-| `server.type` | `null` | Use the user's own `ServerDefinition` (must have `init()`); no `Server` generated. Exclusive with `environments`. |
-| `server.environments` | from spec | Keys are `TypicalEnvironments` case names; absolute URLs. Present → `Environments = TypicalEnvironments`. Absent → generated `Environment` enum from spec `servers`. |
-| `server.defaultEnvironment` | `"production"` if present, else first spec server | Error if it has no URL. |
-| `operations.include`/`exclude` | `["*"]`/`[]` | `*` globs against `operationId` and `"METHOD /path"`; exclude wins. |
-| `renames.schemas` / `.operations` / `.properties` | `{}` | Original name → Swift name (properties keyed `"<Schema>.<wireName>"`). For an operation without `operationId`, its original identity and rename key are `"<UPPERCASE METHOD> <original path>"`, e.g. `"GET /pets/{petId}"`; `By` tokens are used only to derive its Swift name. Wire identities compare UTF-8 bytes. Applied before sanitisation checks; the result must be a valid identifier. This is the only collision-resolution mechanism. |
-| `enums` | `"open"` | `"open"` = extensible `RawRepresentable` struct; `"closed"` = Swift `enum` with raw values. Applies to string and integer enums. |
-| `strict` | `true` | `true` = unsupported constructs are errors; `false` = skipped with warnings. |
+JSON remains private serialization of the declarative settings for the future
+config program and test fixtures. Core owns its reader and pointer diagnostics;
+its vocabulary is not public API and carries no compatibility promise. The
+plugin neither discovers nor passes JSON configuration. Public configuration
+instructions cover Swift only; see Naming §4.2 for the internal boundary.
 
 ---
 
@@ -322,7 +311,7 @@ Models are `Codable, Hashable, Sendable`, properties `var`, explicit memberwise 
 4. Leading digit → prefix `_`. No tokens → **error**.
 5. Members that are Swift keywords → backticks. Types equal to a keyword or `Type`/`Protocol`/`Self`/`Any` → **error**.
 6. Reserved (→ **error** with rename hint). The namespace name itself is reserved in namespace, struct-nested, and endpoint-nested type scopes, preventing qualified references from resolving to a shadowing nested type. Namespace scope: `Server`, `Environment`, `JSONCoding`, `JSONValue`, `Indirect`, `RawBodyEncoder`, `EncodedPath`, and every unqualified library type the generated code references (`String, Int, Int32, Int64, Double, Bool, Date, Data, UUID, URL, Optional, Array, Dictionary, Decodable, Encodable, Codable, Hashable, Sendable, CaseIterable, RawRepresentable, Decoder, Encoder, DecodingError, EncodingError, KeyedDecodingContainer, KeyedEncodingContainer, Endpoint, Definition, Header, HeaderField, Parameter, PathTemplate, Method, NoAuth, EmptyCodable, JSONEncoder, JSONDecoder, HTTPResponseJSONDecoder, MultipartFormEncoder, MultipartFormFile, MultipartFormJSON, EncoderType, DecoderType, ParameterRepresentable, PathRepresentable, ServerDefinition, TypicalEnvironments`). Endpoint scope: `Server, Response, ErrorResponse, Body, PathComponents, ParameterComponents, HeaderComponents, Auth, TaskError, BodyEncoder, ErrorDecoder, ResponseDecoder, definition, body, pathComponents, parameterComponents, headerComponents, auth, bodyEncoder, errorDecoder, responseDecoder, queryEncodingStrategy`. Struct scope: `CodingKeys`, `init`, `hashValue`, `rawValue`, `allCases`, `knownValues`, `wrappedValue`, and `_<name>` for every boxed or deprecated property. Union scope: `DiscriminatorKeys`, case names of the status/kind tables.
-7. Rename hints use JSON-subscript form, e.g. `renames.operations["GET /pets/{petId}"]`. Collisions within a scope (two originals → one Swift name; a query and a form field with one name; endpoint names from `operationId` vs method+path) → **error** naming both originals and the `renames` key to use.
+7. Naming and renames are superseded by Naming §4.1/§5.7. Rename hints use Swift syntax, e.g. `renames: [.operation(.route(method: .get, path: "/pets/{petId}")): "FetchPet"]`. Collisions within a scope (two originals → one Swift name; a query and a form field with one name; endpoint names from `operationId` vs method+path) → **error** naming both originals and the `renames` key to use.
 8. Enum member names: lowerCamel of the raw value; `""` → `empty`; ints → `value<N>` / `valueMinus<N>`; collisions → error.
 9. Environment case names: from `servers[].description` (lowerCamel), fallback `server<index>`; collisions → error.
 
@@ -834,7 +823,7 @@ extension Petstore {
 ## 8. Testing strategy (macOS and Linux)
 
 1. **Unit** (`EndpointsGeneratorCoreTests`): tokeniser/casing tables (`HTTPStatus`, `first-name`, `123abc`, keywords, empty → error, non-ASCII → error), rename application, reserved/collision errors, cycle detection and boxing, presence classification, allOf conflict detection, union admissibility, response/error outcome selection and case naming, media priority, URL normalisation (path-only insertion, rejections), doc-comment sanitisation, config decoding (version, unknown keys, exclusivity), SHA-256 vectors, `CodeWriter` invariants, RFC 3339 vectors (fractional, offsets, leap day, `Z`).
-2. **Goldens**: fixtures under `Tests/EndpointsGeneratorCoreTests/Fixtures/<Stem>/` (`<Stem>.openapi.yaml`, optional `<Stem>.endpoints.json`, `diagnostics.txt`); expected output committed as sources of `Tests/EndpointsGeneratedGoldenTests/<Stem>/`. The test generates in-process and compares bytes and diagnostics; `UPDATE_GOLDENS=1 swift test --filter Golden` rewrites. Because the goldens compile as a test target, `swift build --build-tests` proves they build against `Endpoints`; hand-written `@Test`s build requests and assert URL/query/headers/body bytes, and decode JSON fixtures (status unions incl. 204 → `.noContent`, required-nullable round trips, missing-vs-null for `@Indirect`, discriminators, kind unions, open enums with unknown values, dates with offsets).
+2. **Goldens**: fixtures under `Tests/EndpointsGeneratorCoreTests/Fixtures/<Stem>/` (`<Stem>.openapi.yaml`, optional private `<Stem>.configuration.json` fixture, `diagnostics.txt`); expected output committed as sources of `Tests/EndpointsGeneratedGoldenTests/<Stem>/`. The test generates in-process and compares bytes and diagnostics; `UPDATE_GOLDENS=1 swift test --filter Golden` rewrites. Because the goldens compile as a test target, `swift build --build-tests` proves they build against `Endpoints`; hand-written `@Test`s build requests and assert URL/query/headers/body bytes, and decode JSON fixtures (status unions incl. 204 → `.noContent`, required-nullable round trips, missing-vs-null for `@Indirect`, discriminators, kind unions, open enums with unknown values, dates with offsets).
    Corpus: `Boundaries` (Phase 2: ordered properties, required-nullable, `Int64`, encoded path values, status union, reserved-name and collision *error* variants), `Petstore` (petstore3 3.0.x → conversion), `Petstore31`, `KitchenSinkSchemas`, `Operations`, `Lenient` (same as Operations with `strict: false`), `Servers`, `Naming`.
 3. **Determinism**: in-process double run; `ProcessDeterminismTests` runs the built `endpoints-generate` three times per fixture with `SWIFT_DETERMINISTIC_HASHING` removed and once with `=1`, in different working directories and with different `--spec` directory paths for the same stem, asserting identical bytes and diagnostics; `BannedAPITests` scans Core and CLI sources for §1 rule 4 tokens; a shuffle test reorders top-level `paths`/`components` keys and asserts identical output; goldens on both CI OSes.
 4. **End-to-end**: `Examples/PetstoreClient` (plugin applied, two modules: `App` with the generated code and `public static let auth` extension, `Client` asserting `Petstore.Server.Auth.self == HeaderKeyAuth.self` and exercising a request through `TestTransport`-style mocking) with `swift test`; `Examples/RuntimeOnlyClient` (`traits: []`) with the checkout assertion on macOS.
@@ -863,7 +852,7 @@ Acceptance: `swift test` green on both OSes; runtime tests cover each §6 item i
 
 ### Phase 2 — Boundary spike: plugin → CLI → Core on the irreversible decisions
 Scope: Loader (Yams, version sniff, conversion), Validator, minimal lowering and renderer sufficient for the `Boundaries` fixture: a spec with two operations and three schemas exercising ordered properties, a required-nullable property, an `Int64` id, an encoded path value (space, `%`, `/`, non-ASCII), a `200`+`204` status union, a typed error, public access with the `public static let auth` extension, plus two deliberately failing variants (reserved name `Date`, two operationIds colliding) whose diagnostics are golden-tested; `CodeWriter`; header/hash; CLI; `BuildToolPlugin` + `XcodeBuildToolPlugin`; `Examples/PetstoreClient` with two modules; ordering audit of every OpenAPIKit collection the lowering touches (documented in `Sources/EndpointsGeneratorCore/Lowering/ORDERING.md`).
-Acceptance: `Boundaries` golden compiles and its request/decoding assertions pass on both OSes; `ProcessDeterminismTests` passes; invalidation matrix verified and recorded (clean build; unchanged rebuild doesn't rerun; spec edit; config edit/add/remove; second spec; spec removal leaves no stale outputs; generator source change reruns; case-insensitive stem clash errors); native Xcode project checklist completed manually and recorded; `swift test --package-path Examples/PetstoreClient` passes; unhandled-file warning behaviour recorded.
+Acceptance: `Boundaries` golden compiles and its request/decoding assertions pass on both OSes; `ProcessDeterminismTests` passes; invalidation matrix verified and recorded (clean build; unchanged rebuild doesn't rerun; spec edit; Swift config edit/add/remove (3N-2); second spec; spec removal leaves no stale outputs; generator source change reruns; case-insensitive stem clash errors); native Xcode project checklist completed manually and recorded; `swift test --package-path Examples/PetstoreClient` passes; unhandled-file warning behaviour recorded.
 
 ### Phase 3 — Schemas and naming
 Scope: every row of §5.6 and §5.7, `renames`, `enums`, `@Indirect`, `JSONValue`, kind-dispatched unions, allOf conflict detection, doc comments, deprecated.

@@ -15,14 +15,14 @@ struct Option {
 let arguments = Array(CommandLine.arguments.dropFirst())
 guard arguments.first == "generate" else {
     fail(
-        "Usage: endpoints-generate generate --spec <path> --stem <Stem> --output-dir <dir> [--config <path>]"
+        "Usage: endpoints-generate generate --spec <path> --stem <Stem> --output-dir <dir>"
     )
 }
 var options: [Option] = []
 var index = 1
 while index < arguments.count {
     let flag = arguments[index]
-    guard ["--spec", "--stem", "--output-dir", "--config"].contains(flag),
+    guard ["--spec", "--stem", "--output-dir", "--configuration-json"].contains(flag),
         index + 1 < arguments.count,
         !arguments[index + 1].hasPrefix("--"), !options.contains(where: { $0.flag == flag })
     else {
@@ -42,7 +42,7 @@ let config: Data?
 do { spec = try Data(contentsOf: URL(fileURLWithPath: specPath)) } catch {
     fail("Cannot read specification", path: specPath)
 }
-if let path = option("--config") {
+if let path = option("--configuration-json") {
     do { config = try Data(contentsOf: URL(fileURLWithPath: path)) } catch {
         fail("Cannot read configuration", path: path)
     }
@@ -50,7 +50,8 @@ if let path = option("--config") {
     config = nil
 }
 let result = Generator.generate(
-    spec: spec, config: config, stem: stem, specPath: specPath, configPath: option("--config"))
+    spec: spec, config: config, stem: stem, specPath: specPath,
+    configPath: option("--configuration-json"))
 for diagnostic in result.diagnostics {
     FileHandle.standardError.write(Data((diagnostic.formatted + "\n").utf8))
 }

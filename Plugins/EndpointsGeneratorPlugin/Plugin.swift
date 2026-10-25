@@ -16,8 +16,6 @@ struct EndpointsGeneratorPlugin: BuildToolPlugin {
 private struct Specification {
     let url: URL
     let stem: String
-    let namespace: String
-    let config: URL?
 }
 
 private let asciiCaseOffset = UInt8(ascii: "a") - UInt8(ascii: "A")
@@ -69,27 +67,6 @@ private func makeCommands(files: [URL], toolURL: URL, workDirectory: URL) throws
             invalid = true
             continue
         }
-        let sidecar = url.deletingLastPathComponent().appendingPathComponent(
-            stem + ".endpoints.json")
-        let config = FileManager.default.fileExists(atPath: sidecar.path) ? sidecar : nil
-        var namespace = stem
-        if let config {
-            do {
-                let data = try Data(contentsOf: config)
-                guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-                else {
-                    Diagnostics.error(
-                        "Configuration '\(config.lastPathComponent)' must be a JSON object")
-                    invalid = true
-                    continue
-                }
-                if let value = object["namespace"] as? String { namespace = value }
-            } catch {
-                Diagnostics.error("Cannot read configuration JSON '\(config.lastPathComponent)'")
-                invalid = true
-                continue
-            }
-        }
         if let previous = specifications.first(where: { asciiLower($0.stem) == asciiLower(stem) }) {
             Diagnostics.error(
                 "Duplicate OpenAPI stems '\(previous.stem)' and '\(stem)' "
@@ -97,15 +74,7 @@ private func makeCommands(files: [URL], toolURL: URL, workDirectory: URL) throws
             )
             invalid = true
         }
-        if let previous = specifications.first(where: { $0.namespace == namespace }) {
-            Diagnostics.error(
-                "Duplicate OpenAPI namespace '\(namespace)' in '\(previous.url.lastPathComponent)' "
-                    + "and '\(name)'; set a distinct config.namespace"
-            )
-            invalid = true
-        }
-        specifications.append(
-            Specification(url: url, stem: stem, namespace: namespace, config: config))
+        specifications.append(Specification(url: url, stem: stem))
     }
     guard !invalid else { return [] }
     let generatedRoot = workDirectory.appendingPathComponent("GeneratedSources")
@@ -126,15 +95,11 @@ private func makeCommands(files: [URL], toolURL: URL, workDirectory: URL) throws
     }
     return specifications.map { specification in
         let directory = generatedRoot.appendingPathComponent(specification.stem)
-        var arguments = [
+        let arguments = [
             "generate", "--spec", specification.url.path,
             "--stem", specification.stem, "--output-dir", directory.path,
         ]
-        var inputs = [specification.url]
-        if let config = specification.config {
-            arguments += ["--config", config.path]
-            inputs.append(config)
-        }
+        let inputs = [specification.url]
         let outputs = ["Server", "Schemas", "Endpoints", "Support"].map { suffix in
             directory.appendingPathComponent(specification.stem + "." + suffix + ".swift")
         }

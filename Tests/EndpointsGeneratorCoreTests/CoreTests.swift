@@ -1,65 +1,43 @@
+import EndpointsGeneratorConfig
 import Foundation
 import Testing
 
 @testable import EndpointsGeneratorCore
 
 @Suite struct CoreTests {
-    @Test func namingContract() throws {
-        let cases: [(String, String, String)] = [
-            ("HTTPStatus", "HTTPStatus", "httpStatus"), ("URL", "URL", "url"),
-            ("pet-id", "PetId", "petId"), ("first_name", "First_name", "first_name"),
-            ("42 pets", "_42Pets", "_42Pets"), ("aB", "AB", "aB"),
-            ("fooébar", "FooBar", "fooBar"), ("class", "Class", "`class`"),
-            ("myHTTPStatus", "MyHTTPStatus", "myHTTPStatus"),
-        ]
-        for (input, type, member) in cases {
-            #expect(try Naming.name(input, style: .type) == type)
-            #expect(try Naming.name(input, style: .member) == member)
-        }
-        #expect(throws: NameError.self) { try Naming.name("東京", style: .type) }
-        #expect(throws: NameError.self) { try Naming.name("_", style: .type) }
-        for name in ["Type", "Protocol", "Self", "Any", "init"] {
-            #expect(throws: NameError.self) { try Naming.name(name, style: .type, rename: name) }
-        }
-        #expect(try Naming.name("ignored", style: .type, rename: "CalendarDate") == "CalendarDate")
-        #expect(throws: NameError.self) {
-            try Naming.name("ignored", style: .member, rename: "not-an-identifier")
-        }
-    }
-
     @Test func allocationRejectsReservedAndCollidingNames() throws {
         var allocator = NameAllocator(reserved: Naming.namespaceReserved)
         for name in ["Date", "Server", "JSONDecoder", "RFC3339", "Header", "EncodedPath"] {
             #expect(throws: NameError.self) {
-                try allocator.claim(name, original: name, hint: renameHint(.schemas, name))
+                try allocator.claim(
+                    name, original: name, hint: renameHint(.type(.component(name))),
+                    target: .type(.component(name)))
             }
         }
         try allocator.claim(
-            "GetPetEndpoint", original: "get-pet", hint: renameHint(.operations, "get-pet"))
+            "GetPetEndpoint", original: "get-pet", hint: renameHint(.operation("get-pet")),
+            target: .operation("get-pet"))
         do {
             try allocator.claim(
-                "GetPetEndpoint", original: "getPet", hint: renameHint(.operations, "getPet"))
+                "GetPetEndpoint", original: "getPet", hint: renameHint(.operation("getPet")),
+                target: .operation("getPet"))
             Issue.record("Expected a collision")
         } catch let error as NameError {
             #expect(error.description.contains("get-pet"))
             #expect(error.description.contains("getPet"))
-            #expect(error.description.contains(#"renames.operations["getPet"]"#))
+            #expect(error.description.contains(#".operation("getPet")"#))
         }
     }
 
-    @Test func renameHintsQuoteWireIdentities() throws {
+    @Test func renameHintsQuoteWireIdentities() {
         let original = "GET /pets/{petId} \"\\\n\u{1}"
-        for category in [RenameCategory.schemas, .operations, .properties] {
-            let hint = renameHint(category, original)
-            let prefix = "renames." + category.rawValue
-            #expect(hint.hasPrefix(prefix + "["))
-            let json = String(hint.dropFirst(prefix.count))
-            let keys = try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String]
-            #expect(keys == [original])
-        }
+        let target = EndpointsGeneratorConfig.NameTarget.property(original, in: "Pet")
+        #expect(
+            renameHint(target)
+                == #"renames: [.property("GET /pets/{petId} \"\\\n\u{1}", in: "Pet"): "NewName"]"#)
     }
 
-    @Test func configurationIsClosedAndTyped() {
+    @Test func privateConfigurationTransportValidatesTypesAndPointers() {
         let valid = #"""
             {
                 "version": 1,
@@ -70,7 +48,7 @@ import Testing
                     "defaultEnvironment": "production"
                 },
                 "operations": {"include": ["GET /pets/*"], "exclude": ["delete*"]},
-                "renames": {"schemas": {"Date": "CalendarDate"}},
+                "renames": [{"type":"Date","name":"CalendarDate"}],
                 "enums": "closed",
                 "strict": false
             }
@@ -82,7 +60,7 @@ import Testing
                 && config.closedEnums)
         #expect(
             config.environments.count == 1
-                && config.schemaRenames.first?.replacement == "CalendarDate")
+                && config.renames.first?.replacement == "CalendarDate")
         let invalid = [
             #"{}"#, #"{"version":2}"#, #"{"version":"1"}"#, #"{"version":true}"#,
             #"{"version":1,"strict":"false"}"#, #"{"version":1,"accessLevel":"private"}"#,
@@ -90,7 +68,7 @@ import Testing
             #"{"version":1,"server":{"type":"MyServer","environments":{}}}"#,
             #"{"version":1,"server":{"unknown":true}}"#,
             #"{"version":1,"operations":{"include":false}}"#,
-            #"{"version":1,"renames":{"schemas":{"Date":"not-valid"}}}"#,
+            #"{"version":1,"renames":false}"#,
             #"{"version":1,"operations":{"wat":[]}}"#,
         ]
         for json in invalid {
