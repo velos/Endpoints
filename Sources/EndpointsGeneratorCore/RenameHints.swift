@@ -31,7 +31,7 @@ func typeSwift(_ type: TypeID) -> String {
         return ".inline(\(value))"
     }
 }
-func targetSwift(_ target: NameTarget) -> String {
+package func targetSwift(_ target: NameTarget) -> String {
     switch target {
     case .type(let type): return ".type(\(typeSwift(type)))"
     case .property(let name, let owner):

@@ -7,6 +7,13 @@ func fail(_ message: String, path: String = "endpoints-generate") -> Never {
 }
 
 #if OpenAPIGenerator
+func report(_ diagnostics: [String]) {
+    for diagnostic in diagnostics {
+        FileHandle.standardError.write(Data(
+            (diagnostic + (diagnostic.hasSuffix("\n") ? "" : "\n")).utf8))
+    }
+}
+
 struct Option {
     let flag: String
     let value: String
@@ -15,14 +22,25 @@ struct Option {
 let arguments = Array(CommandLine.arguments.dropFirst())
 guard arguments.first == "generate" else {
     fail(
-        "Usage: endpoints-generate generate --spec <path> --stem <Stem> --output-dir <dir>"
+        "Usage: endpoints-generate generate --spec <path> --stem <Stem> --output-dir <dir> "
+            + "[--config-swift <path>] [--swiftc <path>] [--config-cache <dir>] [--check]"
     )
 }
 var options: [Option] = []
+var checkOnly = false
 var index = 1
 while index < arguments.count {
     let flag = arguments[index]
-    guard ["--spec", "--stem", "--output-dir", "--configuration-json"].contains(flag),
+    if flag == "--check" {
+        guard !checkOnly else { fail("Duplicate option '--check'") }
+        checkOnly = true
+        index += 1
+        continue
+    }
+    guard [
+        "--spec", "--stem", "--output-dir", "--configuration-json", "--config-swift",
+        "--swiftc", "--config-cache",
+    ].contains(flag),
         index + 1 < arguments.count,
         !arguments[index + 1].hasPrefix("--"), !options.contains(where: { $0.flag == flag })
     else {
@@ -49,16 +67,47 @@ if let path = option("--configuration-json") {
 } else {
     config = nil
 }
-let result = Generator.generate(
-    spec: spec, config: config, stem: stem, specPath: specPath,
-    configPath: option("--configuration-json"))
+let result: GenerationResult
+if let path = option("--config-swift") {
+    if config != nil { fail("Choose --config-swift or the internal JSON transport, not both") }
+    do {
+        let file = URL(fileURLWithPath: path)
+        let cache = option("--config-cache").map { URL(fileURLWithPath: $0) }
+            ?? URL(fileURLWithPath: outputDirectory).deletingLastPathComponent()
+                .appendingPathComponent("ConfigProgram")
+        let program = try ConfigProgram(
+            path: file, stem: stem,
+            swiftc: option("--swiftc").map { URL(fileURLWithPath: $0) }, cache: cache)
+        result = try Generator.generate(
+            spec: spec, swiftConfiguration: program.source, stem: stem,
+            specPath: specPath, configurationPath: file.path, evaluate: program.evaluate)
+        report(program.compilerDiagnostics)
+    } catch let failure as ConfigProgramFailure {
+        report(failure.diagnostics)
+        exit(1)
+    } catch { fail("Cannot evaluate Swift configuration: \(error)", path: path) }
+} else {
+    result = Generator.generate(
+        spec: spec, config: config, stem: stem, specPath: specPath,
+        configPath: option("--configuration-json"))
+}
 for diagnostic in result.diagnostics {
     FileHandle.standardError.write(Data((diagnostic.formatted + "\n").utf8))
 }
 if result.hasErrors { exit(1) }
-do {
-    try Generator.write(result.files, to: URL(fileURLWithPath: outputDirectory, isDirectory: true))
-} catch { fail("Cannot write generated files", path: outputDirectory) }
+let outputURL = URL(fileURLWithPath: outputDirectory, isDirectory: true)
+if checkOnly {
+    let changed = result.files.filter {
+        (try? Data(contentsOf: outputURL.appendingPathComponent($0.name))) != $0.bytes
+    }
+    if !changed.isEmpty {
+        fail("Generated files differ: " + changed.map(\.name).joined(separator: ", "),
+            path: outputDirectory)
+    }
+} else {
+    do { try Generator.write(result.files, to: outputURL) }
+    catch { fail("Cannot write generated files", path: outputDirectory) }
+}
 #else
 fail(
     "To generate endpoints, enable the OpenAPIGenerator trait on the Endpoints package dependency"

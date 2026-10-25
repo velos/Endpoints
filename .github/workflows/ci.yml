@@ -11,38 +11,62 @@ permissions:
 
 jobs:
   build-macos:
-    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            toolchain: xcode-16.4
+            xcode: /Applications/Xcode_16.4.app/Contents/Developer
+          - os: macos-latest
+            toolchain: latest
+            xcode: default
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     
     steps:
       - uses: actions/checkout@v4
-      
+
+      - name: Select supported Xcode
+        if: matrix.xcode != 'default'
+        run: sudo xcode-select --switch "${{ matrix.xcode }}"
+
       - name: Cache Swift packages
         uses: actions/cache@v4
         with:
           path: .build
-          key: ${{ runner.os }}-spm-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-${{ matrix.toolchain }}-spm-${{ hashFiles('Package.resolved') }}
           restore-keys: |
-            ${{ runner.os }}-spm-
+            ${{ runner.os }}-${{ matrix.toolchain }}-spm-
       
       - name: Build
-        run: swift build -v
+        run: swift build -v --build-tests -Xswiftc -warnings-as-errors
       
       - name: Run tests
-        run: swift test -v
+        run: swift test -v --skip-build
       
-      - name: Build runtime without generator trait
-        run: swift build --disable-default-traits --product Endpoints
+      - name: Check Swift-config golden bytes
+        run: >-
+          swift run --skip-build endpoints-generate generate
+          --spec Tests/EndpointsGeneratorProgramTests/Fixtures/Naming/Naming.openapi.yaml
+          --stem Naming
+          --config-swift Tests/EndpointsGeneratorProgramTests/Fixtures/Naming/Naming.endpoints.swift
+          --output-dir Tests/EndpointsGeneratedGoldenTests/Naming
+          --config-cache "${{ runner.temp }}/endpoints-config-check"
+          --check
 
-      - name: Build and test plugin example
+      - name: Build runtime without generator trait
+        run: swift build --disable-default-traits --product Endpoints -Xswiftc -warnings-as-errors
+
+      - name: Build and test Swift-config plugin example (sandbox enabled)
         run: |
-          swift build --package-path Examples/PetstoreClient --build-tests
-          swift test --package-path Examples/PetstoreClient
+          swift build --package-path Examples/PetstoreClient --build-tests -Xswiftc -warnings-as-errors
+          swift test --package-path Examples/PetstoreClient -Xswiftc -warnings-as-errors
 
       - name: Build and test runtime-only example
         run: |
-          swift build --package-path Examples/RuntimeOnlyClient --build-tests
-          swift test --package-path Examples/RuntimeOnlyClient
+          swift build --package-path Examples/RuntimeOnlyClient --build-tests -Xswiftc -warnings-as-errors
+          swift test --package-path Examples/RuntimeOnlyClient -Xswiftc -warnings-as-errors
 
       - name: Runtime-only consumer does not fetch generator dependencies
         run: |
@@ -52,7 +76,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-macos
+          name: test-results-${{ matrix.toolchain }}
           path: .build/debug/*Tests*
           retention-days: 5
 
@@ -73,23 +97,37 @@ jobs:
             ${{ runner.os }}-spm-
       
       - name: Build
-        run: swift build -v
+        run: swift build -v --build-tests -Xswiftc -warnings-as-errors
       
-      - name: Run tests
-        run: swift test -v
-      
-      - name: Build runtime without generator trait
-        run: swift build --disable-default-traits --product Endpoints
+      - name: Foundation.Process completion regression
+        timeout-minutes: 2
+        run: swift test --skip-build --filter processRunnerDoesNotHangOnLinux
 
-      - name: Build and test plugin example
+      - name: Run tests
+        run: swift test -v --skip-build
+      
+      - name: Check Swift-config golden bytes
+        run: >-
+          swift run --skip-build endpoints-generate generate
+          --spec Tests/EndpointsGeneratorProgramTests/Fixtures/Naming/Naming.openapi.yaml
+          --stem Naming
+          --config-swift Tests/EndpointsGeneratorProgramTests/Fixtures/Naming/Naming.endpoints.swift
+          --output-dir Tests/EndpointsGeneratedGoldenTests/Naming
+          --config-cache "${{ runner.temp }}/endpoints-config-check"
+          --check
+
+      - name: Build runtime without generator trait
+        run: swift build --disable-default-traits --product Endpoints -Xswiftc -warnings-as-errors
+
+      - name: Build and test Swift-config plugin example (sandbox enabled)
         run: |
-          swift build --package-path Examples/PetstoreClient --build-tests
-          swift test --package-path Examples/PetstoreClient
+          swift build --package-path Examples/PetstoreClient --build-tests -Xswiftc -warnings-as-errors
+          swift test --package-path Examples/PetstoreClient -Xswiftc -warnings-as-errors
 
       - name: Build and test runtime-only example
         run: |
-          swift build --package-path Examples/RuntimeOnlyClient --build-tests
-          swift test --package-path Examples/RuntimeOnlyClient
+          swift build --package-path Examples/RuntimeOnlyClient --build-tests -Xswiftc -warnings-as-errors
+          swift test --package-path Examples/RuntimeOnlyClient -Xswiftc -warnings-as-errors
 
       - name: Upload test results on failure
         if: failure()

@@ -137,7 +137,7 @@ struct Configuration {
     }
 
     /// Private transport format; no compatibility contract for its keys or values.
-    static func load(_ data: Data?, path: String) -> (Self, [Diagnostic]) {
+    static func load(_ data: Data?, path: String, allowCustom: Bool = false) -> (Self, [Diagnostic]) {
         guard let data else { return (Self(), []) }
         guard let text = String(data: data, encoding: .utf8),
             let root = try? compose(yaml: text, .default, .default, .utf8),
@@ -364,6 +364,7 @@ struct Configuration {
                 case "camelCase": result.settings[keyPath: keyPath] = .camelCase
                 case "upperCamelCase": result.settings[keyPath: keyPath] = .upperCamelCase
                 case "verbatim": result.settings[keyPath: keyPath] = .verbatim
+                case "custom" where allowCustom: result.settings[keyPath: keyPath] = .custom { _ in nil }
                 default:
                     error(
                         "Naming strategy must be camelCase, upperCamelCase, or verbatim",
@@ -422,6 +423,7 @@ func matchesGlob(_ pattern: String, _ value: String) -> Bool {
     var retryIndex = 0
     while valueIndex < valueBytes.count {
         if patternIndex < patternBytes.count,
+            patternBytes[patternIndex] != UInt8(ascii: "*"),
             patternBytes[patternIndex] == valueBytes[valueIndex]
         {
             patternIndex += 1

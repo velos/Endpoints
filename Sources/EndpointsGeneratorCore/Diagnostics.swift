@@ -35,6 +35,7 @@ func pointerPart(_ value: String) -> String {
 struct Source {
     let path: String
     let root: Node?
+    var swiftText: String? = nil
     func node(at pointer: String) -> Node? {
         var node = root
         for part in pointer.split(separator: "/", omittingEmptySubsequences: false).dropFirst() {
@@ -71,9 +72,56 @@ struct Source {
         return node(at: pointer) ?? keyNode(at: parent)
     }
 
+    /// Prefer a complete target on one line, then its leading wire value, then any value.
+    private func swiftDiagnosticLine(at pointer: String, in text: String) -> Int {
+        func wires(_ node: Node?) -> [String] {
+            if let text = node?.string { return [text] }
+            return (node?.mapping ?? [:]).flatMap { pair in
+                ["name", "method", "location"].contains(pair.key.string ?? "")
+                    ? [] : wires(pair.value)
+            }
+        }
+        let renamePointer = pointer.hasPrefix("/renames/")
+            ? "/" + pointer.split(separator: "/").prefix(2).joined(separator: "/") : nil
+        let target = node(at: renamePointer ?? pointer)
+        let values = wires(target)
+        func qualifiers(_ node: Node?) -> [String] {
+            (node?.mapping ?? [:]).flatMap { pair -> [String] in
+                if ["method", "location"].contains(pair.key.string ?? ""),
+                    let value = pair.value.string
+                {
+                    return ["." + value]
+                }
+                return qualifiers(pair.value)
+            }
+        }
+        // Query/header targets can share all quoted values; prefer their enum spelling.
+        let distinctions = qualifiers(target)
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        func contains(_ line: Substring, _ value: String) -> Bool {
+            line.range(of: swiftLiteral(value), options: .literal) != nil
+        }
+        let complete = lines.indices.filter { index in
+            !values.isEmpty && values.allSatisfy { contains(lines[index], $0) }
+        }
+        let qualified = complete.first { index in
+            distinctions.allSatisfy { lines[index].range(of: $0, options: .literal) != nil }
+        }
+        let leading = values.first.flatMap { value in
+            lines.firstIndex { contains($0, value) }
+        }
+        let any = lines.firstIndex { line in values.contains { contains(line, $0) } }
+        return (qualified ?? complete.first ?? leading ?? any ?? 0) + 1
+    }
+
     func diagnostic(
         _ message: String, _ pointer: String = "", _ severity: Diagnostic.Severity = .error
     ) -> Diagnostic {
+        if let swiftText {
+            return Diagnostic(
+                path: path, line: swiftDiagnosticLine(at: pointer, in: swiftText), column: 1,
+                pointer: pointer, severity: severity, message: message)
+        }
         let mark = keyNode(at: pointer)?.mark ?? node(at: pointer)?.mark
         return Diagnostic(
             path: path, line: mark?.line ?? 1, column: mark?.column ?? 1, pointer: pointer,

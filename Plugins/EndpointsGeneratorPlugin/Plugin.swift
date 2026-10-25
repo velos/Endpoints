@@ -8,7 +8,13 @@ struct EndpointsGeneratorPlugin: BuildToolPlugin {
         return try makeCommands(
             files: target.sourceFiles.map(\.url),
             toolURL: context.tool(named: "endpoints-generate").url,
-            workDirectory: context.pluginWorkDirectoryURL
+            workDirectory: context.pluginWorkDirectoryURL,
+            swiftc: { try context.tool(named: "swiftc").url },
+            hasConfigDependency: target.recursiveTargetDependencies.contains {
+                $0.name == "EndpointsGeneratorConfig"
+            },
+            targetName: target.name,
+            sourceMembershipHint: "remove it from exclude and add it to the target's sources"
         )
     }
 }
@@ -16,6 +22,7 @@ struct EndpointsGeneratorPlugin: BuildToolPlugin {
 private struct Specification {
     let url: URL
     let stem: String
+    let configuration: URL?
 }
 
 private let asciiCaseOffset = UInt8(ascii: "a") - UInt8(ascii: "A")
@@ -40,7 +47,10 @@ private func validIdentifier(_ value: String) -> Bool {
         }
 }
 
-private func makeCommands(files: [URL], toolURL: URL, workDirectory: URL) throws -> [Command] {
+private func makeCommands(
+    files: [URL], toolURL: URL, workDirectory: URL, swiftc: () throws -> URL,
+    hasConfigDependency: Bool?, targetName: String, sourceMembershipHint: String
+) throws -> [Command] {
     var specifications: [Specification] = []
     var invalid = false
     for url in files.sorted(by: { lhs, rhs in
@@ -62,7 +72,8 @@ private func makeCommands(files: [URL], toolURL: URL, workDirectory: URL) throws
         let stem = bare ? "API" : parts[0]
         guard validIdentifier(stem) else {
             Diagnostics.error(
-                "Invalid OpenAPI stem '\(stem)' (the stem becomes the Swift namespace); rename the file"
+                "Invalid OpenAPI stem '\(stem)' (the stem becomes the Swift namespace); "
+                    + "rename the file"
             )
             invalid = true
             continue
@@ -74,7 +85,25 @@ private func makeCommands(files: [URL], toolURL: URL, workDirectory: URL) throws
             )
             invalid = true
         }
-        specifications.append(Specification(url: url, stem: stem))
+        let configurationURL = url.deletingLastPathComponent()
+            .appendingPathComponent(stem + ".endpoints.swift")
+        let configuration = FileManager.default.fileExists(atPath: configurationURL.path)
+            ? configurationURL : nil
+        if let configuration, !files.contains(where: {
+            $0.standardizedFileURL == configuration.standardizedFileURL
+        }) {
+            Diagnostics.error(
+                "\(configuration.lastPathComponent) must remain a regular Swift source "
+                    + "of target '\(targetName)'; " + sourceMembershipHint)
+            invalid = true
+        }
+        if let configuration, hasConfigDependency == false {
+            Diagnostics.error(
+                "\(configuration.lastPathComponent) requires the EndpointsGeneratorConfig "
+                    + "product as a dependency of target '\(targetName)'")
+            invalid = true
+        }
+        specifications.append(Specification(url: url, stem: stem, configuration: configuration))
     }
     guard !invalid else { return [] }
     let generatedRoot = workDirectory.appendingPathComponent("GeneratedSources")
@@ -93,13 +122,21 @@ private func makeCommands(files: [URL], toolURL: URL, workDirectory: URL) throws
                 + "specifications in this target"
         )
     }
-    return specifications.map { specification in
+    return try specifications.map { specification in
         let directory = generatedRoot.appendingPathComponent(specification.stem)
-        let arguments = [
+        var arguments = [
             "generate", "--spec", specification.url.path,
             "--stem", specification.stem, "--output-dir", directory.path,
         ]
-        let inputs = [specification.url]
+        var inputs = [specification.url]
+        if let configuration = specification.configuration {
+            let swiftcURL = try swiftc()
+            arguments += [
+                "--config-swift", configuration.path, "--swiftc", swiftcURL.path,
+                "--config-cache", workDirectory.appendingPathComponent("ConfigProgram").path,
+            ]
+            inputs.append(configuration)
+        }
         let outputs = ["Server", "Schemas", "Endpoints", "Support"].map { suffix in
             directory.appendingPathComponent(specification.stem + "." + suffix + ".swift")
         }
@@ -118,7 +155,13 @@ extension EndpointsGeneratorPlugin: XcodeBuildToolPlugin {
         try makeCommands(
             files: target.inputFiles.map(\.url),
             toolURL: context.tool(named: "endpoints-generate").url,
-            workDirectory: context.pluginWorkDirectoryURL
+            workDirectory: context.pluginWorkDirectoryURL,
+            swiftc: { try context.tool(named: "swiftc").url },
+            // XcodeTarget.dependencies omits package products. The target compiler
+            // diagnoses a missing EndpointsGeneratorConfig import instead.
+            hasConfigDependency: nil,
+            targetName: target.displayName,
+            sourceMembershipHint: "add it to the target's Compile Sources"
         )
     }
 }

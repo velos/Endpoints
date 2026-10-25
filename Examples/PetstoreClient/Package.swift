@@ -6,7 +6,7 @@ let package = Package(
     products: [.library(name: "PetstoreAPI", targets: ["PetstoreAPI"])],
     dependencies: [.package(name: "Endpoints", path: "../..")],
     targets: [
-        .target(name: "PetstoreAPI", dependencies: [.product(name: "Endpoints", package: "Endpoints")], plugins: [.plugin(name: "EndpointsGeneratorPlugin", package: "Endpoints")]),
+        .target(name: "PetstoreAPI", dependencies: [.product(name: "Endpoints", package: "Endpoints"), .product(name: "EndpointsGeneratorConfig", package: "Endpoints")], plugins: [.plugin(name: "EndpointsGeneratorPlugin", package: "Endpoints")]),
         .testTarget(name: "PetstoreClientTests", dependencies: ["PetstoreAPI", .product(name: "Endpoints", package: "Endpoints")]),
     ]
 )

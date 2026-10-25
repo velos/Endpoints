@@ -1,0 +1,17 @@
+NamingErrors.endpoints.swift:3:1: error: configuration files may only import EndpointsGeneratorConfig
+NamingErrors.endpoints.swift:4:1: error: conditional compilation is not allowed in configuration files
+NamingErrors.endpoints.swift:5:1: error: conditional compilation is not allowed in configuration files
+NamingErrors.endpoints.swift:6:17: error: # directives and literals are not allowed in configuration files
+NamingErrors.endpoints.swift:7:5: error: 'address' is not allowed in configuration files
+NamingErrors.endpoints.swift:7:15: error: 'UnsafePointer' is not allowed in configuration files
+NamingErrors.endpoints.swift:8:16: error: 'random' is not allowed in configuration files
+NamingErrors.endpoints.swift:9:1: error: underscored attributes are not allowed in configuration files
+NamingErrors.endpoints.swift:12:7: error: reference-type declarations are not allowed in configuration files
+NamingErrors.endpoints.swift:12:26: error: unchecked conformances are not allowed in configuration files
+NamingErrors.endpoints.swift:14:18: error: 'Task' is not allowed in configuration files
+NamingErrors.endpoints.swift:15:19: error: '_stdlib_isOSVersionAtLeast' is not allowed in configuration files
+NamingErrors.endpoints.swift:16:22: error: 'withCString' is not allowed in configuration files
+NamingErrors.endpoints.swift:17:5: error: regex literals are not allowed in configuration files; put spaces around '/' for division
+NamingErrors.endpoints.swift:18:5: error: key-path expressions are not allowed in configuration files
+NamingErrors.endpoints.swift:19:5: error: 'Hasher' is not allowed in configuration files
+NamingErrors.endpoints.swift:20:20: error: 'shuffled' is not allowed in configuration files

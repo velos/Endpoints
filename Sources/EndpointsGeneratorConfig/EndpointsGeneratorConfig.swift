@@ -143,25 +143,30 @@ public struct OperationFilter: Sendable {
 /// Computes a Swift name candidate from a naming context.
 /// The generator validates the candidate and escapes member keywords after applying renames.
 public struct NamingStrategy: Sendable {
+    package enum Kind: String, Sendable { case verbatim, camelCase, upperCamelCase, custom }
+    package let kind: Kind
     private let resolve: @Sendable (NameContext) -> String?
-    private init(_ resolve: @escaping @Sendable (NameContext) -> String?) { self.resolve = resolve }
+    private init(kind: Kind, _ resolve: @escaping @Sendable (NameContext) -> String?) {
+        self.kind = kind
+        self.resolve = resolve
+    }
     /// Uses the verbatim candidate: replaces each nonidentifier scalar with `_`
     /// and prefixes a leading digit with `_`. Returns nil for an empty non-enum name,
     /// `_` alone, or a wholly non-ASCII spelling. An empty enum value becomes `empty`.
-    public static let verbatim = NamingStrategy { $0.verbatim }
+    public static let verbatim = NamingStrategy(kind: .verbatim) { $0.verbatim }
     /// Uses the lower camel-case candidate. Returns nil when there are no ASCII
     /// letters or digits, except that an enum value without tokens becomes `empty`.
-    public static let camelCase = NamingStrategy { $0.camelCased }
+    public static let camelCase = NamingStrategy(kind: .camelCase) { $0.camelCased }
     /// Uses the upper camel-case candidate, with the same nil and enum `empty`
     /// behavior as ``camelCase``.
-    public static let upperCamelCase = NamingStrategy { $0.upperCamelCased }
+    public static let upperCamelCase = NamingStrategy(kind: .upperCamelCase) { $0.upperCamelCased }
     /// Uses a closure to produce a candidate. Returning nil is an error unless an
     /// explicit rename supplies the name. Keep the closure pure and deterministic:
     /// its result must depend only on the supplied context and fixed constants.
     public static func custom(_ name: @escaping @Sendable (NameContext) -> String?)
         -> NamingStrategy
     {
-        NamingStrategy(name)
+        NamingStrategy(kind: .custom, name)
     }
     /// Returns this strategy’s candidate. A nil candidate needs an explicit rename.
     public func name(for context: NameContext) -> String? { resolve(context) }

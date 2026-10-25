@@ -3,13 +3,15 @@ import Foundation
 import OpenAPIKit
 import EndpointsGeneratorConfig
 
-struct NameRequest {
-    let target: NameTarget
-    let wireName: String
-    let specName: String?
-    let pointer: String
-    var aliases: [NameTarget] = []
-    var integerName: String? = nil
+package struct NameRequest: Sendable {
+    package let target: NameTarget
+    package let wireName: String
+    package let specName: String?
+    package let pointer: String
+    package var aliases: [NameTarget] = []
+    package var integerName: String? = nil
+    package var operationID: String? = nil
+    package var route: String? = nil
 }
 
 extension NameRequest {
@@ -137,6 +139,17 @@ struct NameInventory {
     let config: Configuration
     var requests: [NameRequest] = []
     private var targets: Set<NameTarget> = []
+    private var selectionID: String?
+    private var selectionRoute: String?
+    private struct OperationSource {
+        let pointer: String
+        let id: String?
+        let route: String
+        func contains(_ diagnosticPointer: String) -> Bool {
+            diagnosticPointer == pointer || diagnosticPointer.hasPrefix(pointer + "/")
+        }
+    }
+    private var operationPointers: [OperationSource] = []
     private var invalidSpecNames: Set<[UInt8]> = []
     var diagnostics: [Diagnostic] = []
     init(document: OpenAPI.Document, source: Source, config: Configuration) {
@@ -168,7 +181,7 @@ struct NameInventory {
         requests.append(
             NameRequest(
                 target: target, wireName: wire, specName: spec, pointer: pointer,
-                aliases: aliases))
+                aliases: aliases, operationID: selectionID, route: selectionRoute))
     }
     mutating func collect() {
         if config.serverType == nil && !config.hasEnvironments {
@@ -206,6 +219,10 @@ struct NameInventory {
                     operation.operationId.map(OperationID.id)
                     ?? .route(method: method, path: path.rawValue)
                 let pointer = item.pointer + "/" + method.rawValue
+                selectionID = operation.operationId
+                selectionRoute = route
+                operationPointers.append(
+                    OperationSource(pointer: pointer, id: operation.operationId, route: route))
                 let aliases: [NameTarget] =
                     operation.operationId == nil
                     ? [] : [.operation(.route(method: method, path: path.rawValue))]
@@ -274,6 +291,29 @@ struct NameInventory {
             }
         }
     }
+    func filtered(using settings: Configuration) -> Self {
+        var result = self
+        func selected(_ id: String?, _ route: String) -> Bool {
+            let matches: (String) -> Bool = { matchesGlob($0, id ?? "") || matchesGlob($0, route) }
+            return settings.include.contains(where: matches)
+                && !settings.exclude.contains(where: matches)
+        }
+        let specServers = settings.serverType == nil && !settings.hasEnvironments
+        result.requests = requests.filter {
+            if case .environment = $0.target { return specServers }
+            guard let route = $0.route else { return true }
+            return selected($0.operationID, route)
+        }
+        result.diagnostics = diagnostics.filter { diagnostic in
+            if diagnostic.pointer.hasPrefix("/servers/") { return specServers }
+            if let operation = operationPointers.first(where: { $0.contains(diagnostic.pointer) }) {
+                return selected(operation.id, operation.route)
+            }
+            return true
+        }
+        return result
+    }
+
     mutating func schemaNames(
         _ schema: JSONSchema, id: TypeID, suggested: String, pointer: String,
         declared: Bool = false
@@ -306,7 +346,8 @@ struct NameInventory {
                 } else {
                     diagnostics.append(
                         source.diagnostic(
-                            "x-enum-varnames must be an array parallel to enum with the same length",
+                            "x-enum-varnames must be an array parallel to enum "
+                                + "with the same length",
                             pointer + "/x-enum-varnames"))
                 }
             }
