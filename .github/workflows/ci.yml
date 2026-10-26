@@ -69,8 +69,14 @@ jobs:
           swift test --package-path Examples/RuntimeOnlyClient -Xswiftc -warnings-as-errors
 
       - name: Runtime-only consumer does not fetch generator dependencies
+        # SwiftPM 6.1 still fetches dependencies behind disabled traits; 6.2 and later skip them.
         run: |
-          test -z "$(find Examples/RuntimeOnlyClient/.build/checkouts -maxdepth 1 -type d \( -iname '*openapikit*' -o -iname '*yams*' \) -print)"
+          fetched="$(find Examples/RuntimeOnlyClient/.build/checkouts -maxdepth 1 -type d \( -iname '*openapikit*' -o -iname '*yams*' \) -print)"
+          if swift --version 2>&1 | grep -Eq 'Swift version 6\.1(\.|[^0-9])'; then
+            echo "SwiftPM 6.1 fetches trait-disabled dependencies; skipping the assertion. Fetched: ${fetched:-none}"
+          else
+            test -z "$fetched"
+          fi
 
       - name: Upload test results on failure
         if: failure()
