@@ -271,11 +271,11 @@ import Testing
             specPath: "Wire.openapi.yaml")
         #expect(!matched.hasErrors, "\(matched.diagnostics.map(\.formatted))")
         let schemas = String(
-            decoding: matched.files.first { $0.name.hasSuffix(".Schemas.swift") }?.bytes ?? Data(),
+            decoding: matched.files.first { $0.name.hasSuffix(".Schemas.generated.swift") }?.bytes ?? Data(),
             as: UTF8.self)
         #expect(schemas.contains("typealias Caf = String"))
         let endpoints = String(
-            decoding: matched.files.first { $0.name.hasSuffix(".Endpoints.swift") }?.bytes
+            decoding: matched.files.first { $0.name.hasSuffix(".Endpoints.generated.swift") }?.bytes
                 ?? Data(), as: UTF8.self)
         #expect(endpoints.contains(".query(\"\(composed)\", path: \\.caf)"))
         #expect(endpoints.contains(".query(\"\(decomposed)\", path: \\.cafe)"))

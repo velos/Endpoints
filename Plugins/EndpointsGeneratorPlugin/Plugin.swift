@@ -47,6 +47,10 @@ private func validIdentifier(_ value: String) -> Bool {
         }
 }
 
+private func generatedNames(stem: String) -> [String] {
+    ["Server", "Schemas", "Endpoints", "Support"].map { stem + "." + $0 + ".generated.swift" }
+}
+
 private func makeCommands(
     files: [URL], toolURL: URL, workDirectory: URL, swiftc: () throws -> URL,
     hasConfigDependency: Bool?, targetName: String, sourceMembershipHint: String
@@ -77,6 +81,16 @@ private func makeCommands(
             )
             invalid = true
             continue
+        }
+        for output in generatedNames(stem: stem) {
+            for file in files where file != url
+                && asciiLower(file.lastPathComponent) == asciiLower(output)
+            {
+                Diagnostics.error(
+                    "Target file '\(file.path)' conflicts with generated output '\(output)' "
+                        + "for '\(url.lastPathComponent)' (ASCII case insensitive); rename the target file")
+                invalid = true
+            }
         }
         if let previous = specifications.first(where: { asciiLower($0.stem) == asciiLower(stem) }) {
             Diagnostics.error(
@@ -124,6 +138,15 @@ private func makeCommands(
     }
     return try specifications.map { specification in
         let directory = generatedRoot.appendingPathComponent(specification.stem)
+        // The plugin owns this directory. Remove outputs from the old naming
+        // convention while planning, before a build system can discover them.
+        for name in generatedNames(stem: specification.stem) {
+            let legacy = directory.appendingPathComponent(
+                name.replacingOccurrences(of: ".generated.swift", with: ".swift"))
+            if FileManager.default.fileExists(atPath: legacy.path) {
+                try FileManager.default.removeItem(at: legacy)
+            }
+        }
         var arguments = [
             "generate", "--spec", specification.url.path,
             "--stem", specification.stem, "--output-dir", directory.path,
@@ -137,8 +160,8 @@ private func makeCommands(
             ]
             inputs.append(configuration)
         }
-        let outputs = ["Server", "Schemas", "Endpoints", "Support"].map { suffix in
-            directory.appendingPathComponent(specification.stem + "." + suffix + ".swift")
+        let outputs = generatedNames(stem: specification.stem).map { name in
+            directory.appendingPathComponent(name)
         }
         return .buildCommand(
             displayName: "Generate Endpoints for \(specification.stem)", executable: toolURL,

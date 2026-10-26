@@ -105,6 +105,11 @@ if checkOnly {
         fail("Generated files differ: " + changed.map(\.name).joined(separator: ", "),
             path: outputDirectory)
     }
+    let obsolete = Generator.obsoleteOutputs(result.files, in: outputURL)
+    if !obsolete.isEmpty {
+        fail("Obsolete generated files: " + obsolete.map(\.lastPathComponent).joined(separator: ", "),
+            path: outputDirectory)
+    }
 } else {
     do { try Generator.write(result.files, to: outputURL) }
     catch { fail("Cannot write generated files", path: outputDirectory) }

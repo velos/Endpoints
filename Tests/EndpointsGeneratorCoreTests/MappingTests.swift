@@ -120,7 +120,7 @@ import Testing
                     result.hasErrors == strict, "\(detail): \(result.diagnostics.map(\.formatted))")
                 #expect(result.diagnostics.contains { $0.message.hasPrefix("Unsupported:") })
                 if !strict {
-                    let support = result.files.first { $0.name.hasSuffix(".Support.swift") }!
+                    let support = result.files.first { $0.name.hasSuffix(".Support.generated.swift") }!
                     #expect(
                         !String(decoding: support.bytes, as: UTF8.self).contains("RFC3339"),
                         "A skipped construct must not emit unused date support")

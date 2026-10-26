@@ -24,7 +24,7 @@ Status: foundation committed as `54563a1`; runtime hooks (§6.1–6.3) and full 
 | Unsupported constructs | `strict: true` default (error); `strict: false` skips with warnings | Lossy generation is opt-in. |
 | Naming | Pure per-name function + explicit `renames`; collisions and reserved-name hits are **errors**, never auto-suffixed; ASCII-only identifier policy; namespace = stem verbatim | Stable under spec evolution and Unicode-data changes. |
 | Rendering | Hand-rolled `CodeWriter`; no SwiftSyntax/swift-format | Avoids minutes of build time per consumer and toolchain coupling. |
-| Output files | Fixed per spec: `<Stem>.Server.swift`, `.Schemas.swift`, `.Endpoints.swift`, `.Support.swift`; written only when changed | Names known before parsing; stable mtimes. |
+| Output files | Fixed per spec: `<Stem>.Server.generated.swift`, `.Schemas.generated.swift`, `.Endpoints.generated.swift`, `.Support.generated.swift`; written only when changed | Names known before parsing; stable mtimes. |
 | Dates | Hand-written RFC 3339 parse/format in Support (pure Swift, `Z` output, offsets accepted) emitted only when `Date` is used | No new deployment floor (the package is macOS 10.15/iOS 13), no formatter thread-safety questions, offsets handled. |
 
 ### 0.1 Changes from review (Astra items and dispositions)
@@ -156,13 +156,14 @@ Linux container `swift:6.1`; macOS `macos-latest`. Steps added: `swift test` (go
 - Spec: `<Stem>.openapi.{json,yaml,yml}` where `Stem` matches `[A-Za-z_][A-Za-z0-9_]*`; the literal `openapi.{json,yaml,yml}` is accepted with stem `API`. Any other `*.openapi.*` name → `Diagnostics.error` ("rename the file; the stem becomes the Swift namespace").
 - Config: only `<Stem>.endpoints.swift` beside the spec, available from 3N-2. Phase 3N-1 uses defaults and discovers no configuration files.
 - Namespace = configured namespace if set (3N-2), else the stem verbatim. The plugin rejects duplicate stems and stems that differ only by ASCII case. Configured namespace clashes are diagnosed by the consumer compiler; the plugin does not evaluate configs while planning.
+- Both plugin entry points reject target files whose basenames equal a generated output name, ignoring ASCII case; the diagnostic names the target file and generated output. The specification itself is excluded from this collision check.
 - Zero specs → `Diagnostics.warning`, no commands. Several specs → one command and four files each.
 
 ### 3.2 Command
 ```
 endpoints-generate generate --spec <path> --stem <Stem> --output-dir <dir> [--check]
 ```
-Outputs under `pluginWorkDirectoryURL/GeneratedSources/<Stem>/`. All four files are always produced (a file with nothing to declare gets the header and a one-line comment). Files are written only when their bytes differ. `--check` (CLI available from 3N-2; vendoring command plugin in Phase 6) regenerates into memory and exits 1 if any existing file's bytes differ.
+Outputs under `pluginWorkDirectoryURL/GeneratedSources/<Stem>/`: `<Stem>.Server.generated.swift`, `<Stem>.Schemas.generated.swift`, `<Stem>.Endpoints.generated.swift`, and `<Stem>.Support.generated.swift`. The `.generated.swift` suffix avoids case-insensitive object-file collisions with `<Stem>.endpoints.swift`. All four files are always produced (a file with nothing to declare gets the header and a one-line comment). Files are written only when their bytes differ. `--check` (CLI available from 3N-2; vendoring command plugin in Phase 6) regenerates into memory and exits 1 if any expected output is missing, any bytes differ, or legacy generated outputs remain, without writing. Plugin planning removes the old `<Stem>.{Server,Schemas,Endpoints,Support}.swift` files from plugin-owned output directories. CLI writes remove these legacy files only when they carry the generator header, preserving user sources and configs even on case-insensitive filesystems.
 
 ### 3.3 Diagnostics
 `path:line:column: error|warning|note: message [#/json/pointer]` on stderr (Xcode and SwiftPM render these). Positions come from the composed Yams mapping key at the JSON pointer (array entries use their node mark); missing keys fall back to the closest authored parent, then `path:1:1`. References carry the final component source pointer. OpenAPI decoding errors are wrapped with `OpenAPI.Error(from:)` to recover their coding path; parse, decode and validation summaries append the upstream reason as a quoted detail. Exit 1 on any error. `strict: true` (default) makes every *unsupported-construct* finding an error; `strict: false` downgrades those to warnings and skips the construct (operation, parameter, or property). Collisions, reserved names, conflicting `allOf`, ambiguous unions, external refs, and invalid servers are errors in both modes. OpenAPIKit decoding errors and `validate()` failures are errors; OpenAPIKit's non-fatal warnings are not surfaced.
@@ -393,7 +394,7 @@ In `urlRequest(in:)` the existing `ParameterRepresentable` check runs **first** 
 
 Generated layout: an initializer signature stays on one line if the complete line, including its indentation and opening brace, is at most 100 UTF-8 bytes; otherwise use one parameter per line. Consecutive stored `let`s, coder overrides, and open-enum static members form uninterrupted groups. Closed string-enum cases omit raw values when the identifier already equals the wire value.
 
-### 7.1 `Petstore.Server.swift`
+### 7.1 `Petstore.Server.generated.swift`
 ```swift
 // Generated by EndpointsGenerator 0.1.0 for Petstore (Petstore.openapi). Do not edit.
 // Inputs: spec sha256 3f2a9c1d7e8b4f60, config sha256 9b1e0c44d2a7f315
@@ -435,7 +436,7 @@ public enum Petstore {
 }
 ```
 
-### 7.2 `Petstore.Endpoints.swift` — path + query + header + JSON body, status-tagged response, typed error
+### 7.2 `Petstore.Endpoints.generated.swift` — path + query + header + JSON body, status-tagged response, typed error
 ```swift
 extension Petstore {
 
@@ -575,7 +576,7 @@ extension Petstore {
 ```
 Checks: `Definition.init` uses `T.Server()` (generated `public init() {}`); `\(path: \.storeId)` needs `Int64: PathRepresentable` (§6.3); `[String]?` needs §6.2; `String?` header needs §6.4; `Response: Sendable` holds; the union is `Decodable` only, which satisfies `where T.Response: Decodable`; `ErrorResponse: Decodable & Sendable` holds; `HTTPResponseJSONDecoder` conforms to `DecoderType`, so `ResponseDecoder`/`ErrorDecoder` infer.
 
-### 7.3 `Petstore.Schemas.swift` — extensible enum, required-nullable, CodingKeys, discriminated and kind-dispatched unions
+### 7.3 `Petstore.Schemas.generated.swift` — extensible enum, required-nullable, CodingKeys, discriminated and kind-dispatched unions
 ```swift
 extension Petstore {
 
@@ -734,7 +735,7 @@ Schema-level deprecation is always the doc line `/// - Important: Deprecated by 
 
 The explicit `init(from:)`/`encode(to:)` on `Pet` appears for required-nullable or deprecated properties. Deprecated fields retain their public names, types and initializer labels, with private backing storage used by generated initialization and coding so consumer builds do not warn. Parameter components use fileprivate backing storage for endpoint key paths. Structs without either requirement use synthesized Codable. The untagged `IdOrName` is allowed because its members are distinguishable by JSON kind (number vs string).
 
-### 7.4 `Petstore.Support.swift` (each part emitted only when used; `JSONCoding` whenever a decoder/encoder override exists)
+### 7.4 `Petstore.Support.generated.swift` (each part emitted only when used; `JSONCoding` whenever a decoder/encoder override exists)
 For APIs with embedded path parameters, Support also emits an internal wrapper (see §5.3):
 ```swift
 extension Petstore {

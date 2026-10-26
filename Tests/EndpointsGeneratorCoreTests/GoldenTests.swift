@@ -70,7 +70,18 @@ func generation(_ stem: String, configuration: EndpointsConfiguration) throws ->
             UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let result = try generation("Petstore")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let legacy = result.files.map {
+            directory.appendingPathComponent(
+                $0.name.replacingOccurrences(of: ".generated.swift", with: ".swift"))
+        }
+        for (file, url) in zip(result.files, legacy) { try file.bytes.write(to: url) }
         #expect(try Generator.write(result.files, to: directory).count == 4)
+        #expect(legacy.allSatisfy { !FileManager.default.fileExists(atPath: $0.path) })
+        // This aliases the old Endpoints output on a case-insensitive filesystem.
+        let config = directory.appendingPathComponent("Petstore.endpoints.swift")
+        let configBytes = Data("// endpoints-configuration-version: 1\n".utf8)
+        try configBytes.write(to: config)
         let urls = result.files.map { directory.appendingPathComponent($0.name) }
         let dates = try urls.map {
             try $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
@@ -83,6 +94,30 @@ func generation(_ stem: String, configuration: EndpointsConfiguration) throws ->
             } == dates)
         try Data("corrupted\n".utf8).write(to: urls[0])
         #expect(try Generator.write(result.files, to: directory) == [result.files[0].name])
+        #expect(try Data(contentsOf: config) == configBytes)
+    }
+
+    @Test func generatedOutputNamesCannotAliasInputs() throws {
+        let spec = try Data(contentsOf: fixture("Petstore"))
+        let stems = ["API", "Petstore", "Endpoints", "Server", "Schemas", "Support", "_Pets"]
+            + "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_0123456789".map { "P\($0)ets" }
+        for stem in stems {
+            let result = Generator.generate(
+                spec: spec, configuration: EndpointsConfiguration(namespace: "Pets"),
+                stem: stem, specPath: stem + ".openapi.yaml")
+            try #require(!result.hasErrors)
+            #expect(result.files.count == 4)
+            let inputs = ["endpoints.swift", "openapi.yaml", "openapi.yml", "openapi.json"]
+                .map { (stem + "." + $0).lowercased() }
+            let outputs = result.files.map { $0.name.lowercased() }
+            #expect(Set(outputs).count == 4)
+            for file in result.files {
+                // The suffix is independent of every valid stem, so the filename
+                // cannot alias a config or spec for any substitution of that stem.
+                #expect(file.name.hasPrefix(stem + ".") && file.name.hasSuffix(".generated.swift"))
+                #expect(!inputs.contains(file.name.lowercased()), "Collision: \(file.name)")
+            }
+        }
     }
 
     @Test func canonicalLabelAndDeclarationOrder() throws {
@@ -174,7 +209,7 @@ func generation(_ stem: String, configuration: EndpointsConfiguration) throws ->
             #expect(process.terminationStatus == 0, "\(String(decoding: stderr, as: UTF8.self))")
             outputs.append(
                 try ["Server", "Schemas", "Endpoints", "Support"].map {
-                    try Data(contentsOf: output.appendingPathComponent(stem + ".\($0).swift"))
+                    try Data(contentsOf: output.appendingPathComponent(stem + ".\($0).generated.swift"))
                 })
         }
         #expect(outputs[0] == outputs[1] && outputs[1] == outputs[2])

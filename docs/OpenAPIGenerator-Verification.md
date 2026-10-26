@@ -1010,3 +1010,56 @@ The owner's Linux `swift:6.1` result for committed 66c2b9b is 173 passing tests,
 including `runtimeGuardRejectsLocalAndPrivateTypeDescriptions`. This follow-up
 has not been run locally on Linux, with the plugin sandbox enabled, or in native
 Xcode. README and DocC are untouched; the follow-up remains uncommitted.
+
+
+## Generated filenames and case-insensitive object collisions (2026-10-25)
+
+PR #23 exposed a macOS linker collision: `Petstore.Endpoints.swift` and the
+user's `Petstore.endpoints.swift` compiled to the same object filename on
+case-insensitive filesystems with the CI toolchains. Outputs now use
+`<Stem>.Server.generated.swift`, `<Stem>.Schemas.generated.swift`,
+`<Stem>.Endpoints.generated.swift`, and `<Stem>.Support.generated.swift`.
+The plugin declarations, CLI writer/check, compiled source goldens, and golden
+comparison paths use those names. Golden source bytes and canonical headers
+are unchanged.
+
+Both plugin entry points share the target-file collision guard: an ASCII
+case-insensitive match with an output basename reports both files and stops
+planning. Plugin planning removes the four old filenames from its owned output
+directory. CLI writes remove old files bearing the generator header, preserving
+user configs; `--check` reports obsolete generated files without deleting them.
+The filename regression covers valid stems and the common suffix invariant;
+writer and CLI regressions cover migration, config preservation, unchanged
+mtimes, and read-only check behavior. The filename regression failed with the
+old naming convention.
+
+Local validation on Swift 6.4 / Xcode 27.1 RC:
+
+- `swift test --disable-sandbox -Xswiftc -warnings-as-errors`: 229 tests pass,
+  exactly the two known issues (optional headers and empty-body `EmptyCodable`),
+  zero compiler warnings.
+- Both examples build and test with `--disable-sandbox -Xswiftc -warnings-as-errors`:
+  PetstoreClient has two passing tests; RuntimeOnlyClient has one. The renamed
+  Swift-config Naming golden also passes the CLI `--check`.
+- A temporary target source named `PETSTORE.SUPPORT.GENERATED.swift` was rejected
+  by the plugin with both filenames in the diagnostic. After removing the probe,
+  an incremental build removed all four seeded legacy outputs and passed.
+- A second fresh PetstoreClient build with the default build system and
+  `--scratch-path /tmp/endpoints-petstore-clean.7cVuO2` passes with zero warnings
+  or errors. Its PetstoreAPI link file contains exactly six distinct objects:
+  authentication, the config, and the four generated sources. All 13 link lists
+  contain unique object paths ignoring case.
+- A fresh PetstoreClient build with `--scratch-path /tmp/endpoints-petstore-fresh.l2WImd`,
+  `--build-system native`, `--build-tests`, `-v`, and warnings-as-errors passes.
+  Its test executable's `Objects.LinkFileList` contains 37 object paths, all
+  unique ignoring case. `Petstore.endpoints.swift.o` and all four
+  `Petstore.{Server,Schemas,Endpoints,Support}.generated.swift.o` entries occur
+  once each. Every other link file in that fresh build also has unique object
+  entries. SwiftPM emits verbose manifest command traces under warning labels
+  and a deprecation warning for the explicitly selected native build system;
+  there are no source compiler warnings.
+
+Sandbox-enabled builds were attempted, but this restricted session rejects
+nested sandbox setup at manifest loading with
+`sandbox-exec: sandbox_apply: Operation not permitted`. These local results use
+`--disable-sandbox`; sandbox-enabled CI, Linux, and native Xcode remain owner-run.

@@ -316,14 +316,28 @@ func programCLI() throws -> URL {
             cli, arguments: checkArguments, directory: root.appendingPathComponent("check"),
             timeout: 60)
         #expect(unchanged.status == 0, "\(unchanged.text(unchanged.stderr))")
-        let support = checkedOutput.appendingPathComponent("Pets.Support.swift")
+        let legacy = checkedOutput.appendingPathComponent("Pets.Server.swift")
+        try FileManager.default.copyItem(
+            at: checkedOutput.appendingPathComponent("Pets.Server.generated.swift"), to: legacy)
+        let obsolete = try ConfigProcessRunner().run(
+            cli, arguments: checkArguments, directory: root.appendingPathComponent("obsolete"),
+            timeout: 60)
+        #expect(obsolete.status == 1)
+        #expect(obsolete.text(obsolete.stderr).contains("Obsolete generated files: Pets.Server.swift"))
+        #expect(FileManager.default.fileExists(atPath: legacy.path))
+        let migrated = try ConfigProcessRunner().run(
+            cli, arguments: Array(checkArguments.dropLast()),
+            directory: root.appendingPathComponent("migrate"), timeout: 60)
+        #expect(migrated.status == 0, "\(migrated.text(migrated.stderr))")
+        #expect(!FileManager.default.fileExists(atPath: legacy.path))
+        let support = checkedOutput.appendingPathComponent("Pets.Support.generated.swift")
         let changed = try Data(contentsOf: support) + Data("// drift\n".utf8)
         try changed.write(to: support)
         let drift = try ConfigProcessRunner().run(
             cli, arguments: checkArguments, directory: root.appendingPathComponent("drift"),
             timeout: 60)
         #expect(drift.status == 1)
-        #expect(drift.text(drift.stderr).contains("Generated files differ: Pets.Support.swift"))
+        #expect(drift.text(drift.stderr).contains("Generated files differ: Pets.Support.generated.swift"))
         #expect(try Data(contentsOf: support) == changed)
     }
 }

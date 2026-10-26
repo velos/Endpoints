@@ -11,7 +11,7 @@ Status: design only. This adds to `OpenAPIGenerator-Design.md` and will be folde
 | SSE runtime location | Inside the `Endpoints` module under `#if ServerSentEvents`, with `@available(*, unavailable, message:)` stubs in the `#else` branch. **No** `EndpointsServerSentEvents` product. | Generated code never imports anything new, and with the trait off the only compile errors are the stubs' friendly message. A separate module would give "no such module" instead, and splitting stubs from a real module would collide on names. |
 | SSE trait | `ServerSentEvents`, **default-off**. It conditions `Endpoints`' dependency on `AsyncServerSentEvents`. | `Endpoints` stays dependency-free unless a consumer asks for streaming. Xcode's package-dependency editor can enable it, so default-off excludes nobody. |
 | SSE library | `velos/AsyncServerSentEvents`, `.upToNextMinor(from: "0.3.0")`, after three small public additions (§6.5.4) | It's 0.x, and we own the library, so the additions ship before Phase 8. |
-| Output files | Still four. SSE endpoints render into `<Stem>.Endpoints.swift`; there's no fifth `Streams` file. | Once no extra import is needed, nothing distinguishes them at the file level. |
+| Output files | Still four. SSE endpoints render into `<Stem>.Endpoints.generated.swift`; there's no fifth `Streams` file. | Once no extra import is needed, nothing distinguishes them at the file level. |
 | Pattern going forward | A trait when a capability adds a **dependency** to a runtime module (with unavailable stubs so the API shape is identical). A product when it's dependency-free code that only some consumers want (`EndpointsMocking`). A default-on trait only for heavy build-time dependencies (`OpenAPIGenerator`). | Traits stay additive, and "trait off" stays a compile-time error with a message rather than a missing symbol. |
 
 ## §0.1 additions: changes from review
@@ -92,7 +92,7 @@ The README and the `Generating.md` DocC article describe both routes: the manife
 
 ### 5.10.1 Detection
 
-An operation is **streaming** when its selected success response has a `text/event-stream` entry in its content map. Selection is the same as §5.5: lowest explicit 2xx, then `2XX`, then `default`. The entry is matched with `ContentType.eventStream`, compared by `typeAndSubtype` so parameters are ignored. Streaming endpoints render into `<Stem>.Endpoints.swift`; there's no fifth file.
+An operation is **streaming** when its selected success response has a `text/event-stream` entry in its content map. Selection is the same as §5.5: lowest explicit 2xx, then `2XX`, then `default`. The entry is matched with `ContentType.eventStream`, compared by `typeAndSubtype` so parameters are ignored. Streaming endpoints render into `<Stem>.Endpoints.generated.swift`; there's no fifth file.
 
 | Shape | Generated | Status |
 |---|---|---|

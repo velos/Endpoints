@@ -75,7 +75,7 @@ Don't exclude the specification from the target in `Package.swift`. The plugin o
 
 ## What gets generated
 
-Each specification produces four files, named after the stem: `Petstore.Server.swift`, `Petstore.Schemas.swift`, `Petstore.Endpoints.swift`, and `Petstore.Support.swift`. A file is only rewritten when its contents change, so an unchanged specification doesn't cause recompilation.
+Each specification produces four files, named after the stem: `Petstore.Server.generated.swift`, `Petstore.Schemas.generated.swift`, `Petstore.Endpoints.generated.swift`, and `Petstore.Support.generated.swift`. The `.generated.swift` suffix keeps output filenames distinct from the Swift config on case-insensitive filesystems. The plugin reports an error if a target file matches an output name, ignoring ASCII case. A file is only rewritten when its contents change, so an unchanged specification doesn't cause recompilation.
 
 The examples in this section come from this specification:
 
