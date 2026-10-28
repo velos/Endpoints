@@ -41,8 +41,11 @@ struct Mocking {
     static private var current: [ObjectIdentifier: ToReturnWrapper] = [:]
 
     init() {
-        // Initialize URLSession swizzling on first use
+        // Initialize URLSession swizzling on first use. The swizzle only exists
+        // in debug builds (see URLSessionTask+Swizzling.swift).
+        #if DEBUG
         URLSessionTask.classInit
+        #endif
     }
 
     /// Handles a mock request for the specified endpoint type (async/await version).
