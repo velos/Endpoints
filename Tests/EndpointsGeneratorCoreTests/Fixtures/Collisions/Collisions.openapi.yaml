@@ -1,0 +1,14 @@
+openapi: 3.1.0
+info: {title: Collisions, version: 1.0.0}
+servers: [{url: 'https://example.com'}]
+paths:
+  /one:
+    get:
+      operationId: get-pet
+      responses:
+        '204': {description: Empty}
+  /two:
+    get:
+      operationId: getPet
+      responses:
+        '204': {description: Empty}

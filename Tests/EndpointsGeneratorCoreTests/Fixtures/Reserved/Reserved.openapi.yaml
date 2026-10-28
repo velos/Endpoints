@@ -1,0 +1,10 @@
+openapi: 3.1.0
+info: {title: Reserved Names, version: 1.0.0}
+servers: [{url: 'https://example.com'}]
+paths: {}
+components:
+  schemas:
+    Date:
+      type: object
+      properties:
+        value: {type: string}

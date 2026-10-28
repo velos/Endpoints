@@ -31,6 +31,8 @@ let profile = try await URLSession.shared.response(with: ProfileEndpoint(pathCom
 
 Start with <doc:Examples> for servers, environments, and common request shapes. Then read <doc:Authentication> to attach credentials, and <doc:Mocking> to test.
 
+To generate endpoints from an OpenAPI document instead of writing them, see <doc:Generating>.
+
 ## Topics
 
 ### Essentials
@@ -39,6 +41,10 @@ Start with <doc:Examples> for servers, environments, and common request shapes. 
 - ``Endpoint``
 - ``Definition``
 - ``ServerDefinition``
+
+### Generating Endpoints
+
+- <doc:Generating>
 
 ### Servers and Environments
 
@@ -52,6 +58,7 @@ Start with <doc:Examples> for servers, environments, and common request shapes. 
 - ``PathRepresentable``
 - ``Parameter``
 - ``ParameterRepresentable``
+- ``MultiValueParameterRepresentable``
 - ``QueryEncodingStrategy``
 - ``Header``
 - ``HeaderField``
@@ -61,6 +68,7 @@ Start with <doc:Examples> for servers, environments, and common request shapes. 
 
 - ``EncoderType``
 - ``DecoderType``
+- ``HTTPResponseJSONDecoder``
 - ``EmptyCodable``
 - ``MultipartFormEncoder``
 - ``MultipartFormFile``

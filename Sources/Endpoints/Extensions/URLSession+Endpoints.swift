@@ -80,7 +80,9 @@ public extension URLSession {
         let urlRequest = try createUrlRequest(for: endpoint, in: environment)
 
         let task = dataTask(with: urlRequest) { (data, response, error) in
-            completion(T.definition.response(data: data, response: response, error: error).map { _ in })
+            completion(
+                T.definition.responseWithMetadata(data: data, response: response, error: error)
+                    .map { _ in })
         }
 
         #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
@@ -123,7 +125,9 @@ public extension URLSession {
         let urlRequest = try createUrlRequest(for: endpoint, in: environment)
 
         let task = dataTask(with: urlRequest) { (data, response, error) in
-            completion(T.definition.response(data: data, response: response, error: error))
+            completion(
+                T.definition.responseWithMetadata(data: data, response: response, error: error)
+                    .map(\.data))
         }
         #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
         if Mocking.shared.shouldHandleMock(for: T.self) {
@@ -164,12 +168,15 @@ public extension URLSession {
         let urlRequest = try createUrlRequest(for: endpoint, in: environment)
 
         let task = dataTask(with: urlRequest) { (data, response, error) in
-            let response = T.definition.response(data: data, response: response, error: error)
+            let response = T.definition.responseWithMetadata(
+                data: data, response: response, error: error)
             switch response {
-            case .success(let data):
+            case .success(let result):
+                let data = result.data
                 let decoded: T.Response
                 do {
-                    decoded = try T.responseDecoder.decode(T.Response.self, from: data)
+                    decoded = try T.responseDecoder.decode(
+                        T.Response.self, from: data, response: result.response)
                 } catch {
                     completion(.failure(.responseParseError(data: data, error: error)))
                     return

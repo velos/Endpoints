@@ -30,7 +30,9 @@ public extension URLSession {
         environment: T.Server.Environments = T.Server.defaultEnvironment,
         auth: any AuthenticationMethod = T.auth
     ) async throws(T.TaskError) where T.Response == Void {
-        try await performRequest(with: endpoint, environment: environment, auth: auth) { (_) throws(T.TaskError) in () }
+        try await performRequest(with: endpoint, environment: environment, auth: auth) {
+            (_, _) throws(T.TaskError) in ()
+        }
     }
 
     /// Sends the endpoint's request and returns the response body without decoding it.
@@ -48,7 +50,9 @@ public extension URLSession {
         environment: T.Server.Environments = T.Server.defaultEnvironment,
         auth: any AuthenticationMethod = T.auth
     ) async throws(T.TaskError) -> T.Response where T.Response == Data {
-        try await performRequest(with: endpoint, environment: environment, auth: auth) { (data) throws(T.TaskError) in data }
+        try await performRequest(with: endpoint, environment: environment, auth: auth) {
+            (data, _) throws(T.TaskError) in data
+        }
     }
 
     /// Sends the endpoint's request and decodes the response with its ``Endpoint/responseDecoder``.
@@ -66,9 +70,10 @@ public extension URLSession {
         environment: T.Server.Environments = T.Server.defaultEnvironment,
         auth: any AuthenticationMethod = T.auth
     ) async throws(T.TaskError) -> T.Response where T.Response: Decodable {
-        try await performRequest(with: endpoint, environment: environment, auth: auth) { (data) throws(T.TaskError) in
+        try await performRequest(with: endpoint, environment: environment, auth: auth) {
+            (data, response) throws(T.TaskError) in
             do {
-                return try T.responseDecoder.decode(T.Response.self, from: data)
+                return try T.responseDecoder.decode(T.Response.self, from: data, response: response)
             } catch {
                 throw T.TaskError.responseParseError(data: data, error: error)
             }
@@ -88,7 +93,7 @@ public extension URLSession {
         with endpoint: T,
         environment: T.Server.Environments,
         auth: any AuthenticationMethod,
-        transform: (Data) throws(T.TaskError) -> T.Response
+        transform: (Data, HTTPURLResponse) throws(T.TaskError) -> T.Response
     ) async throws(T.TaskError) -> T.Response {
         #if DEBUG && (os(macOS) || os(iOS) || os(tvOS) || os(watchOS))
         if let mockResponse = try await Mocking.shared.handleMock(for: T.self) {
@@ -115,13 +120,13 @@ public extension URLSession {
 
             do {
                 let result = try await loadData(for: authenticatedRequest, endpoint: T.self)
-                let data = try T.definition.response(
+                let decodedResponse = try T.definition.responseWithMetadata(
                     data: result.data,
                     response: result.response,
                     error: nil
                 ).get()
 
-                return try transform(data)
+                return try transform(decodedResponse.data, decodedResponse.response)
             } catch {
                 guard attempt < auth.retryAttempts,
                       auth.shouldReauthenticate(for: error, response: error.httpResponse) else {

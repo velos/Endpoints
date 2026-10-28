@@ -10,6 +10,7 @@ Endpoints describes HTTP endpoints as Swift types: the path, method, parameters,
 - **Servers and environments.** Each server lists a base URL per environment, and every request can pick its environment.
 - **Authentication.** Declare an authentication method per server or per endpoint. Credentials are applied to each request, and refreshable tokens are refreshed and the request retried when needed.
 - **Mocking.** The `EndpointsMocking` module replaces responses per endpoint type in tests.
+- **OpenAPI generation.** A build tool plugin generates servers, models, and endpoints from an OpenAPI document.
 - **Swift 6.** Built for strict concurrency, with `Sendable` types and typed throws.
 - **async/await and Combine.** Plus a completion-handler API for unauthenticated endpoints.
 
@@ -305,16 +306,70 @@ try await withMock { mocks in
 
 Endpoint types without a mock make real requests. Mocked requests skip authentication. See the [Mocking](Sources/Endpoints/Endpoints.docc/Mocking.md) guide for errors, dynamic responses, and testing the refresh flow.
 
+## Generating endpoints from OpenAPI
+
+The `EndpointsGeneratorPlugin` build tool plugin generates a server, models, and endpoints from an OpenAPI 3 document every time you build. Apply it to the target that contains the document:
+
+```swift
+.target(
+    name: "PetstoreAPI",
+    dependencies: [.product(name: "Endpoints", package: "Endpoints")],
+    plugins: [.plugin(name: "EndpointsGeneratorPlugin", package: "Endpoints")]
+)
+```
+
+Then add `Petstore.openapi.yaml` to the target. A `.yml` or `.json` file works too. The stem of the file name becomes the namespace, and each operation becomes an endpoint named after its `operationId`, which you send like any other:
+
+```swift
+let endpoint = Petstore.GetPetEndpoint(
+    pathComponents: .init(petId: 42),
+    headerComponents: .init(xRequestID: UUID().uuidString)
+)
+
+let pet = try await URLSession.shared.response(with: endpoint)
+```
+
+The generator doesn't create credentials. Declare them in an extension in the same target:
+
+```swift
+extension Petstore.Server {
+    static let auth = HeaderKeyAuth(key: apiKey, header: "api_key", prefix: nil)
+}
+```
+
+Names are idiomatic Swift by default, and wire names never change: `owner_name` becomes `ownerName`, with a `CodingKeys` entry that keeps `"owner_name"`. To change the namespace, access level, names, or which operations are generated, add `Petstore.endpoints.swift` next to the document and add the `EndpointsGeneratorConfig` product to the target's dependencies:
+
+```swift
+// endpoints-configuration-version: 1
+import EndpointsGeneratorConfig
+
+let petstoreConfiguration = EndpointsConfiguration(
+    accessLevel: .public,
+    acronyms: ["ID", "URL"]
+)
+```
+
+In an Xcode project, add the plugin under the target's Build Phases > Run Build Tool Plug-ins, and remove the document from Copy Bundle Resources.
+
+See the [Generating](Sources/Endpoints/Endpoints.docc/Generating.md) guide for the generated code, every configuration setting, the rules configuration files follow, and what the generator doesn't support yet.
+
 ## Requirements
 
-- Swift 6.0 or later
+- Swift 6.1 or later
 - iOS 13, macOS 10.15, tvOS 13, or watchOS 6 to define endpoints and build requests
 - macOS 12 for the async/await and Combine request methods, and so for authentication. Other platforms have no additional requirement.
 - `EndpointsMocking` is available on Apple platforms only. Linux builds include `Endpoints`.
+- The OpenAPI generator runs on macOS, in SwiftPM and Xcode, and on Linux. Its dependencies, OpenAPIKit and Yams, are behind the `OpenAPIGenerator` package trait, which is on by default.
 
 ## Documentation
 
-The [API documentation](https://swiftpackageindex.com/velos/Endpoints/documentation) is hosted on the Swift Package Index and updated with each release, for both `Endpoints` and `EndpointsMocking`. You can also build it in Xcode with Product > Build Documentation. The [Examples](Sources/Endpoints/Endpoints.docc/Examples.md), [Authentication](Sources/Endpoints/Endpoints.docc/Authentication.md), and [Mocking](Sources/Endpoints/Endpoints.docc/Mocking.md) guides are readable on GitHub.
+The [API documentation](https://swiftpackageindex.com/velos/Endpoints/documentation) is hosted on the Swift Package Index and updated with each release, for both `Endpoints` and `EndpointsMocking`. You can also build it in Xcode with Product > Build Documentation. The [Examples](Sources/Endpoints/Endpoints.docc/Examples.md), [Authentication](Sources/Endpoints/Endpoints.docc/Authentication.md), [Mocking](Sources/Endpoints/Endpoints.docc/Mocking.md), and [Generating](Sources/Endpoints/Endpoints.docc/Generating.md) guides are readable on GitHub.
+
+## Migrating from 0.5
+
+- **Update to Swift 6.1.** The package now declares traits, which need Swift 6.1 tools.
+- **Remove your own parameter conformances for `UUID`, `Int32`, and `Int64`.** Endpoints now conforms these to `ParameterRepresentable` and `PathRepresentable`. If you added a conformance yourself, Swift warns that it was already stated in `Endpoints`, and requests use the library's version. A `UUID` is sent as `uuidString` (uppercase). If your server needs lowercase, store the value as a `String`.
+- **Opt out of the generator's dependencies if you don't use it.** On SwiftPM 6.2 and later, `.package(url: "https://github.com/velos/Endpoints.git", from: "0.6.0", traits: [])` skips fetching OpenAPIKit and Yams. Without it, they're fetched but only built when you use the generator plugin.
 
 ## Migrating from 0.4
 

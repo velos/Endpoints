@@ -1,0 +1,61 @@
+openapi: 3.1.0
+info: {title: Naming contract, version: 1.0.0}
+servers:
+  - url: https://example.com/api
+    description: Production US
+paths:
+  /pets/{pet_id}:
+    get:
+      parameters:
+        - {name: pet_id, in: path, required: true, schema: {type: string}}
+        - {name: id, in: query, schema: {type: string}}
+        - {name: id, in: header, required: true, schema: {type: string}}
+        - {name: X-Request-ID, in: header, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: A pet
+          content: {application/json: {schema: {$ref: '#/components/schemas/pet_record'}}}
+  /legacy:
+    post:
+      operationId: legacy_create_pet
+      x-swift-name: create_pet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                owner_name: {type: string}
+      responses: {'204': {description: Empty}}
+components:
+  schemas:
+    pet_record:
+      type: object
+      required: [owner_name, status, number_code]
+      properties:
+        owner_name: {type: string}
+        user_id: {type: string}
+        image_url: {type: string}
+        status: {type: string, enum: [IN_PROGRESS, on-hold, '2fa_required', '']}
+        number_code: {type: integer, enum: [-1, 0, 42]}
+        annotated:
+          type: string
+          enum: [ready-now, wait]
+          x-enum-varnames: [READY, Later]
+        HTTP2Status: {type: string}
+        UTF8String: {type: string}
+        tags:
+          type: array
+          items: {type: object, properties: {tag_id: {type: string}}}
+        child:
+          type: object
+          x-swift-name: child_record
+          properties: {child_name: {type: string}}
+    ApiUser:
+      type: object
+      x-swift-name: user_record
+      properties:
+        original_name: {type: string, x-swift-name: display_name}
+    Date: {type: string}
+    '東京': {type: string}
